@@ -1,0 +1,14 @@
+﻿@model string
+
+@if (!String.IsNullOrEmpty(Model))
+{
+    var raw = Model?.Trim();
+    var isDash = raw.StartsWith("-");
+    var isError = raw.StartsWith("Error", StringComparison.OrdinalIgnoreCase);
+    var statusMessageClass = (isError || isDash) ? "danger" : "success";
+    var display = isDash ? raw.Substring(1).TrimStart() : raw;
+    <div class="alert alert-@statusMessageClass alert-dismissible" role="alert">
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        @display
+    </div>
+}

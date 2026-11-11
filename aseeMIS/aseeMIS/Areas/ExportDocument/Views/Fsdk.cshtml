@@ -1,0 +1,105 @@
+﻿@using Syncfusion.EJ2.Grids
+@model List<dsReportExport.Core.ViewModels.DwFsdkFactGeneralDepositFullViewModel>
+
+@{
+    ViewData["Title"] = "General Deposits (Fact + Dim)";
+}
+
+<div class="container-fluid mt-4">
+    <h4 class="mb-3">General Deposits</h4>
+
+    <div class="row mb-3 align-items-end">
+        <div class="col-12 col-md-3">
+            <label class="form-label fw-semibold">Report Date</label>
+            <input type="date"
+                   id="reportDate"
+                   class="form-control"
+                   value="@(ViewBag.SelectedDate ?? "")" />
+        </div>
+    </div>
+
+
+
+    <ejs-grid id="GeneralDepositsGrid"
+              dataSource="@Model"
+              allowPaging="true"
+              allowSorting="true"
+              allowFiltering="true"
+              allowExcelExport="true"
+              toolbar="@(new List<string>() { "ExcelExport", "Search" })"
+              height="600">
+
+        <e-grid-filterSettings type="Excel"></e-grid-filterSettings>
+        <e-grid-pageSettings pageSize="20"></e-grid-pageSettings>
+
+        <e-grid-columns>
+
+            <!-- FACT -->
+            <e-grid-column field="FactGeneralDepositId" headerText="ID" width="90" textAlign="Right" isPrimaryKey="true"></e-grid-column>
+
+            <e-grid-column field="DateKey" headerText="Date" width="130" format="yyyy-MM-dd" textAlign="Center"></e-grid-column>
+
+            <e-grid-column field="CurrencyCode" headerText="Currency" width="100" textAlign="Center"></e-grid-column>
+
+            <e-grid-column field="DimDepositGeneralItemId" headerText="DimId" width="90" textAlign="Right"></e-grid-column>
+
+            <e-grid-column field="Amount" headerText="Amount" width="150" format="N2" textAlign="Right"></e-grid-column>
+
+            <e-grid-column field="ReportedAccounts" headerText="Accounts" width="120" textAlign="Right"></e-grid-column>
+
+            <e-grid-column field="Depositors" headerText="Depositors" width="120" textAlign="Right"></e-grid-column>
+
+            <!-- DIM -->
+            <e-grid-column field="ItemCode" headerText="Item Code" width="160"></e-grid-column>
+
+            <e-grid-column field="ItemName" headerText="Item Name" width="180"></e-grid-column>
+
+            <e-grid-column field="SortOrder" headerText="Sort" width="90" textAlign="Right"></e-grid-column>
+
+            <e-grid-column field="IsIndividual" headerText="Individual" width="120" displayAsCheckBox="true" type="boolean" textAlign="Center"></e-grid-column>
+
+            <e-grid-column field="AmountFrom" headerText="From" width="140" format="N2" textAlign="Right"></e-grid-column>
+
+            <e-grid-column field="AmountTo" headerText="To" width="140" format="N2" textAlign="Right"></e-grid-column>
+
+            <e-grid-column field="IsApproved" headerText="Approved" width="120" displayAsCheckBox="true" type="boolean" textAlign="Center"></e-grid-column>
+
+        </e-grid-columns>
+    </ejs-grid>
+</div>
+
+@section Scripts {
+    <script>
+        document.addEventListener("DOMContentLoaded", function () {
+          const reportDateEl = document.getElementById("reportDate");
+          const grid = document.getElementById("GeneralDepositsGrid")?.ej2_instances?.[0];
+
+          if (!reportDateEl || !grid) return;
+
+          reportDateEl.addEventListener("change", async function () {
+            const dateValue = reportDateEl.value; // yyyy-MM-dd
+
+            if (!dateValue) {
+              // If you want: clear grid when no date selected
+              grid.dataSource = [];
+              grid.refresh();
+              return;
+            }
+
+            const url = `@Url.Action("LoadByDate", "Fsdk", new { area = "FSDK" })?dateKey=${encodeURIComponent(dateValue)}`;
+
+            try {
+              const res = await fetch(url);
+              const data = await res.json();
+
+              grid.dataSource = data.result || [];
+              grid.refresh();
+
+            } catch (err) {
+              console.error(err);
+              alert("Failed to load data.");
+            }
+          });
+        });
+    </script>
+}

@@ -1,0 +1,578 @@
+@model aseeMIS.Areas.DwEtlValidation.ViewModels.DwEtlValidationPageViewModel
+@using Syncfusion.EJ2
+
+@{
+    ViewData["Title"] = "DW Validation";
+
+    var ChildGrid = new Syncfusion.EJ2.Grids.Grid()
+    {
+        AllowPdfExport = true,
+        AllowExcelExport = true,
+        QueryCellInfo = "onValidationChildQueryCellInfo",
+        DataSource = new List<object>(),
+        QueryString = "DwEtlJobValidationLogId",
+        Columns = new List<Syncfusion.EJ2.Grids.GridColumn>
+        {
+            new() { Field = "DwEtlJobValidationLogDetailId", HeaderText = "Detail ID", Width = "100", TextAlign = Syncfusion.EJ2.Grids.TextAlign.Right },
+            new() { Field = "DwEtlJobValidationLogId", HeaderText = "Log ID", Width = "100", TextAlign = Syncfusion.EJ2.Grids.TextAlign.Right },
+            new() { Field = "ValidationRule", HeaderText = "Validation Rule", Width = "400" },
+new()
+{
+    Field = "HasPassed",
+    HeaderText = "Passed",
+    Width = "100",
+    TextAlign = Syncfusion.EJ2.Grids.TextAlign.Center
+},            new() { Field = "ValidationRuleError", HeaderText = "Error", Width = "400" },
+        }
+    };
+}
+
+
+<link rel="stylesheet" href="~/css/dw-shared.css" />
+
+<div class="container-fluid dw-page">
+    @Html.AntiForgeryToken()
+
+    <input type="hidden" id="formId" value="@ViewBag.FormId" />
+    <input type="hidden" id="formSessionId" value="@ViewBag.FormSessionId" />
+
+
+    <div class="row g-3 align-items-stretch">
+        <div class="col-lg-4 dw-left-panel">
+
+            <div class="dw-card dw-date-card">
+                <div class="dw-section-label">
+                    <i class="bi bi-calendar-date"></i>
+                    <span>Validation Date</span>
+                </div>
+
+                <div class="d-flex gap-2">
+                    <input type="date"
+                           id="validationDate"
+                           class="form-control dw-date-input" />
+
+                    <button type="button" class="dw-run-btn" id="searchDateBtn">
+                        <i class="bi bi-search"></i>
+                        Search
+                    </button>
+                </div>
+
+                <div id="fileCheckMsg" class="dw-file-check-msg" style="display:none;"></div>
+
+                <div class="dw-date-help">
+                    Select a date and click Search to check validations.
+                </div>
+            </div>
+
+            <div class="dw-type-card">
+                <div class="dw-type-header">
+                    <span>Validations</span>
+                </div>
+
+                <div class="dw-type-body">
+                    @if (Model.Validations != null && Model.Validations.Any())
+                    {
+                        @foreach (var validation in Model.Validations.OrderBy(v => v.DisplayOrder))
+                        {
+                            <div class="dw-report-row">
+                                <div class="dw-report-left">
+                                    <div class="dw-report-icon-box">
+                                        <i class="bi bi-shield-check"></i>
+                                    </div>
+                                    <div class="dw-report-text">
+                                        <div class="dw-report-name">
+                                            @validation.DwEtlValidationName
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="dw-revalidate-box"
+                                     id="revalidateBox_@validation.DwEtlJobValidationTypeId"
+                                     style="display:none;">
+                                    <label>
+                                        <input type="checkbox"
+                                               class="revalidate-check"
+                                               id="revalidateCheck_@validation.DwEtlJobValidationTypeId"
+                                               data-validation-id="@validation.DwEtlJobValidationTypeId" />
+                                        Revalidate?
+                                    </label>
+                                </div>
+
+                                <button type="button"
+                                        class="dw-run-btn validate-btn"
+                                        data-validation-id="@validation.DwEtlJobValidationTypeId"
+                                        disabled>
+                                    <i class="bi bi-play-fill"></i>
+                                    Validate
+                                </button>
+                            </div>
+                        }
+                    }
+                    else
+                    {
+                        <div class="dw-empty-reports">
+                            No validations available.
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-8 dw-right-panel">
+            <div class="dw-card dw-status-card">
+                <div class="dw-status-header">
+                    <div class="dw-status-title">
+                        <i class="bi bi-bar-chart-line"></i>
+                        <span>Validation Status</span>
+                    </div>
+                    <div class="top-log-actions">
+                    <div class="dw-status-count" id="validationCountText">
+                        0 validations
+                    </div>
+
+                        <div class="vw-nav-group">
+                            <button id="btnPrev"
+                                    type="button"
+                                    class="e-btn nav-syncfusion-btn nav-prev">
+                                <span class="e-btn-icon e-icons e-chevron-left"></span>
+                                <span>Previous</span>
+                            </button>
+                            <button id="btnNext"
+                                    type="button"
+                                    class="e-btn nav-syncfusion-btn nav-next">
+                                <span>Next</span>
+                                <span class="e-btn-icon e-icons e-chevron-right"></span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="dwMsg" class="alert rounded-3 d-none m-3" role="alert"></div>
+
+                <div class="dw-status-body">
+                    <div class="dw-grid-wrap">
+                        <ejs-grid id="ValidationLogGrid"
+                                  dataSource="new List<object>()"
+                                  childGrid="ChildGrid"
+                                  queryCellInfo="onValidationQueryCellInfo"
+                                  width="100%"
+                                  height="600"
+                                  gridLines="Both"
+                                  allowPaging="true"
+                                  allowSorting="true"
+                                  allowResizing="true"
+                                  allowSelection="true"
+                                  allowTextWrap="true"
+                                  allowExcelExport="true"
+                                  allowPdfExport="true"
+                                  enableStickyHeader="true"
+                                  enableHover="true"
+                                  enableAltRow="true"
+                                  toolbar="@(new List<string>() { "ExcelExport", "PdfExport" })"
+                                  toolbarClick="onValidationGridToolbarClick"
+                                  dataBound="onValidationGridDataBound">
+
+                            <e-grid-pagesettings pageSize="10" pageSizes="true"></e-grid-pagesettings>
+
+                            <e-grid-sortsettings columns="@(new List<object>
+                                                                                                                              {
+                                                                                                                                  new { field = "ExecutionDate", direction = "Descending" }
+                                                                                                                              })">
+                            </e-grid-sortsettings>
+
+                            <e-grid-columns>
+                                <e-grid-column field="DwEtlJobValidationLogId"
+                                               headerText="ID"
+                                               width="80"
+                                               textAlign="Right"
+                                               isPrimaryKey="true">
+                                </e-grid-column>
+
+                                <e-grid-column field="DwEtlJobValidationTypeId"
+                                               headerText="Type ID"
+                                               width="90"
+                                               textAlign="Right">
+                                </e-grid-column>
+
+                                <e-grid-column field="ReportingDate"
+                                               headerText="Report Date"
+                                               type="date"
+                                               format="yyyy-MM-dd"
+                                               width="130"
+                                               textAlign="Center">
+                                </e-grid-column>
+
+                                <e-grid-column field="ExecutionDate"
+                                               headerText="Execution Time"
+                                               type="datetime"
+                                               format="yyyy-MM-dd HH:mm"
+                                               width="170"
+                                               textAlign="Center">
+                                </e-grid-column>
+
+                                <e-grid-column field="HasPassed"
+                                               headerText="Passed"
+                                               type="boolean"
+                                               width="90"
+                                               textAlign="Center">
+                                </e-grid-column>
+
+                                <e-grid-column field="CreatedBy"
+                                               headerText="Created By"
+                                               width="140">
+                                </e-grid-column>
+
+                                <e-grid-column field="CreatedAt"
+                                               headerText="Created At"
+                                               type="datetime"
+                                               format="yyyy-MM-dd HH:mm"
+                                               width="170"
+                                               textAlign="Center">
+                                </e-grid-column>
+
+                                <e-grid-column field="ErrorMessage"
+                                               headerText="Error"
+                                               width="240">
+                                </e-grid-column>
+                            </e-grid-columns>
+                        </ejs-grid>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    var formId = document.getElementById("formId")?.value || "";
+    var formSessionId = document.getElementById("formSessionId")?.value || "";
+
+    function onValidationGridDataBound() {
+        const grid = document.getElementById("ValidationLogGrid")?.ej2_instances?.[0];
+        const counter = document.getElementById("validationCountText");
+        if (!grid || !counter) return;
+
+        const count = Array.isArray(grid.dataSource)
+            ? grid.dataSource.length
+            : Array.isArray(grid.currentViewData)
+                ? grid.currentViewData.length
+                : 0;
+
+        counter.textContent = count + " validations";
+    }
+
+    function buildPassedIcon(value) {
+        const passed = value === true || value === "true" || value === 1 || value === "1";
+        return passed
+            ? '<span class="dw-pass-icon pass">&#10004;</span>'
+            : '<span class="dw-pass-icon fail">&#10008;</span>';
+    }
+
+    function onValidationQueryCellInfo(args) {
+        if (args.column && args.column.field === "HasPassed") {
+            args.cell.innerHTML = buildPassedIcon(args.data.HasPassed);
+        }
+    }
+
+    function onValidationChildQueryCellInfo(args) {
+        if (args.column && args.column.field === "HasPassed") {
+            args.cell.innerHTML = buildPassedIcon(args.data.HasPassed);
+        }
+    }
+
+    function onValidationGridToolbarClick(args) {
+        const grid = document.getElementById("ValidationLogGrid")?.ej2_instances?.[0];
+        if (!grid) return;
+
+        if (args.item.id === 'ValidationLogGrid_excelexport') {
+            grid.excelExport({ hierarchyExportMode: "All" });
+        }
+
+        if (args.item.id === 'ValidationLogGrid_pdfexport') {
+            grid.pdfExport({ hierarchyExportMode: "All" });
+        }
+    }
+
+    document.addEventListener("DOMContentLoaded", function () {
+        const dateInput = document.getElementById("validationDate");
+        const searchBtn = document.getElementById("searchDateBtn");
+        const validateButtons = document.querySelectorAll(".validate-btn");
+        const runUrl = '@Url.Action("RunValidation", "DwEtlJobValidation", new { area = "DwEtlValidation" })';
+        const loadDetailsUrl = '@Url.Action("GetValidationLogDetails", "DwEtlJobValidation", new { area = "DwEtlValidation" })';
+        const tokenInput = document.querySelector('input[name="__RequestVerificationToken"]');
+        const msgBox = document.getElementById("dwMsg");
+        const fileMsg = document.getElementById("fileCheckMsg");
+
+        let revalidateMap = {};
+        let searchDone = false;
+
+                   document.getElementById("btnNext")?.addEventListener("click", function () {
+            window.location.href = "/DwJob/DwJob/Index/9904";
+        });
+
+            document.getElementById("btnPrev")?.addEventListener("click", function () {
+        window.location.href = "/CredinsEtl/DwEtlFileDataViewer/Index/9902";
+    });
+
+        function showMessage(el, ok, text) {
+            if (!el) return;
+            el.classList.remove("d-none", "alert-success", "alert-danger");
+            el.classList.add(ok ? "alert-success" : "alert-danger");
+            el.textContent = text;
+        }
+
+        function clearMessage(el) {
+            if (!el) return;
+            el.classList.add("d-none");
+            el.classList.remove("alert-success", "alert-danger");
+            el.textContent = "";
+        }
+
+        function showFileMsg(ok, text) {
+            if (!fileMsg) return;
+            fileMsg.style.display = "block";
+            fileMsg.className = "dw-file-check-msg " + (ok ? "msg-ok" : "msg-warn");
+            fileMsg.textContent = text;
+        }
+
+        function hideFileMsg() {
+            if (fileMsg) fileMsg.style.display = "none";
+        }
+
+        function setToday() {
+            const d = new Date();
+            dateInput.value = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+        }
+
+        function hasValidationPassed(validationId) {
+            return revalidateMap[String(validationId)] === true || revalidateMap[validationId] === true;
+        }
+
+        function toggleValidateButtons() {
+            if (!searchDone) {
+                validateButtons.forEach(btn => btn.disabled = true);
+                return;
+            }
+
+            validateButtons.forEach(btn => {
+                const validationId = btn.getAttribute("data-validation-id");
+                const revalidateCheck = document.getElementById(`revalidateCheck_${validationId}`);
+
+                if (hasValidationPassed(validationId)) {
+                    btn.disabled = !(revalidateCheck && revalidateCheck.checked);
+                } else {
+                    btn.disabled = false;
+                }
+            });
+        }
+
+        function updateRevalidateUI() {
+            validateButtons.forEach(btn => {
+                const validationId = btn.getAttribute("data-validation-id");
+                const revalidateBox = document.getElementById(`revalidateBox_${validationId}`);
+                const revalidateCheck = document.getElementById(`revalidateCheck_${validationId}`);
+
+                if (hasValidationPassed(validationId)) {
+                    if (revalidateBox) revalidateBox.style.display = "block";
+                } else {
+                    if (revalidateBox) revalidateBox.style.display = "none";
+                    if (revalidateCheck) revalidateCheck.checked = false;
+                }
+            });
+
+            toggleValidateButtons();
+        }
+
+        function clearGrid() {
+            const grid = document.getElementById("ValidationLogGrid")?.ej2_instances?.[0];
+            if (!grid) return;
+
+            grid.dataSource = [];
+
+            if (grid.childGrid) {
+                grid.childGrid.dataSource = [];
+            }
+
+            grid.refresh();
+            onValidationGridDataBound();
+        }
+
+        document.querySelectorAll(".revalidate-check").forEach(chk => {
+            chk.addEventListener("change", toggleValidateButtons);
+        });
+
+        dateInput.addEventListener("change", function () {
+            revalidateMap = {};
+            searchDone = false;
+            updateRevalidateUI();
+            hideFileMsg();
+            clearMessage(msgBox);
+            clearGrid();
+        });
+
+        searchBtn.addEventListener("click", async function () {
+            const date = dateInput.value;
+            if (!date) {
+                showFileMsg(false, "Please select a date first.");
+                return;
+            }
+
+            hideFileMsg();
+            clearMessage(msgBox);
+            revalidateMap = {};
+            searchDone = false;
+            updateRevalidateUI();
+
+            searchBtn.disabled = true;
+            searchBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Searching...';
+
+            try {
+                await loadValidationData(date);
+                searchDone = true;
+
+                const anyPassed = Object.values(revalidateMap).some(x => x === true);
+
+                if (anyPassed) {
+                    showFileMsg(true, "Some validations already passed. Check Revalidate only for the rows you want to run again.");
+                } else {
+                    showFileMsg(true, "Ready to validate.");
+                }
+
+                updateRevalidateUI();
+            } catch (err) {
+                console.error("Search failed", err);
+                showFileMsg(false, "Failed to load validation data.");
+            } finally {
+                searchBtn.disabled = false;
+                searchBtn.innerHTML = '<i class="bi bi-search"></i> Search';
+            }
+        });
+
+        async function loadValidationData(date) {
+            const grid = document.getElementById("ValidationLogGrid")?.ej2_instances?.[0];
+            if (!grid || !date) return;
+
+            try {
+                const url = loadDetailsUrl
+                    + "?formId=" + encodeURIComponent(formId)
+                    + "&reportingDate=" + encodeURIComponent(date);
+
+                const res = await fetch(url, {
+                    headers: { "FormSessionId": formSessionId }
+                });
+
+                if (!res.ok) {
+                    clearGrid();
+                    return;
+                }
+
+                const data = await res.json();
+
+                const logs = data.logs || data.Logs || [];
+                const details = data.details || data.Details || [];
+                revalidateMap = data.revalidateMap || data.RevalidateMap || {};
+
+                grid.dataSource = Array.isArray(logs) ? logs : [];
+
+                if (grid.childGrid) {
+                    grid.childGrid.dataSource = Array.isArray(details) ? details : [];
+                }
+
+                grid.refresh();
+                onValidationGridDataBound();
+            } catch (err) {
+                console.error("Failed loading validation data", err);
+                clearGrid();
+                showMessage(msgBox, false, "Failed to load validation data.");
+            }
+        }
+
+        function setButtonLoading(btn, isLoading) {
+            if (!btn) return;
+
+            if (isLoading) {
+                btn.dataset.originalHtml = btn.innerHTML;
+                btn.disabled = true;
+                btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Running...';
+            } else {
+                btn.innerHTML = btn.dataset.originalHtml || '<i class="bi bi-play-fill"></i> Validate';
+                toggleValidateButtons();
+            }
+        }
+
+        async function runValidation(btn) {
+            const validationId = btn.getAttribute("data-validation-id");
+            const date = dateInput.value;
+
+            clearMessage(msgBox);
+
+            if (!validationId) {
+                showMessage(msgBox, false, "Validation id is missing.");
+                return;
+            }
+
+            if (!date) {
+                showMessage(msgBox, false, "Please select a date first.");
+                return;
+            }
+
+            const revalidateCheck = document.getElementById(`revalidateCheck_${validationId}`);
+
+            if (hasValidationPassed(validationId) && !(revalidateCheck && revalidateCheck.checked)) {
+                showFileMsg(true, "This validation already passed. Check Revalidate for this row to run again.");
+                return;
+            }
+
+            try {
+                setButtonLoading(btn, true);
+
+                const formData = new FormData();
+                formData.append("validationId", validationId);
+                formData.append("reportingDate", date);
+
+                const actionUrl = runUrl + (runUrl.includes("?") ? "&" : "?") + "formId=" + encodeURIComponent(formId);
+
+                const opts = {
+                    method: "POST",
+                    body: formData,
+                    headers: {
+                        "FormSessionId": formSessionId
+                    }
+                };
+
+                if (tokenInput) {
+                    opts.headers["RequestVerificationToken"] = tokenInput.value;
+                }
+
+                const res = await fetch(actionUrl, opts);
+
+                if (!res.ok) {
+                    showMessage(msgBox, false, "Request failed with status " + res.status);
+                    return;
+                }
+
+                const result = await res.json();
+
+                if (result.ok || result.Ok) {
+                    showMessage(msgBox, true, result.message || result.Message || "Validation executed successfully.");
+                } else {
+                    showMessage(msgBox, false, result.message || result.Message || "Error running validation.");
+                }
+
+                await loadValidationData(date);
+                updateRevalidateUI();
+            } catch (error) {
+                console.error(error);
+                showMessage(msgBox, false, "Unexpected error occurred.");
+            } finally {
+                setButtonLoading(btn, false);
+            }
+        }
+
+        validateButtons.forEach(btn => btn.addEventListener("click", () => runValidation(btn)));
+
+        setToday();
+        updateRevalidateUI();
+        onValidationGridDataBound();
+    });
+</script>

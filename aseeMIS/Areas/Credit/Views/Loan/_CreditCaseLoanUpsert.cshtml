@@ -1,0 +1,2534 @@
+@model dsCredit.Core.ViewModels.CreditCaseLoanViewModel
+
+@using aseeMIS.Areas.Common.ViewModels
+@using dsLoanEngine.Core.Enums
+
+@{
+    var request = ViewData["EntityDetailRequest"] as aseeMIS.Areas.Common.DTOs.EntityDetailRequest;
+    var loanFormSessionId = request?.FormSessionId ?? ViewBag.FormSessionId ?? "";
+    var formId = request?.FormId ?? ViewBag.FormId;
+    bool isAdd = request?.IsAdd ?? ViewBag.IsAdd ?? true;
+    var isGridDialog = request?.IsGridDialog ?? false;
+    var isFromCreditHub = ViewBag.IsFromCreditHub as bool? ?? false;
+    var formDomId = "entityForm_" + loanFormSessionId;
+
+    var bankPartySearchId = "LoanBankPartySearch_" + loanFormSessionId;
+    var bankPartySearchUrl = Url.Action("Search", "BankParty", new { area = "BankParty" }) ?? "/BankParty/BankParty/Search";
+    var loanProductsUrl = Url.Action("GetProductsForBankParty", "CreditCaseLoan", new { area = "Credit" })
+        ?? "/Credit/CreditCaseLoan/GetProductsForBankParty";
+    var amortTemplateDefaultsUrl = Url.Action("GetTemplateDefaults", "AmortPlan", new { area = "Credit" })
+        ?? "/Credit/AmortPlan/GetTemplateDefaults";
+    var amortPreviewUrl = Url.Action("LoadCreditCaseAmortPlanPreview", "AmortPlan", new { area = "Credit" })
+        ?? "/Credit/AmortPlan/LoadCreditCaseAmortPlanPreview";
+
+    var products = ViewData["FK_ProductCode"] ?? Enumerable.Empty<object>();
+    var loanPurposes = ViewData["FK_CreditPurposeCode"] ?? Enumerable.Empty<object>();
+    var caseStatuses = ViewData["FK_StatusCode"] ?? Enumerable.Empty<object>();
+    var caseWorkflowSteps = ViewData["CaseWorkflowSteps"] ?? Enumerable.Empty<object>();
+    var disbursementBanks = ViewData["FK_DisbursementBankCode"] ?? Enumerable.Empty<object>();
+    var amortTemplates = ViewData["FK_AmortizationTemplateCode"] ?? Enumerable.Empty<object>();
+    var otherIncomeTypes = ViewData["FK_OtherIncomeTypeId"] ?? Enumerable.Empty<object>();
+    var amortPlanVersion = Model?.CreditCaseAmortPlanVersion ?? new dsCredit.Core.ViewModels.CreditCaseAmortPlanVersionViewModel
+    {
+        PrincipalCalculationMethodCode = "Annuity",
+        DueDayPolicyCode = "FixedDayOfMonth",
+        FixedDayOfMonth = 28,
+        DayCountCalculationTypeCode = "ActualActual_365_366",
+        GraceTypeCode = "None",
+        AccrueInterestDuringFullGrace = true,
+        UseIndexedRate = false,
+        IndexCode = "EURIBOR_3M"
+    };
+    var amortFirstDueDate = ToDatePickerValue(Model?.FirstInstallmentDate ?? amortPlanVersion.FirstDueDate);
+    var amortFirstDueDateIso = amortFirstDueDate?.ToString("yyyy-MM-dd");
+    var amortPreviewInstallments = Model?.CreditCaseAmortPlanInstallments?
+        .OrderBy(x => x.InstallmentNumber)
+        .ToList() ?? new List<dsCredit.Core.ViewModels.CreditCaseAmortPlanInstallmentViewModel>();
+    var hasAmortPreview = amortPreviewInstallments.Count > 0;
+    var amortPreviewModel = new aseeMIS.Areas.Credit.ViewModels.CreditCaseAmortPlanPreviewViewModel
+    {
+        CreditCaseId = Model?.CreditCase?.CreditCaseId ?? 0,
+        CaseNumber = Model?.CreditCase?.CaseNumber,
+        ProductCode = Model?.CreditCase?.ProductCode,
+        ProductName = Model?.CreditCase?.ProductName,
+        CurrencyCode = Model?.CreditCase?.CurrencyCode,
+        CreditStatusCode = Model?.CreditCase?.CreditStatusCode,
+        StageCode = Model?.CreditCase?.StageCode,
+        ApprovedEir = Model?.CreditCase?.EffectiveInterestRateApproved,
+        Version = Model?.CreditCaseAmortPlanVersion,
+        Installments = amortPreviewInstallments
+    };
+
+    DateTime? ToDatePickerValue(DateOnly? value)
+        => value.HasValue && value.Value != default
+            ? value.Value.ToDateTime(TimeOnly.MinValue)
+            : null;
+
+    var requestedStartDate = ToDatePickerValue(Model?.CreditCase?.StartDateRequested);
+    var requestedMaturityDate = ToDatePickerValue(Model?.CreditCase?.MaturityDateRequested);
+    var approvedStartDate = ToDatePickerValue(Model?.CreditCase?.StartDateApproved);
+    var approvedMaturityDate = ToDatePickerValue(Model?.CreditCase?.MaturityDateApproved);
+    var requestedStartDateIso = requestedStartDate?.ToString("yyyy-MM-dd");
+    var requestedMaturityDateIso = requestedMaturityDate?.ToString("yyyy-MM-dd");
+    var approvedStartDateIso = Model?.CreditCase?.StartDateApproved?.ToString("yyyy-MM-dd");
+    var approvedMaturityDateIso = Model?.CreditCase?.MaturityDateApproved?.ToString("yyyy-MM-dd");
+    int? requestedTermMonths = null;
+    if (Model?.CreditCase?.StartDateRequested is { } requestedFrom &&
+        requestedFrom != default &&
+        Model.CreditCase.MaturityDateRequested is { } requestedTo &&
+        requestedTo != default)
+    {
+        requestedTermMonths = ((requestedTo.Year - requestedFrom.Year) * 12) +
+                              requestedTo.Month - requestedFrom.Month;
+        if (requestedTo.Day > requestedFrom.Day)
+            requestedTermMonths++;
+        requestedTermMonths = Math.Max(1, requestedTermMonths.Value);
+    }
+
+    int? approvedTermMonths = null;
+    if (Model?.CreditCase?.StartDateApproved is { } approvedFrom &&
+        approvedFrom != default &&
+        Model.CreditCase.MaturityDateApproved is { } approvedTo &&
+        approvedTo != default)
+    {
+        approvedTermMonths = ((approvedTo.Year - approvedFrom.Year) * 12) +
+                             approvedTo.Month - approvedFrom.Month;
+        if (approvedTo.Day > approvedFrom.Day)
+            approvedTermMonths++;
+        approvedTermMonths = Math.Max(1, approvedTermMonths.Value);
+    }
+}
+
+<style>
+    .loan-amort-settings-section + .loan-amort-settings-section {
+        margin-top: 1rem;
+        padding-top: 1rem;
+        border-top: 1px solid #e9ecef;
+    }
+
+    .loan-amort-settings-section-title {
+        font-size: 0.75rem;
+        font-weight: 600;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        color: #6c757d;
+        margin-bottom: 0.75rem;
+    }
+
+    .loan-amort-preview-thead th {
+        background: #3f6f94;
+        color: #fff;
+        white-space: nowrap;
+    }
+
+    .loan-amort-preview-empty {
+        border: 1px dashed #ced4da;
+        border-radius: 0.5rem;
+        padding: 1.25rem;
+        color: #6c757d;
+        background: #f8f9fa;
+    }
+
+    .loan-amort-collapsible-header {
+        cursor: pointer;
+        user-select: none;
+    }
+
+        .loan-amort-collapsible-header .loan-amort-collapse-icon {
+            transition: transform 0.2s ease;
+            color: #6c757d;
+        }
+
+        .loan-amort-collapsible-header.collapsed .loan-amort-collapse-icon {
+            transform: rotate(-90deg);
+        }
+
+        .loan-amort-collapsible-header[aria-expanded="false"] .loan-amort-collapse-icon {
+            transform: rotate(-90deg);
+        }
+
+    .loan-amort-card-meta {
+        font-size: 0.8125rem;
+        color: #6c757d;
+    }
+
+    .loan-amort-summary-table {
+        width: 100%;
+        font-size: 0.875rem;
+        border-collapse: collapse;
+    }
+
+        .loan-amort-summary-table td {
+            padding: 0.12rem 0.5rem 0.12rem 0;
+            vertical-align: top;
+            font-weight: 400;
+        }
+
+        .loan-amort-summary-table .loan-amort-summary-label {
+            width: 15rem;
+            color: #212529;
+        }
+
+        .loan-amort-summary-table .loan-amort-summary-value {
+            white-space: nowrap;
+            text-align: left !important;
+        }
+
+    .loan-amort-preview-table .loan-amort-col-days {
+        width: 3.25rem;
+        max-width: 3.25rem;
+        text-align: center;
+        white-space: nowrap;
+        padding-left: 0.35rem;
+        padding-right: 0.35rem;
+    }
+
+    .loan-amort-preview-table .loan-amort-col-num {
+        width: 2.5rem;
+        text-align: center;
+    }
+</style>
+
+<form id="@formDomId" onsubmit="return false;" novalidate>
+    <div class="form-container"
+         data-form-session-id="@loanFormSessionId"
+         data-form-id="@formId"
+         data-primary-key="CreditCaseId">
+
+        <div class="d-none">
+            <input type="hidden" id="BankPartyId" value="@Model?.CreditCase?.BankPartyId" />
+            <input type="hidden" id="IsIndividual" value="@((Model?.CreditCase?.IsIndividual ?? false).ToString().ToLowerInvariant())" />
+            <input type="hidden" id="WorkflowId" value="@Model?.CreditCase?.WorkflowId" />
+            <input type="hidden" id="FrameworkId" value="@Model?.CreditCase?.FrameworkId" />
+            <input type="hidden" id="CurrencyCode" value="@(Model?.CreditCase?.CurrencyCode ?? "EUR")" />
+            <input type="hidden" id="StageCode" value="@(Model?.CreditCase?.StageCode ?? "A0")" />
+            <input type="hidden" id="LoanCaseStatusEndpoint" value="@Url.Action("GetNextCaseStatusesForDropdown", "CreditCaseLoan", new { area = "Credit" })" />
+            <input type="hidden" id="CreditApplicationId" value="@(Model?.CreditCase?.CreditApplicationId)" />
+            <input type="hidden" id="CurrentStatusCode" value="@(Model?.CreditCase?.CreditStatusCode ?? string.Empty)" />
+            <input type="hidden" id="LastUpdatedUserId" value="@(Model?.CreditCase?.LastUpdatedUserId ?? -1)" />
+            <input type="hidden" id="ConcurrencyStamp" value="@(Model?.CreditCase?.ConcurrencyStamp ?? string.Empty)" />
+            <input type="hidden" id="RequestedDisbursementFeeMinimumAmount" value="@Model?.RequestedDisbursementFeeMinimumAmount" />
+            <input type="hidden" id="ApprovedDisbursementFeeMinimumAmount" value="@Model?.ApprovedDisbursementFeeMinimumAmount" />
+            <input type="hidden" id="IsWorkflowStepEditable" value="@((Model?.IsWorkflowStepEditable ?? true).ToString().ToLowerInvariant())" />
+            <input type="hidden" id="ProductTypeCode" value="@Model?.CreditCase?.ProductTypeCode" />
+        </div>
+
+        @if (!isFromCreditHub)
+        {
+            <div class="row g-3 mb-3">
+                <div class="col-12">
+                    <section class="ds-card h-100">
+                        <div class="ds-card-h d-flex align-items-center gap-2">
+                            <i class="bi bi-person-search"></i>
+                            <span class="ds-card-title">Zgjidh klientin</span>
+                        </div>
+                        <div class="ds-card-b">
+                            @await Component.InvokeAsync("SearchAutocomplete", new SearchAutocompleteOptions
+                            {
+                                SearchUrl = bankPartySearchUrl,
+                                Placeholder = "Shkruaj sÃ« paku 2 shkronja pÃ«r tÃ« kÃ«rkuar klientin...",
+                                Id = bankPartySearchId,
+                                MinLength = 2,
+                                DebounceDelay = 300,
+                                SuggestionCount = 15,
+                                ValueField = "BankPartyId",
+                                TextField = "DisplayText",
+                                FilteringFn = "filter_CreditCaseLoanBankParty",
+                                OnSelectFn = "select_CreditCaseLoanBankParty"
+                            })
+                        </div>
+                    </section>
+                </div>
+            </div>
+        }
+        <!-- RRESHTI I PARE: Case Info, Requested Terms, Approved Terms -->
+        <div class="row g-3">
+
+            <!-- 1. Case Info (col-xl-4 ne ekran te madh) -->
+            <div class="col-12 col-xl-4">
+                <div class="ds-card mb-3">
+                    <div class="ds-card-h d-flex align-items-center gap-2">
+                        <i class="bi bi-info-circle"></i>
+                        <span class="ds-card-title">Case Info</span>
+                    </div>
+
+                    <div class="ds-card-b">
+                        <div class="row g-2">
+                            <div class="col-4">
+                                <ejs-numerictextbox ejs-for="CreditCase.CreditCaseId"
+                                                    id="CreditCaseId"
+                                                    placeholder="Case Id"
+                                                    enabled="false"
+                                                    decimals="0"
+                                                    format="N0"
+                                                    showSpinButton="false"
+                                                    floatLabelType="Always" />
+                            </div>
+
+                            <div class="col-8">
+                                <ejs-textbox ejs-for="CreditCase.CaseNumber"
+                                             id="CaseNumber"
+                                             placeholder="Case Number"
+                                             enabled="false"
+                                             floatLabelType="Always" />
+                            </div>
+
+                            <div class="col-12 ds-required-empty">
+                                <ejs-dropdownlist ejs-for="CreditCase.ProductCode"
+                                                  id="ProductCode"
+                                                  dataSource="@products"
+                                                  placeholder="Product"
+                                                  change="onProductChange"
+                                                  required="true"
+                                                  floatLabelType="Always">
+                                    <e-dropdownlist-fields text="ProductName" value="ProductCode"></e-dropdownlist-fields>
+                                </ejs-dropdownlist>
+                                <div id="LoanProductLimitsHint" class="small text-muted mt-1"></div>
+                            </div>
+
+                            <div class="col-12 ds-required-empty">
+                                <ejs-dropdownlist ejs-for="CreditCase.CreditPurposeCode"
+                                                  id="CreditPurposeCode"
+                                                  dataSource="@loanPurposes"
+                                                  placeholder="Loan Purpose"
+                                                  required="true"
+                                                  floatLabelType="Always">
+                                    <e-dropdownlist-fields text="CreditPurposeName" value="CreditPurposeCode"></e-dropdownlist-fields>
+                                </ejs-dropdownlist>
+                            </div>
+
+                            <div class="col-12 ds-required-empty" id="priceListContainer">
+                                <ejs-dropdownlist ejs-for="CreditCase.PriceListId"
+                                                  id="PriceListId"
+                                                  placeholder="Select Price List"
+                                                  change="onPriceListChange"
+                                                  required="true"
+                                                  floatLabelType="Always">
+                                    <e-dropdownlist-fields text="PriceListName" value="PriceListId"></e-dropdownlist-fields>
+                                </ejs-dropdownlist>
+                            </div>
+
+                            <div class="col-12">
+                                <ejs-textbox ejs-for="CreditCase.CaseDescription"
+                                             id="CaseDescription"
+                                             placeholder="Case Description"
+                                             multiline="true"
+                                             floatLabelType="Always" />
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 2. Requested Terms & Approved Terms (Kombinuar ne hapesiren e mbetur ne rreshtin e pare) -->
+            <div class="col-12 col-xl-8">
+                <div class="row g-3 h-100">
+
+                    <!-- Requested Terms (col-lg-6) -->
+                    <div class="col-lg-6">
+                        <div class="ds-card h-100">
+                            <div class="ds-card-h d-flex align-items-center gap-2">
+                                <i class="bi bi-pencil"></i>
+                                <span class="ds-card-title">Requested Terms</span>
+                            </div>
+
+                            <div class="ds-card-b">
+                                <div class="row g-2">
+                                    <div class="col-6 ds-required-empty">
+                                        <ejs-datepicker id="RequestedStartDate"
+                                                        value="@requestedStartDate"
+                                                        placeholder="Start Date"
+                                                        change="onRequestedStartDateChange"
+                                                        required="true"
+                                                        format="dd/MM/yyyy"
+                                                        enableMask="false"
+                                                        data-dateonly="true"
+                                                        floatLabelType="Always" />
+                                    </div>
+                                    <div class="col-6 ds-required-empty">
+                                        <ejs-datepicker id="RequestedFirstInstallmentDate"
+                                                        value="@amortFirstDueDate"
+                                                        placeholder="First Installment Date"
+                                                        change="onRequestedFirstInstallmentDateChange"
+                                                        required="true"
+                                                        format="dd/MM/yyyy"
+                                                        enableMask="false"
+                                                        data-dateonly="true"
+                                                        floatLabelType="Always" />
+                                    </div>
+
+                                    <div class="col-3 ds-required-empty">
+                                        <ejs-numerictextbox id="TermMonths"
+                                                            value="@requestedTermMonths"
+                                                            placeholder="Months"
+                                                            change="calculateLoanEndDate"
+                                                            floatLabelType="Always"
+                                                            showSpinButton="false"
+                                                            decimals="0"
+                                                            format="N0"
+                                                            min="1"
+                                                            max="240"
+                                                            validateDecimalOnType="true"
+                                                            required="true"></ejs-numerictextbox>
+                                        <div id="TermMonthsProductError" class="small text-danger mt-1 d-none"></div>
+                                    </div>
+
+                                    <div class="col-3 ds-required-empty">
+                                        <ejs-numerictextbox ejs-for="RequestedGracePeriod"
+                                                            id="RequestedGracePeriod"
+                                                            placeholder="Grace Period (Months)"
+                                                            change="onRequestedGracePeriodChange"
+                                                            format="n0"
+                                                            min="0"
+                                                            required="true"
+                                                            showSpinButton="false"
+                                                            floatLabelType="Always" />
+                                    </div>
+
+                                    <div class="col-6 ds-required-empty">
+                                        <ejs-datepicker id="RequestedMaturityDate"
+                                                        value="@requestedMaturityDate"
+                                                        placeholder="Maturity Date"
+                                                        change="onRequestedMaturityDateChange"
+                                                        required="true"
+                                                        format="dd/MM/yyyy"
+                                                        enableMask="false"
+                                                        data-dateonly="true"
+                                                        floatLabelType="Always" />
+                                    </div>
+
+                                    <div class="col-12 ds-required-empty">
+                                        <ejs-numerictextbox ejs-for="CreditCase.CreditAmountRequested"
+                                                            id="RequestedCreditAmount"
+                                                            placeholder="Credit Amount"
+                                                            format="n2" showSpinButton="false" min="0" required="true"
+                                                            change="onAmountChange"
+                                                            floatLabelType="Always" />
+                                        <div id="RequestedCreditAmountProductError" class="small text-danger mt-1 d-none"></div>
+                                    </div>
+
+                                    <div class="col-6 ds-required-empty">
+                                        <ejs-numerictextbox ejs-for="CreditCase.InterestRateRequested"
+                                                            id="RequestedInterestRate"
+                                                            placeholder="Interest Rate (%)"
+                                                            format="n2" showSpinButton="false" min="0" required="true"
+                                                            enabled="false"
+                                                            floatLabelType="Always" />
+                                    </div>
+
+                                    <div class="col-6 ds-required-empty">
+                                        <ejs-numerictextbox ejs-for="CreditCase.EffectiveInterestRateRequested"
+                                                            id="RequestedEffectiveInterestRate"
+                                                            placeholder="Effective Interest Rate (%)"
+                                                            format="n4"
+                                                            min="0"
+                                                            required="true"
+                                                            showSpinButton="false"
+                                                            enabled="false"
+                                                            floatLabelType="Always" />
+                                    </div>
+
+                                    <div class="col-6 ds-required-empty">
+                                        <ejs-numerictextbox ejs-for="CreditCase.PricingChargeRateRequested"
+                                                            id="RequestedChargeRate"
+                                                            placeholder="Charge Rate (%)"
+                                                            format="n2" showSpinButton="false" min="0" required="true"
+                                                            enabled="false"
+                                                            floatLabelType="Always" />
+                                    </div>
+
+                                    <div class="col-6 ds-required-empty">
+                                        <ejs-numerictextbox ejs-for="CreditCase.PricingChargeAmountRequested"
+                                                            id="RequestedChargeAmount"
+                                                            placeholder="Charge Amount"
+                                                            format="n2" showSpinButton="false" min="0" required="true"
+                                                            enabled="false"
+                                                            floatLabelType="Always" />
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Approved Terms (col-lg-6) -->
+                    <div class="col-lg-6">
+                        <div class="ds-card h-100">
+                            <div class="ds-card-h d-flex align-items-center gap-2">
+                                <i class="bi bi-check2-circle"></i>
+                                <span class="ds-card-title">Approved Terms</span>
+                            </div>
+
+                            <div class="ds-card-b">
+                                <div class="row g-2">
+                                    <div class="col-6 ds-required-empty">
+                                        <ejs-datepicker id="ApprovedStartDate"
+                                                        value="@approvedStartDate"
+                                                        placeholder="Start Date"
+                                                        change="onApprovedStartDateChange"
+                                                        required="true"
+                                                        enabled="false"
+                                                        format="dd/MM/yyyy"
+                                                        enableMask="false"
+                                                        data-dateonly="true"
+                                                        floatLabelType="Always" />
+                                    </div>
+
+                                    <div class="col-6 ds-required-empty">
+                                        <ejs-datepicker id="ApprovedFirstInstallmentDate"
+                                                        value="@amortFirstDueDate"
+                                                        placeholder="First Installment Date"
+                                                        change="onApprovedFirstInstallmentDateChange"
+                                                        required="true"
+                                                        enabled="false"
+                                                        format="dd/MM/yyyy"
+                                                        enableMask="false"
+                                                        data-dateonly="true"
+                                                        floatLabelType="Always" />
+                                    </div>
+
+                                    <div class="col-3 ds-required-empty">
+                                        <ejs-numerictextbox id="ApprovedTermMonths"
+                                                            value="@approvedTermMonths"
+                                                            placeholder="Months"
+                                                            change="calculateApprovedEndDate"
+                                                            enabled="false"
+                                                            showSpinButton="false"
+                                                            decimals="0"
+                                                            format="N0"
+                                                            min="1"
+                                                            required="true"
+                                                            floatLabelType="Always" />
+                                        <div id="ApprovedTermMonthsProductError" class="small text-danger mt-1 d-none"></div>
+                                    </div>
+
+                                    <div class="col-3 ds-required-empty">
+                                        <ejs-numerictextbox ejs-for="ApprovedGracePeriod"
+                                                            id="ApprovedGracePeriod"
+                                                            value="@(Model?.ApprovedGracePeriod ?? 0)"
+                                                            placeholder="Grace Period (Months)"
+                                                            change="onApprovedGracePeriodChange"
+                                                            format="n0"
+                                                            min="0"
+                                                            required="true"
+                                                            showSpinButton="false"
+                                                            enabled="false"
+                                                            floatLabelType="Always" />
+                                    </div>
+
+                                    <div class="col-6 ds-required-empty">
+                                        <ejs-datepicker id="ApprovedMaturityDate"
+                                                        value="@approvedMaturityDate"
+                                                        placeholder="Maturity Date"
+                                                        change="onApprovedMaturityDateChange"
+                                                        required="true"
+                                                        enabled="false"
+                                                        format="dd/MM/yyyy"
+                                                        enableMask="false"
+                                                        data-dateonly="true"
+                                                        floatLabelType="Always" />
+                                    </div>
+
+                                    <div class="col-12 ds-required-empty">
+                                        <ejs-numerictextbox ejs-for="CreditCase.CreditAmountApproved"
+                                                            id="ApprovedCreditAmount"
+                                                            placeholder="Credit Amount"
+                                                            format="n2"
+                                                            min="0"
+                                                            required="true"
+                                                            showSpinButton="false"
+                                                            change="onApprovedAmountChange"
+                                                            enabled="false"
+                                                            floatLabelType="Always" />
+                                        <div id="ApprovedCreditAmountProductError" class="small text-danger mt-1 d-none"></div>
+                                    </div>
+
+                                    <div class="col-6 ds-required-empty">
+                                        <ejs-numerictextbox ejs-for="CreditCase.InterestRateApproved"
+                                                            id="ApprovedInterestRate"
+                                                            placeholder="Interest Rate (%)"
+                                                            format="n4"
+                                                            min="0"
+                                                            required="true"
+                                                            showSpinButton="false"
+                                                            enabled="false"
+                                                            floatLabelType="Always" />
+                                    </div>
+
+                                    <div class="col-6 ds-required-empty">
+                                        <ejs-numerictextbox ejs-for="CreditCase.EffectiveInterestRateApproved"
+                                                            id="ApprovedEffectiveInterestRate"
+                                                            placeholder="Effective Interest Rate (%)"
+                                                            format="n4"
+                                                            min="0"
+                                                            required="true"
+                                                            showSpinButton="false"
+                                                            enabled="false"
+                                                            floatLabelType="Always" />
+                                    </div>
+
+                                    <div class="col-6 ds-required-empty">
+                                        <ejs-numerictextbox ejs-for="CreditCase.PricingChargeRateApproved"
+                                                            id="ApprovedChargeRate"
+                                                            placeholder="Charge Rate (%)"
+                                                            format="n4"
+                                                            min="0"
+                                                            required="true"
+                                                            showSpinButton="false"
+                                                            change="onApprovedChargeRateChange"
+                                                            enabled="false"
+                                                            floatLabelType="Always" />
+                                    </div>
+
+                                    <div class="col-6 ds-required-empty">
+                                        <ejs-numerictextbox ejs-for="CreditCase.PricingChargeAmountApproved"
+                                                            id="ApprovedChargeAmount"
+                                                            placeholder="Charge Amount"
+                                                            format="n2"
+                                                            min="0"
+                                                            required="true"
+                                                            showSpinButton="false"
+                                                            enabled="false"
+                                                            floatLabelType="Always" />
+                                    </div>
+
+                                    <input type="hidden"
+                                           id="ApprovedPenaltyInterest"
+                                           value="@Model?.CreditCase?.PenatlyInterestApproved" />
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+
+        <div class="ds-card mt-3">
+            <div class="ds-card-h d-flex align-items-center gap-2">
+                <i class="bi bi-cash-stack"></i>
+                <span class="ds-card-title">Income and Monthly Obligations</span>
+            </div>
+            <div class="ds-card-b">
+                <div class="row g-4">
+                    <div class="@((Model?.CreditCase?.IsIndividual ?? false) ? "col-md-6" : "col-12")">
+                        <div class="row g-2">
+                            <div class="@((Model?.CreditCase?.IsIndividual ?? false) ? "col-md-6" : "col-md-3")">
+                                <ejs-numerictextbox ejs-for="CreditCase.OtherBankMonthlyInstallments"
+                                            id="OtherBankMonthlyInstallments"
+                                            change="updateLoanIncomeRatios"
+                                            placeholder="Other Bank Monthly Installments"
+                                            format="n2"
+                                            min="0"
+                                            showSpinButton="false"
+                                            floatLabelType="Always" />
+                            </div>
+                            @if (Model?.CreditCase?.IsIndividual ?? false)
+                            {
+                            <div class="col-md-6">
+                                <ejs-numerictextbox ejs-for="CreditCase.SalaryIncome"
+                                                id="SalaryIncome"
+                                            change="updateLoanIncomeRatios"
+                                                placeholder="Salary Income"
+                                                format="n2"
+                                                min="0"
+                                                showSpinButton="false"
+                                                floatLabelType="Always" />
+                            </div>
+                            <div class="col-md-6">
+                                <ejs-dropdownlist ejs-for="CreditCase.OtherIncomeTypeId"
+                                              id="OtherIncomeTypeId"
+                                              dataSource="@otherIncomeTypes"
+                                              placeholder="Other Income Type"
+                                              allowFiltering="true"
+                                              floatLabelType="Always">
+                                <e-dropdownlist-fields text="OtherIncomeTypeName" value="OtherIncomeTypeId"></e-dropdownlist-fields>
+                            </ejs-dropdownlist>
+                            </div>
+                            <div class="col-md-6">
+                                <ejs-numerictextbox ejs-for="CreditCase.OtherIncome"
+                                                id="OtherIncome"
+                                            change="updateLoanIncomeRatios"
+                                                placeholder="Other Income"
+                                                format="n2"
+                                                min="0"
+                                                showSpinButton="false"
+                                                floatLabelType="Always" />
+                            </div>
+                            }
+                            else
+                            {
+                            <div class="col-md-3">
+                                <ejs-numerictextbox ejs-for="CreditCase.MonthlySales"
+                                                id="MonthlySales"
+                                                placeholder="Monthly Sales"
+                                                format="n2"
+                                                min="0"
+                                                showSpinButton="false"
+                                                floatLabelType="Always" />
+                            </div>
+                            <div class="col-md-3">
+                                <ejs-numerictextbox ejs-for="CreditCase.TotalMonthlyExpenses"
+                                                id="TotalMonthlyExpenses"
+                                                placeholder="Total Monthly Expenses"
+                                                format="n2"
+                                                min="0"
+                                                showSpinButton="false"
+                                                floatLabelType="Always" />
+                            </div>
+                            }
+                        </div>
+                    </div>
+                    @if (Model?.CreditCase?.IsIndividual ?? false)
+                    {
+                        <div class="col-md-6">
+                            <p class="small mb-2">
+                                Current loan installment (maximum in the generated plan):
+                                <strong id="LoanIncomeCurrentInstallment">—</strong>
+                            </p>
+                            <dl class="small mb-0">
+                                <div class="d-flex justify-content-between align-items-baseline gap-3 py-1">
+                                    <dt class="fw-normal text-muted">Current installment / Salary</dt>
+                                    <dd class="mb-0"><output id="SalaryInstallmentRatio" class="fw-semibold" aria-live="polite">—</output></dd>
+                                </div>
+                                <div class="d-flex justify-content-between align-items-baseline gap-3 py-1">
+                                    <dt class="fw-normal text-muted">All installments / Salary</dt>
+                                    <dd class="mb-0"><output id="SalaryTotalInstallmentsRatio" class="fw-semibold" aria-live="polite">—</output></dd>
+                                </div>
+                                <div class="d-flex justify-content-between align-items-baseline gap-3 py-1">
+                                    <dt class="fw-normal text-muted">Current installment / Total income</dt>
+                                    <dd class="mb-0"><output id="IncomeInstallmentRatio" class="fw-semibold" aria-live="polite">—</output></dd>
+                                </div>
+                                <div class="d-flex justify-content-between align-items-baseline gap-3 py-1">
+                                    <dt class="fw-normal text-muted">All installments / Total income</dt>
+                                    <dd class="mb-0"><output id="IncomeTotalInstallmentsRatio" class="fw-semibold" aria-live="polite">—</output></dd>
+                                </div>
+                            </dl>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+
+        <div class="ds-card mt-3">
+            <div class="ds-card-h d-flex align-items-center justify-content-between gap-2 loan-amort-collapsible-header"
+                 data-bs-toggle="collapse"
+                 data-bs-target="#loanAmortSettingsCollapse"
+                 aria-expanded="false"
+                 aria-controls="loanAmortSettingsCollapse"
+                 role="button">
+                <div class="d-flex align-items-center gap-2">
+                    <i class="bi bi-calendar2-range"></i>
+                    <span class="ds-card-title">Amortization Plan Settings</span>
+                </div>
+                <i class="bi bi-chevron-down loan-amort-collapse-icon"></i>
+            </div>
+            <div id="loanAmortSettingsCollapse" class="collapse">
+                <div class="ds-card-b">
+
+                    <div class="loan-amort-settings-section">
+                        <div class="loan-amort-settings-section-title">Engine</div>
+                        <div class="row g-2">
+                            <div class="col-md-4">
+                                <ejs-dropdownlist id="AmortPlan_TemplateCode"
+                                                  value="@amortPlanVersion.AmortizationTemplateCode"
+                                                  dataSource="@(amortTemplates)"
+                                                  placeholder="Template"
+                                                  floatLabelType="Always"
+                                                  allowFiltering="true">
+                                    <e-dropdownlist-fields text="TemplateName" value="TemplateCode"></e-dropdownlist-fields>
+                                </ejs-dropdownlist>
+                            </div>
+                            <div class="col-md-2">
+                                <ejs-dropdownlist id="AmortPlan_FrequencyCode"
+                                                  value="@amortPlanVersion.FrequencyCode"
+                                                  dataSource="@(Enum.GetValues<FrequencyCode>().Select(x => new { Value = x.ToString(), Text = x.ToString() }))"
+                                                  placeholder="Frequency"
+                                                  floatLabelType="Always">
+                                    <e-dropdownlist-fields text="Text" value="Value"></e-dropdownlist-fields>
+                                </ejs-dropdownlist>
+                            </div>
+                            <div class="col-md-2">
+                                <ejs-dropdownlist id="AmortPlan_DayCountMethod"
+                                                  value="@(amortPlanVersion.DayCountCalculationTypeCode ?? "ActualActual_365_366")"
+                                                  dataSource="@(Enum.GetValues<EnumDayCountCalculationType>().Select(x => new { Value = x.ToString(), Text = x.ToString() }))"
+                                                  placeholder="Day Count Convention"
+                                                  floatLabelType="Always">
+                                    <e-dropdownlist-fields text="Text" value="Value"></e-dropdownlist-fields>
+                                </ejs-dropdownlist>
+                            </div>
+                            <div class="col-md-2">
+                                <ejs-dropdownlist id="AmortPlan_PrincipalCalcMethod"
+                                                  value="@(amortPlanVersion.PrincipalCalculationMethodCode ?? "Annuity")"
+                                                  dataSource="@(Enum.GetValues<PrincipalCalculationMethod>().Select(x => new { Value = x.ToString(), Text = x.ToString() }))"
+                                                  placeholder="Principal Calculation Method"
+                                                  floatLabelType="Always">
+                                    <e-dropdownlist-fields text="Text" value="Value"></e-dropdownlist-fields>
+                                </ejs-dropdownlist>
+                            </div>
+
+                            <div class="col-md-2" id="AmortPlan_FixedInstallmentWrap">
+                                <ejs-numerictextbox id="AmortPlan_FixedInstallmentAmount"
+                                                    value="@amortPlanVersion.FixedInstallmentAmount"
+                                                    placeholder="Fixed Installment Amount"
+                                                    floatLabelType="Always"
+                                                    format="n2"
+                                                    min="0"
+                                                    showSpinButton="false">
+                                </ejs-numerictextbox>
+                            </div>
+                            <div class="col-md-2" id="AmortPlan_FixedPrincipalWrap">
+                                <ejs-numerictextbox id="AmortPlan_FixedPrincipalAmount"
+                                                    value="@amortPlanVersion.FixedPrincipalAmount"
+                                                    placeholder="Fixed Principal Amount"
+                                                    floatLabelType="Always"
+                                                    format="n2"
+                                                    min="0"
+                                                    showSpinButton="false">
+                                </ejs-numerictextbox>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="loan-amort-settings-section">
+                        <div class="loan-amort-settings-section-title">Grace &amp; Rate</div>
+                        <div class="row g-2">
+                            <div class="col-md-3">
+                                <ejs-dropdownlist id="AmortPlan_GraceType"
+                                                  value="@(amortPlanVersion.GraceTypeCode ?? "None")"
+                                                  dataSource="@(Enum.GetValues<GraceType>().Select(x => new { Value = x.ToString(), Text = x.ToString() }))"
+                                                  placeholder="Grace Type"
+                                                  floatLabelType="Always">
+                                    <e-dropdownlist-fields text="Text" value="Value"></e-dropdownlist-fields>
+                                </ejs-dropdownlist>
+                            </div>
+                            <div class="col-md-3 d-flex align-items-center">
+                                <ejs-checkbox id="AmortPlan_UseIndexedRate"
+                                              label="Use Indexed Rate"
+                                              checked="@amortPlanVersion.UseIndexedRate">
+                                </ejs-checkbox>
+                            </div>
+                            <div class="col-md-3" id="AmortPlan_IndexCodeWrap">
+                                <ejs-dropdownlist id="AmortPlan_IndexCode"
+                                                  value="@(amortPlanVersion.IndexCode ?? "EURIBOR_3M")"
+                                                  dataSource="@(new[]
+                                                                                  {
+                                                  new { Value = "EURIBOR_1M", Text = "EURIBOR 1M" },
+                                                  new { Value = "EURIBOR_3M", Text = "EURIBOR 3M" },
+                                                  new { Value = "EURIBOR_6M", Text = "EURIBOR 6M" },
+                                                  new { Value = "EURIBOR_12M", Text = "EURIBOR 12M" }
+                                              })"
+                                                  placeholder="Index Code"
+                                                  floatLabelType="Always">
+                                    <e-dropdownlist-fields text="Text" value="Value"></e-dropdownlist-fields>
+                                </ejs-dropdownlist>
+                            </div>
+                            <div class="col-md-3" id="AmortPlan_IndexRateWrap">
+                                <ejs-numerictextbox id="AmortPlan_IndexRatePercent"
+                                                    value="@amortPlanVersion.IndexRatePercent"
+                                                    placeholder="Index Rate (%)"
+                                                    floatLabelType="Always"
+                                                    format="n4"
+                                                    showSpinButton="false">
+                                </ejs-numerictextbox>
+                            </div>
+
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+
+        <div class="ds-card mt-3">
+            <div class="ds-card-h d-flex align-items-center gap-2">
+                <i class="bi bi-shield-check"></i>
+                <span class="ds-card-title">STATUS</span>
+            </div>
+            <div class="ds-card-b">
+                <div class="row g-2">
+                    <div class="col-md-4">
+                        <ejs-dropdownlist ejs-for="CreditCase.CreditStatusCode"
+                                          id="StatusCode"
+                                          dataSource="@caseStatuses"
+                                          placeholder="Case Status"
+                                          change="onCaseStatusChange"
+                                          floatLabelType="Always">
+                            <e-dropdownlist-fields text="CaseStatusName" value="CaseStatusCode"></e-dropdownlist-fields>
+                        </ejs-dropdownlist>
+                    </div>
+                    <div class="col-md-4">
+                        <ejs-dropdownlist ejs-for="CreditCase.CreditDecisionReasonCode"
+                                          id="CreditDecisionReasonCode"
+                                          placeholder="Decision Reason"
+                                          floatLabelType="Always">
+                            <e-dropdownlist-fields text="CreditDecisionReasonName" value="CreditDecisionReasonCode"></e-dropdownlist-fields>
+                        </ejs-dropdownlist>
+                    </div>
+                    <div class="col-md-4">
+                        <ejs-textbox ejs-for="CreditCase.DecisionReasonNotes"
+                                     id="LoanDecisionReasonNotes"
+                                     placeholder="Decision Notes"
+                                     floatLabelType="Always"></ejs-textbox>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- RRESHTI I DYTE: Loan Details -->
+        <div id="loanDetailsCard"
+             class="ds-card mt-3 d-none"
+             data-is-add="@(isAdd ? "true" : "false")">
+            <div class="ds-card-h d-flex align-items-center gap-2">
+                <i class="bi bi-list-check"></i>
+                <span class="ds-card-title">Loan Details</span>
+            </div>
+
+            <div class="ds-card-b">
+                <div class="row g-2">
+                    <div class="col-md-3">
+                        <ejs-numerictextbox ejs-for="CreditCase.OutstandingExposureAmount"
+                                            id="OutstandingAmount"
+                                            placeholder="Outstanding Amount"
+                                            format="n2"
+                                            enabled="false"
+                                            floatLabelType="Always" />
+                    </div>
+
+                    <div class="col-md-3">
+                        <ejs-numerictextbox ejs-for="LoanTotalInterestAmount"
+                                            id="LoanTotalInterestAmount"
+                                            placeholder="Total Interest"
+                                            format="n2"
+                                            enabled="false"
+                                            floatLabelType="Always" />
+                    </div>
+
+                    <div class="col-md-3">
+                        <ejs-numerictextbox ejs-for="LoanDisbursementFeeAmount"
+                                            id="LoanDisbursementFeeAmount"
+                                            placeholder="Disbursement Fee"
+                                            format="n2"
+                                            enabled="false"
+                                            floatLabelType="Always" />
+                    </div>
+
+                    <div class="col-md-3">
+                        <ejs-numerictextbox ejs-for="LoanNetDisbursementAmount"
+                                            id="LoanNetDisbursementAmount"
+                                            placeholder="Net Disbursement"
+                                            format="n2"
+                                            enabled="false"
+                                            floatLabelType="Always" />
+                    </div>
+
+                    <div id="loanDisbursementSection" class="col-12 row g-2 d-none mt-1">
+                        <div class="col-md-6">
+                            <ejs-dropdownlist ejs-for="BankCode"
+                                              id="DisbursementBankCode"
+                                              dataSource="@disbursementBanks"
+                                              placeholder="Disbursement Bank"
+                                              floatLabelType="Always">
+                                <e-dropdownlist-fields text="BankName" value="BankCode"></e-dropdownlist-fields>
+                            </ejs-dropdownlist>
+                        </div>
+
+                        <div class="col-md-6">
+                            <ejs-textbox ejs-for="DisbursementAccountNumber"
+                                         id="DisbursementAccountNumber"
+                                         placeholder="Disbursement Account"
+                                         floatLabelType="Always" />
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+
+        <div class="loan-amort-actions mt-4 pt-3 border-top">
+            <div class="d-flex justify-content-end gap-2 flex-wrap">
+                <button type="submit" class="btn btn-primary btn-sm" onclick="loanPreSave(this)">
+                    <i class="bi bi-save me-1"></i>Save
+                </button>
+                <button type="button"
+                        id="btnLoanUpsertPrintPlan"
+                        class="btn btn-outline-secondary btn-sm @(hasAmortPreview ? "" : "d-none")"
+                        onclick="window.printLoanUpsertAmortPlan?.()">
+                    <i class="bi bi-printer me-1"></i>Print Plan
+                </button>
+            </div>
+        </div>
+
+        <div id="loanUpsertAmortPreviewHost" class="mt-3">
+            @if (!hasAmortPreview)
+            {
+                <div id="loanUpsertAmortPreviewEmpty" class="loan-amort-preview-empty">
+                    <i class="bi bi-table me-2"></i>
+                    Save the loan to generate and preview the amortization plan here.
+                </div>
+            }
+            else
+            {
+                <div id="loanUpsertAmortPreviewEmpty" class="loan-amort-preview-empty d-none">
+                    <i class="bi bi-table me-2"></i>
+                    Save the loan to generate and preview the amortization plan here.
+                </div>
+            }
+            <div id="creditLoanUpsertAmortPrintArea">
+                @await Html.PartialAsync("~/Areas/Credit/Views/Loan/_CreditCaseAmortPlanPreview.cshtml", amortPreviewModel)
+            </div>
+        </div>
+
+    </div>
+</form>
+
+@if (!isFromCreditHub)
+{
+    <script src="~/js/creditCaseLoan.js" asp-append-version="true"></script>
+}
+
+<script>
+    window.select_CreditCaseLoanBankParty = function(args) {
+        const bankPartyId = Number(args?.itemData?.BankPartyId || 0);
+        const input = document.getElementById("BankPartyId");
+        if (input && bankPartyId > 0) input.value = bankPartyId;
+        if (bankPartyId > 0 && typeof window.loadCreditCaseLoanProducts === "function") {
+            window.loadCreditCaseLoanProducts(bankPartyId, null, null);
+        }
+    };
+
+    (function() {
+        const isFromCreditHub = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(isFromCreditHub));
+        const isAdd = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(isAdd));
+        const bankPartySearchId = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(bankPartySearchId));
+        const bankPartySearchUrl = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(bankPartySearchUrl));
+        const loanProductsUrl = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(loanProductsUrl));
+        const initialBankPartyId = @(Model?.CreditCase.BankPartyId ?? 0);
+        const selectedLoanProductCode = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model?.CreditCase?.ProductCode));
+        const selectedLoanPurposeCode = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model?.CreditCase?.CreditPurposeCode));
+        const amortTemplateDefaultsUrl = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(amortTemplateDefaultsUrl));
+        const loanAmortPreviewUrl = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(amortPreviewUrl));
+        let incomeRatioInstallments = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(amortPreviewInstallments));
+        window.updateLoanIncomeRatios = function () {
+            if (document.getElementById("IsIndividual")?.value !== "true") return;
+            const read = id => Math.max(0, Number(getFieldValue(id) || 0));
+            const salary = read("SalaryIncome");
+            const income = salary + read("OtherIncome");
+            const otherInstallments = read("OtherBankMonthlyInstallments");
+            const amounts = (incomeRatioInstallments || []).map(row => {
+                const amount = row.ScheduledInstallmentAmount ?? row.scheduledInstallmentAmount;
+                return amount != null ? Number(amount) :
+                    Number(row.ScheduledPrincipal ?? row.scheduledPrincipal ?? 0) +
+                    Number(row.ScheduledInterest ?? row.scheduledInterest ?? 0) +
+                    Number(row.ScheduledFee ?? row.scheduledFee ?? 0);
+            }).filter(value => Number.isFinite(value) && value > 0);
+            const installment = amounts.length ? Math.max(...amounts) : null;
+            const label = document.getElementById("LoanIncomeCurrentInstallment");
+            if (label) label.textContent = installment == null ? "Generate the amortization plan" : installment.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+            const render = (id, numerator, denominator) => {
+                const output = document.getElementById(id);
+                if (!output) return;
+                const ratio = numerator != null && Number.isFinite(denominator) && denominator > 0
+                    ? numerator / denominator * 100 : null;
+                output.textContent = ratio == null ? "—" : ratio.toFixed(2) + "%";
+                output.classList.toggle("text-success", ratio != null && ratio < 50);
+                output.classList.toggle("text-danger", ratio != null && ratio >= 50);
+                output.title = denominator > 0 ? "" : "Income must be greater than zero.";
+            };
+            const allInstallments = installment == null ? null : installment + otherInstallments;
+            render("SalaryInstallmentRatio", installment, salary);
+            render("SalaryTotalInstallmentsRatio", allInstallments, salary);
+            render("IncomeInstallmentRatio", installment, income);
+            render("IncomeTotalInstallmentsRatio", allInstallments, income);
+        };
+        const amortEnumNames = {
+            frequency: @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Enum.GetNames<FrequencyCode>())),
+            dayCount: @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Enum.GetNames<EnumDayCountCalculationType>())),
+            principalCalc: @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Enum.GetNames<PrincipalCalculationMethod>())),
+            graceType: @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Enum.GetNames<GraceType>()))
+            };
+        window.loadCreditCaseLoanProducts = function(bankPartyId, preferredProductCode, preferredPurposeCode) {
+            const productDropdown = document.getElementById("ProductCode")?.ej2_instances?.[0];
+            if (!productDropdown || !bankPartyId) return;
+
+            productDropdown.dataSource = [];
+            productDropdown.value = null;
+            productDropdown.dataBind?.();
+
+            fetch(loanProductsUrl + "?bankPartyId=" + encodeURIComponent(bankPartyId), {
+                headers: { Accept: "application/json" }
+            })
+                .then(response => response.ok ? response.json() : [])
+                .then(rows => {
+                    const products = Array.isArray(rows) ? rows : [];
+                    productDropdown.dataSource = products;
+                    productDropdown.value = preferredProductCode || null;
+                    productDropdown.dataBind?.();
+
+                    const selectedProduct = products.find(x => x.ProductCode === preferredProductCode);
+                    const productTypeCodeInput = document.getElementById("ProductTypeCode");
+                    if (productTypeCodeInput) {
+                        productTypeCodeInput.value = selectedProduct?.ProductTypeCode || "";
+                    }
+
+                    if (typeof window.applyLoanProductPurposes === "function") {
+                        window.applyLoanProductPurposes(
+                            selectedProduct?.CreditProductPurposes || [],
+                            preferredPurposeCode || null);
+                    }
+                })
+                .catch(() => {
+                    productDropdown.dataSource = [];
+                    productDropdown.dataBind?.();
+                });
+        };
+
+        function initializeContextAutocompletes(attempt) {
+            if (isFromCreditHub) {
+                if (initialBankPartyId > 0) {
+                    window.loadCreditCaseLoanProducts(
+                        initialBankPartyId,
+                        selectedLoanProductCode,
+                        selectedLoanPurposeCode);
+                }
+                return;
+            }
+
+            const bankPartyAutocomplete = document.getElementById(bankPartySearchId)?.ej2_instances?.[0];
+            if (!bankPartyAutocomplete) {
+                if (attempt < 30) {
+                    setTimeout(function() { initializeContextAutocompletes(attempt + 1); }, 50);
+                }
+                return;
+            }
+
+            if (!isAdd) {
+                bankPartyAutocomplete.enabled = false;
+            }
+
+            bankPartyAutocomplete.dataBind?.();
+
+            if (initialBankPartyId <= 0) return;
+
+            window.loadCreditCaseLoanProducts(
+                initialBankPartyId,
+                selectedLoanProductCode,
+                selectedLoanPurposeCode);
+
+            fetch(bankPartySearchUrl + "?searchText=" + encodeURIComponent(initialBankPartyId), {
+                headers: { Accept: "application/json" }
+            })
+                .then(response => response.ok ? response.json() : [])
+                .then(rows => {
+                    const selected = (Array.isArray(rows) ? rows : [])
+                        .find(row => Number(row?.BankPartyId) === initialBankPartyId);
+                    if (!selected) return;
+
+                    bankPartyAutocomplete.dataSource = [selected];
+                    bankPartyAutocomplete.value = selected.DisplayText;
+                    bankPartyAutocomplete.dataBind?.();
+                })
+                .catch(() => { });
+        }
+
+        initializeContextAutocompletes(0);
+
+        const initialWorkflowSteps = @Html.Raw(Json.Serialize(caseWorkflowSteps));
+        const initialProductCode = @Html.Raw(Json.Serialize(Model?.CreditCase?.ProductCode ?? string.Empty));
+        const initialPriceListId = @Html.Raw(Json.Serialize(Model?.CreditCase?.PriceListId));
+        const initialLoanDates = {
+            RequestedStartDate: @Html.Raw(Json.Serialize(requestedStartDateIso)),
+            RequestedMaturityDate: @Html.Raw(Json.Serialize(requestedMaturityDateIso)),
+            RequestedFirstInstallmentDate: @Html.Raw(Json.Serialize(amortFirstDueDateIso)),
+            ApprovedStartDate: @Html.Raw(Json.Serialize(approvedStartDateIso)),
+            ApprovedMaturityDate: @Html.Raw(Json.Serialize(approvedMaturityDateIso)),
+            ApprovedFirstInstallmentDate: @Html.Raw(Json.Serialize(amortFirstDueDateIso))
+            };
+        const initialAmortFirstDueDateIso = @Html.Raw(Json.Serialize(amortFirstDueDateIso));
+        const firstInstallmentMinDays = 15;
+        const firstInstallmentMaxDays = 45;
+        const requestedFieldIds = [
+            "RequestedStartDate",
+            "RequestedFirstInstallmentDate",
+            "TermMonths",
+            "RequestedMaturityDate",
+            "RequestedCreditAmount",
+            "RequestedChargeAmount",
+            "RequestedInterestRate",
+            "RequestedChargeRate",
+            "RequestedGracePeriod",
+            "RequestedEffectiveInterestRate"
+        ];
+        const approvedFieldIds = [
+            "ApprovedStartDate",
+            "ApprovedFirstInstallmentDate",
+            "ApprovedTermMonths",
+            "ApprovedMaturityDate",
+            "ApprovedCreditAmount",
+            "ApprovedGracePeriod",
+            "ApprovedInterestRate",
+            "ApprovedChargeRate",
+            "ApprovedPenaltyInterest",
+            "ApprovedChargeAmount",
+            "ApprovedEffectiveInterestRate"
+        ];
+        const caseInfoFieldIds = [
+            "ProductCode",
+            "CreditPurposeCode",
+            "CaseDescription"
+        ];
+        const disbursementFieldIds = [
+            "DisbursementBankCode",
+            "DisbursementAccountNumber"
+        ];
+        const requestedToApprovedFieldMap = [
+            ["RequestedStartDate", "ApprovedStartDate"],
+            ["RequestedFirstInstallmentDate", "ApprovedFirstInstallmentDate"],
+            ["TermMonths", "ApprovedTermMonths"],
+            ["RequestedMaturityDate", "ApprovedMaturityDate"],
+            ["RequestedCreditAmount", "ApprovedCreditAmount"],
+            ["RequestedChargeAmount", "ApprovedChargeAmount"],
+            ["RequestedInterestRate", "ApprovedInterestRate"],
+            ["RequestedChargeRate", "ApprovedChargeRate"],
+            ["RequestedEffectiveInterestRate", "ApprovedEffectiveInterestRate"],
+            ["RequestedGracePeriod", "ApprovedGracePeriod"]
+        ];
+
+        window.calculateLoanEndDate = function() {
+            window.validateLoanProductField?.("TermMonths");
+            calculateMaturityFromStartDate("Requested", "TermMonths");
+            copyRequestedTermsToApproved(true);
+        };
+
+        window.onRequestedStartDateChange = function() {
+            updateDefaultFirstInstallmentDateFromStart("Requested", { force: true });
+            window.calculateLoanEndDate?.();
+        };
+
+        function calculateMaturityFromStartDate(prefix, termFieldId) {
+            const startDatePicker = document.getElementById(prefix + "StartDate")?.ej2_instances?.[0];
+            const termInput = document.getElementById(termFieldId)?.ej2_instances?.[0];
+            const endDatePicker = document.getElementById(prefix + "MaturityDate")?.ej2_instances?.[0];
+
+            if (!startDatePicker || !termInput || !endDatePicker) return;
+
+            const startDate = toDateObject(startDatePicker.value);
+            const months = termInput.value;
+
+            if (!startDate || !months) return;
+
+            const endDate = addMonthsSafe(startDate, Number(months));
+
+            endDatePicker.value = endDate;
+            endDatePicker.dataBind?.();
+        }
+
+        window.calculateApprovedEndDate = function() {
+            window.validateLoanProductField?.("ApprovedTermMonths");
+            calculateMaturityFromStartDate("Approved", "ApprovedTermMonths");
+        };
+
+        window.onApprovedStartDateChange = function() {
+            updateDefaultFirstInstallmentDateFromStart("Approved", { force: true });
+            window.calculateApprovedEndDate?.();
+        };
+
+        function applyGracePeriodChange(prefix) {
+            const graceMonths = Math.max(
+                0,
+                Number(getFieldValue(prefix + "GracePeriod") ?? 0));
+
+            if (getActiveLoanTermsPrefix() === prefix) {
+                setFieldValue("AmortPlan_GraceType", graceMonths > 0 ? "FullGrace" : "None");
+            }
+        }
+
+        window.onRequestedGracePeriodChange = function() {
+            applyGracePeriodChange("Requested");
+            copyRequestedTermsToApproved(true);
+        };
+
+        window.onApprovedGracePeriodChange = function() {
+            applyGracePeriodChange("Approved");
+        };
+
+        window.onRequestedFirstInstallmentDateChange = function() {
+            updateFirstInstallmentDateConstraints("Requested");
+        };
+
+        window.onApprovedFirstInstallmentDateChange = function() {
+            updateFirstInstallmentDateConstraints("Approved");
+        };
+
+        window.onRequestedMaturityDateChange = function() {
+            calculateTermMonthsFromDates("Requested", "TermMonths");
+            window.validateLoanProductField?.("TermMonths");
+        };
+
+        window.onApprovedMaturityDateChange = function() {
+            calculateTermMonthsFromDates("Approved", "ApprovedTermMonths");
+            window.validateLoanProductField?.("ApprovedTermMonths");
+        };
+
+        function calculateTermMonthsFromDates(prefix, termFieldId) {
+            const startDatePicker = document.getElementById(prefix + "StartDate")?.ej2_instances?.[0];
+            const termInput = document.getElementById(termFieldId)?.ej2_instances?.[0];
+            const endDatePicker = document.getElementById(prefix + "MaturityDate")?.ej2_instances?.[0];
+
+            if (!startDatePicker || !termInput || !endDatePicker) return;
+
+            const startDate = toDateObject(startDatePicker.value);
+            const endDate = toDateObject(endDatePicker.value);
+            if (!startDate || !endDate || endDate <= startDate) return;
+
+            let months = ((endDate.getFullYear() - startDate.getFullYear()) * 12) +
+                endDate.getMonth() - startDate.getMonth();
+            if (endDate.getDate() > startDate.getDate()) {
+                months++;
+            }
+
+            termInput.value = Math.max(1, months);
+            termInput.dataBind?.();
+        }
+
+        function syncFirstInstallmentWithActiveTerms(options) {
+            const prefix = getActiveLoanTermsPrefix();
+            updateFirstInstallmentDateConstraints(prefix);
+
+            if (options?.forceDefault) {
+                updateDefaultFirstInstallmentDateFromStart(prefix, { force: true });
+                return;
+            }
+
+            const validation = validateFirstInstallmentDate(prefix);
+            if (!validation.valid) {
+                updateDefaultFirstInstallmentDateFromStart(prefix, { force: true });
+            }
+        }
+
+        function normalizeStatusCode(value) {
+            return (value || "").toString().trim().toUpperCase();
+        }
+
+        function hasMeaningfulValue(value) {
+            return !(value === undefined || value === null || value === "");
+        }
+
+        function getFieldValue(id) {
+            const element = document.getElementById(id);
+            if (!element) {
+                return null;
+            }
+
+            const instance = element.ej2_instances?.[0];
+            if (instance) {
+                if (typeof instance.checked !== "undefined") {
+                    return instance.checked;
+                }
+
+                if (typeof instance.value !== "undefined") {
+                    return instance.value;
+                }
+            }
+
+            if (element.type === "checkbox") {
+                return element.checked;
+            }
+
+            return element.value;
+        }
+
+        function getWorkflowStep(statusCode) {
+            const normalizedStatusCode = normalizeStatusCode(statusCode);
+            const steps = Array.isArray(window.loanCaseWorkflowSteps) ? window.loanCaseWorkflowSteps : [];
+
+            return steps.find(function(step) {
+                return normalizeStatusCode(step?.CaseStatusCode) === normalizedStatusCode;
+            }) || null;
+        }
+
+        function setComponentEnabled(id, enabled) {
+            const element = document.getElementById(id);
+            if (!element) {
+                return;
+            }
+
+            const instance = element.ej2_instances?.[0];
+            if (instance) {
+                if (typeof instance.enabled !== "undefined") {
+                    instance.enabled = enabled;
+                }
+
+                if (typeof instance.disabled !== "undefined") {
+                    instance.disabled = !enabled;
+                }
+
+                if (typeof instance.readonly !== "undefined") {
+                    instance.readonly = !enabled;
+                }
+
+                instance.dataBind?.();
+            }
+
+            element.disabled = !enabled;
+            element.readOnly = !enabled;
+
+            const inputElement = instance?.inputElement;
+            if (inputElement) {
+                inputElement.disabled = !enabled;
+                inputElement.readOnly = !enabled;
+
+                if (enabled) {
+                    inputElement.removeAttribute("disabled");
+                    inputElement.removeAttribute("readonly");
+                }
+            }
+
+            if (enabled) {
+                element.removeAttribute("disabled");
+                element.removeAttribute("readonly");
+            }
+        }
+
+        function setFieldValue(id, value) {
+            const element = document.getElementById(id);
+            if (!element) {
+                return;
+            }
+
+            const instance = element.ej2_instances?.[0];
+            if (instance) {
+                instance.value = value instanceof Date ? new Date(value.getTime()) : value;
+                instance.dataBind?.();
+                return;
+            }
+
+            if (window.ds?.entity?.setField) {
+                ds.entity.setField(id, value);
+            } else {
+                element.value = value ?? "";
+            }
+        }
+
+        function toNumber(value) {
+            if (value === undefined || value === null || value === "") {
+                return null;
+            }
+
+            const parsed = Number(String(value).replace(/,/g, ""));
+            return Number.isFinite(parsed) ? parsed : null;
+        }
+
+        function roundMoney(value) {
+            return Math.round((value + Number.EPSILON) * 100) / 100;
+        }
+
+        function roundRate(value) {
+            return Math.round((value + Number.EPSILON) * 10000) / 10000;
+        }
+
+        function recalculateCharge(prefix, source, currentAmount) {
+            const amount = toNumber(currentAmount !== undefined
+                ? currentAmount
+                : getFieldValue(prefix + "CreditAmount"));
+            const rate = toNumber(getFieldValue(prefix + "ChargeRate"));
+            const chargeAmount = toNumber(getFieldValue(prefix + "ChargeAmount"));
+
+            if (!amount || amount <= 0) {
+                return;
+            }
+
+            if (source === "rate" && rate !== null) {
+                setFieldValue(prefix + "ChargeAmount", roundMoney(amount * rate / 100));
+                return;
+            }
+
+            if (source === "amount" && chargeAmount !== null) {
+                setFieldValue(prefix + "ChargeRate", roundRate(chargeAmount * 100 / amount));
+                return;
+            }
+
+            if (rate !== null) {
+                setFieldValue(prefix + "ChargeAmount", roundMoney(amount * rate / 100));
+            } else if (chargeAmount !== null) {
+                setFieldValue(prefix + "ChargeRate", roundRate(chargeAmount * 100 / amount));
+            }
+        }
+
+        function bindLoanTermCalculation(prefix) {
+            const rateId = prefix + "ChargeRate";
+            const amountChargeId = prefix + "ChargeAmount";
+
+            const bind = function(id, handler) {
+                const element = document.getElementById(id);
+                const instance = element?.ej2_instances?.[0];
+
+                if (instance) {
+                    const previous = instance.change;
+                    instance.change = function(args) {
+                        if (typeof previous === "function") {
+                            previous(args);
+                        }
+
+                        handler(args);
+                    };
+                    instance.dataBind?.();
+                    return;
+                }
+
+                element?.addEventListener("change", handler);
+            };
+
+            bind(rateId, function() {
+                recalculateCharge(prefix, "rate");
+                notifyLoanTermsChanged(prefix);
+            });
+
+            bind(amountChargeId, function() {
+                recalculateCharge(prefix, "amount");
+                notifyLoanTermsChanged(prefix);
+            });
+        }
+
+        function getActiveLoanTermsPrefix() {
+            const statusCode = normalizeStatusCode(getFieldValue("StatusCode") || document.getElementById("CurrentStatusCode")?.value);
+            return resolveLoanEditMode(statusCode) === "requested" ? "Requested" : "Approved";
+        }
+
+        function notifyLoanTermsChanged(prefix) {
+            // Amortization plan is managed on the loan tab; no secondary tab sync needed.
+        }
+
+        function enumNameFromIndex(names, index) {
+            if (index === null || index === undefined || index === "") {
+                return null;
+            }
+
+            return names[Number(index)] ?? null;
+        }
+
+        function setAmortPlanWrapVisible(id, visible) {
+            const wrap = document.getElementById(id);
+            if (wrap) {
+                wrap.style.display = visible ? "" : "none";
+            }
+        }
+
+        function updateAmortPlanSettingsVisibility() {
+            const principalMethod = getFieldValue("AmortPlan_PrincipalCalcMethod") || "Annuity";
+            const useIndexedRate = !!getFieldValue("AmortPlan_UseIndexedRate");
+
+            setAmortPlanWrapVisible(
+                "AmortPlan_FixedInstallmentWrap",
+                principalMethod === "FixedInstallment");
+            setAmortPlanWrapVisible(
+                "AmortPlan_FixedPrincipalWrap",
+                principalMethod === "FixedPrincipal");
+            setAmortPlanWrapVisible("AmortPlan_IndexCodeWrap", useIndexedRate);
+            setAmortPlanWrapVisible("AmortPlan_IndexRateWrap", useIndexedRate);
+        }
+
+        function extractDayOfMonth(value) {
+            if (value instanceof Date && !Number.isNaN(value.getTime())) {
+                return value.getDate();
+            }
+
+            const text = String(value || "").trim();
+            const eu = text.match(/^(\d{1,2})[./-](\d{1,2})[./-](\d{4})$/);
+            if (eu) {
+                return Number(eu[1]);
+            }
+
+            const iso = text.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+            if (iso) {
+                return Number(iso[3]);
+            }
+
+            return null;
+        }
+
+        function addMonthsSafe(date, months) {
+            const result = new Date(date.getTime());
+            result.setMonth(result.getMonth() + months);
+            return result;
+        }
+
+        function addDaysSafe(date, days) {
+            const result = new Date(date.getTime());
+            result.setDate(result.getDate() + days);
+            return result;
+        }
+
+        function toDateObject(value) {
+            if (value instanceof Date && !Number.isNaN(value.getTime())) {
+                return new Date(value.getTime());
+            }
+
+            if (!value) {
+                return null;
+            }
+
+            return parseInitialDateOnly(String(value).substring(0, 10));
+        }
+
+        function daysBetweenDates(startDate, endDate) {
+            const ms = endDate.getTime() - startDate.getTime();
+            return Math.round(ms / (1000 * 60 * 60 * 24));
+        }
+
+        function updateFirstInstallmentDateConstraints(prefix) {
+            prefix = prefix || getActiveLoanTermsPrefix();
+            const startDate = toDateObject(getFieldValue(prefix + "StartDate"));
+            const picker = document.getElementById(prefix + "FirstInstallmentDate")?.ej2_instances?.[0];
+
+            if (!picker || !startDate) {
+                return;
+            }
+
+            picker.min = addDaysSafe(startDate, firstInstallmentMinDays);
+            picker.max = addDaysSafe(startDate, firstInstallmentMaxDays);
+            picker.dataBind?.();
+        }
+
+        function updateDefaultFirstInstallmentDateFromStart(prefix, options) {
+            options = options || {};
+            const resolvedPrefix = prefix || getActiveLoanTermsPrefix();
+
+            if (!options.force && initialAmortFirstDueDateIso) {
+                return;
+            }
+
+            const startDate = toDateObject(getFieldValue(resolvedPrefix + "StartDate"));
+            if (!startDate) {
+                return;
+            }
+
+            const firstDueDate = addMonthsSafe(startDate, 1);
+            setFieldValue(resolvedPrefix + "FirstInstallmentDate", firstDueDate);
+            updateFirstInstallmentDateConstraints(resolvedPrefix);
+        }
+
+        function validateFirstInstallmentDate(prefix) {
+            prefix = prefix || getActiveLoanTermsPrefix();
+            const startDate = toDateObject(getFieldValue(prefix + "StartDate"));
+            const firstDueDate = toDateObject(getFieldValue(prefix + "FirstInstallmentDate"));
+
+            if (!startDate) {
+                return {
+                    valid: false,
+                    message: "Start date is required before setting the first installment date."
+                };
+            }
+
+            if (!firstDueDate) {
+                return {
+                    valid: false,
+                    message: "First installment date is required."
+                };
+            }
+
+            if (firstDueDate <= startDate) {
+                return {
+                    valid: false,
+                    message: "First installment date must be after the start date."
+                };
+            }
+
+            const dayOffset = daysBetweenDates(startDate, firstDueDate);
+            if (dayOffset < firstInstallmentMinDays || dayOffset > firstInstallmentMaxDays) {
+                return {
+                    valid: false,
+                    message: `First installment date must be between ${firstInstallmentMinDays} and ${firstInstallmentMaxDays} days after the start date.`
+                };
+            }
+
+            return { valid: true };
+        }
+
+        function applySavedFirstInstallmentDateIfAny() {
+            if (!initialAmortFirstDueDateIso) {
+                return false;
+            }
+
+            const dateValue = parseInitialDateOnly(initialAmortFirstDueDateIso);
+            if (!dateValue) {
+                return false;
+            }
+
+            setFieldValue("RequestedFirstInstallmentDate", dateValue);
+            setFieldValue("ApprovedFirstInstallmentDate", dateValue);
+            return true;
+        }
+
+        function formatPreviewNumber(value, decimals) {
+            const num = Number(value);
+            if (!Number.isFinite(num)) {
+                return "-";
+            }
+
+            return num.toLocaleString(undefined, {
+                minimumFractionDigits: decimals,
+                maximumFractionDigits: decimals
+            });
+        }
+
+        function formatPreviewDate(value) {
+            if (!value) {
+                return "-";
+            }
+
+            return String(value).substring(0, 10);
+        }
+
+        function resolveProductDisplayName(creditCase) {
+            if (creditCase?.productName || creditCase?.ProductName) {
+                return creditCase.productName || creditCase.ProductName;
+            }
+
+            const productDropdown = document.getElementById("ProductCode")?.ej2_instances?.[0];
+            const productCode = creditCase?.productCode || creditCase?.ProductCode || productDropdown?.value;
+            const selectedProduct = productDropdown?.itemData
+                ?? productDropdown?.dataSource?.find?.(function(item) {
+                    return item?.ProductCode === productCode;
+                });
+
+            return selectedProduct?.ProductName || productCode || "-";
+        }
+
+        async function renderLoanUpsertAmortPreview(payload) {
+            if (Array.isArray(payload?.installments)) {
+                incomeRatioInstallments = payload.installments;
+                window.updateLoanIncomeRatios();
+            }
+            const creditCase = payload?.creditCase || {};
+            const version = payload?.version || {};
+            const creditCaseId = creditCase.creditCaseId
+                || creditCase.CreditCaseId
+                || document.getElementById("CreditCaseId")?.value;
+
+            const printArea = document.getElementById("creditLoanUpsertAmortPrintArea");
+            const emptyState = document.getElementById("loanUpsertAmortPreviewEmpty");
+            const printButton = document.getElementById("btnLoanUpsertPrintPlan");
+
+            if (!printArea || !creditCaseId) {
+                return;
+            }
+
+            const response = await fetch(
+                loanAmortPreviewUrl + "?creditCaseId=" + encodeURIComponent(creditCaseId),
+                { headers: { Accept: "text/html" } });
+
+            if (!response.ok) {
+                throw new Error(await response.text() || "Unable to load amortization plan.");
+            }
+
+            const html = await response.text();
+            printArea.innerHTML = html;
+            const hasPreview = html.trim().length > 0;
+            emptyState?.classList.toggle("d-none", hasPreview);
+            printButton?.classList.toggle("d-none", !hasPreview);
+
+            const totalInterestInput = document.getElementById("LoanTotalInterestAmount")?.ej2_instances?.[0];
+            if (totalInterestInput && version.TotalScheduledInterest != null) {
+                totalInterestInput.value = version.TotalScheduledInterest;
+                totalInterestInput.dataBind?.();
+            }
+
+            const disbursementFeeInput = document.getElementById("LoanDisbursementFeeAmount")?.ej2_instances?.[0];
+            if (disbursementFeeInput && version.TotalDisbursementFeeAmount != null) {
+                disbursementFeeInput.value = version.TotalDisbursementFeeAmount;
+                disbursementFeeInput.dataBind?.();
+            }
+
+            const netDisbursementInput = document.getElementById("LoanNetDisbursementAmount")?.ej2_instances?.[0];
+            if (netDisbursementInput && version.NetDisbursedAmount != null) {
+                netDisbursementInput.value = version.NetDisbursedAmount;
+                netDisbursementInput.dataBind?.();
+            }
+        }
+
+        window.renderLoanUpsertAmortPreview = renderLoanUpsertAmortPreview;
+
+        window.printLoanUpsertAmortPlan = function() {
+            const printable = document.getElementById("creditLoanUpsertAmortPrintArea");
+            if (!printable || !printable.innerHTML.trim()) {
+                alert("Save the loan first to generate the amortization plan.");
+                return;
+            }
+
+            const printWindow = window.open("", "_blank", "width=1200,height=800");
+            if (!printWindow) {
+                alert("Unable to open print preview.");
+                return;
+            }
+
+            printWindow.document.write(`
+                    <html>
+                    <head>
+                        <title>Amortization Plan</title>
+                        <style>
+                            body { font-family: Arial, sans-serif; margin: 24px; color: #111827; }
+                            h1, h2, h3, h4, h5 { margin: 0 0 12px; }
+                            .row { display: flex; gap: 24px; margin-bottom: 16px; }
+                            .row > div { flex: 1; }
+                            .table { width: 100%; border-collapse: collapse; font-size: 12px; }
+                            .table th, .table td { border: 1px solid #d1d5db; padding: 6px 8px; }
+                            .table th { background: #3f6f94; color: white; }
+                            .text-end { text-align: right; }
+                            .small { font-size: 12px; }
+                            .text-muted { color: #6b7280; }
+                            ul { padding-left: 0; list-style: none; }
+                        </style>
+                    </head>
+                    <body>${printable.innerHTML}</body>
+                    </html>
+                `);
+            printWindow.document.close();
+            printWindow.focus();
+            printWindow.print();
+        };
+
+        function loadAmortPlanTemplateDefaults() {
+            const templateCode = getFieldValue("AmortPlan_TemplateCode");
+            if (!templateCode) {
+                updateAmortPlanSettingsVisibility();
+                return;
+            }
+
+            const prefix = getActiveLoanTermsPrefix();
+            const url = new URL(amortTemplateDefaultsUrl, window.location.origin);
+            url.searchParams.set("templateCode", templateCode);
+
+            const startDate = getFieldValue(prefix + "StartDate");
+            const termMonths = getFieldValue(prefix === "Requested" ? "TermMonths" : "ApprovedTermMonths");
+            const baseAnnualRate = getFieldValue(prefix + "InterestRate");
+            const indexRatePercent = getFieldValue("AmortPlan_IndexRatePercent");
+            const indexCode = getFieldValue("AmortPlan_IndexCode");
+
+            if (startDate instanceof Date && !Number.isNaN(startDate.getTime())) {
+                const yyyy = startDate.getFullYear();
+                const mm = String(startDate.getMonth() + 1).padStart(2, "0");
+                const dd = String(startDate.getDate()).padStart(2, "0");
+                url.searchParams.set("startDate", `${yyyy}-${mm}-${dd}`);
+            } else if (startDate) {
+                url.searchParams.set("startDate", String(startDate).substring(0, 10));
+            }
+
+            if (termMonths) {
+                url.searchParams.set("termMonths", termMonths);
+            }
+
+            if (baseAnnualRate !== null && baseAnnualRate !== "") {
+                url.searchParams.set("baseAnnualRate", baseAnnualRate);
+            }
+
+            if (indexRatePercent !== null && indexRatePercent !== "") {
+                url.searchParams.set("indexRatePercent", indexRatePercent);
+            }
+
+            if (indexCode) {
+                url.searchParams.set("indexCode", indexCode);
+            }
+
+            fetch(url, {
+                headers: {
+                    "X-Requested-With": "XMLHttpRequest"
+                }
+            })
+                .then(response => response.json())
+                .then(payload => {
+                    if (!payload?.success || !payload.defaults) {
+                        return;
+                    }
+
+                    const defaults = payload.defaults;
+
+                    setFieldValue("AmortPlan_TemplateCode", defaults.templateCode);
+                    setFieldValue(
+                        "AmortPlan_FrequencyCode",
+                        enumNameFromIndex(amortEnumNames.frequency, defaults.frequencyCode));
+                    setFieldValue(getActiveLoanTermsPrefix() + "FirstInstallmentDate", defaults.nextInstallmentDate);
+                    setFieldValue(
+                        "AmortPlan_GraceType",
+                        enumNameFromIndex(amortEnumNames.graceType, defaults.graceType));
+                    setFieldValue("AmortPlan_UseIndexedRate", defaults.useIndexedRate);
+                    setFieldValue("AmortPlan_IndexCode", defaults.indexCode);
+                    setFieldValue("AmortPlan_IndexRatePercent", defaults.indexRatePercent);
+                    setFieldValue(
+                        "AmortPlan_DayCountMethod",
+                        enumNameFromIndex(amortEnumNames.dayCount, defaults.dayCountMethod));
+                    setFieldValue(
+                        "AmortPlan_PrincipalCalcMethod",
+                        enumNameFromIndex(amortEnumNames.principalCalc, defaults.principalCalcMethod));
+
+                    updateAmortPlanSettingsVisibility();
+                })
+                .catch(error => {
+                    console.error(error);
+                });
+        }
+
+        function bindAmortPlanSettingsHandlers() {
+            const bindChange = function(id, handler) {
+                const element = document.getElementById(id);
+                const instance = element?.ej2_instances?.[0];
+
+                if (instance) {
+                    const previous = instance.change;
+                    instance.change = function(args) {
+                        if (typeof previous === "function") {
+                            previous(args);
+                        }
+
+                        handler(args);
+                    };
+                    instance.dataBind?.();
+                    return;
+                }
+
+                element?.addEventListener("change", handler);
+            };
+
+            bindChange("AmortPlan_TemplateCode", function() {
+                loadAmortPlanTemplateDefaults();
+            });
+
+            bindChange("AmortPlan_PrincipalCalcMethod", function() {
+                updateAmortPlanSettingsVisibility();
+            });
+
+            bindChange("AmortPlan_UseIndexedRate", function() {
+                updateAmortPlanSettingsVisibility();
+            });
+
+        }
+
+        function initializeAmortPlanSettings(attempt) {
+            const requiredIds = [
+                "AmortPlan_TemplateCode",
+                "AmortPlan_PrincipalCalcMethod",
+                "AmortPlan_UseIndexedRate",
+                "RequestedFirstInstallmentDate",
+                "ApprovedFirstInstallmentDate",
+                "RequestedStartDate",
+                "ApprovedStartDate"
+            ];
+            const allReady = requiredIds.every(function(id) {
+                return !!document.getElementById(id)?.ej2_instances?.[0];
+            });
+
+            if (!allReady && attempt < 20) {
+                setTimeout(function() { initializeAmortPlanSettings(attempt + 1); }, 50);
+                return;
+            }
+
+            bindAmortPlanSettingsHandlers();
+
+            if (applySavedFirstInstallmentDateIfAny()) {
+                syncFirstInstallmentWithActiveTerms();
+            } else {
+                updateDefaultFirstInstallmentDateFromStart(getActiveLoanTermsPrefix(), { force: true });
+            }
+
+            updateAmortPlanSettingsVisibility();
+
+        }
+
+        window.applyLoanAmortizationToActiveTerms = function(values) {
+            const prefix = getActiveLoanTermsPrefix();
+
+            if (values.startDate !== undefined) {
+                setFieldValue(prefix + "StartDate", values.startDate);
+            }
+
+            if (values.maturityDate !== undefined) {
+                setFieldValue(prefix + "MaturityDate", values.maturityDate);
+            }
+
+            if (values.creditAmount !== undefined) {
+                setFieldValue(prefix + "CreditAmount", values.creditAmount);
+            }
+
+            if (values.interestRate !== undefined) {
+                setFieldValue(prefix + "InterestRate", values.interestRate);
+            }
+
+            if (values.chargeRate !== undefined) {
+                setFieldValue(prefix + "ChargeRate", values.chargeRate);
+            }
+
+            if (values.gracePeriod !== undefined) {
+                setFieldValue(prefix + "GracePeriod", values.gracePeriod);
+            }
+
+            recalculateCharge(prefix, "rate");
+        };
+
+        function setFieldGroupEnabled(ids, enabled) {
+            ids.forEach(function(id) {
+                setComponentEnabled(id, enabled);
+            });
+        }
+
+        function copyRequestedTermsToApproved(overwrite) {
+            requestedToApprovedFieldMap.forEach(function(pair) {
+                const requestedValue = getFieldValue(pair[0]);
+                const approvedValue = getFieldValue(pair[1]);
+
+                if (hasMeaningfulValue(requestedValue) &&
+                    (overwrite || !hasMeaningfulValue(approvedValue))) {
+                    setFieldValue(pair[1], requestedValue);
+                }
+            });
+        }
+
+        window.copyLoanRequestedTermsToApproved = function() {
+            copyRequestedTermsToApproved(true);
+        };
+
+        function bindRequestedTermsCopy() {
+            requestedToApprovedFieldMap.forEach(function(pair) {
+                const element = document.getElementById(pair[0]);
+                const instance = element?.ej2_instances?.[0];
+                const sync = function(value) {
+                    const requestedValue = value !== undefined
+                        ? value
+                        : getFieldValue(pair[0]);
+
+                    setFieldValue(pair[1], requestedValue);
+                };
+
+                if (instance) {
+                    const previous = instance.change;
+                    instance.change = function(args) {
+                        if (typeof previous === "function") {
+                            previous(args);
+                        }
+                        sync(args?.value);
+                    };
+                    instance.dataBind?.();
+                }
+
+                // Syncfusion NumericTextBox raises `change` after commit/blur.
+                // The native input event gives immediate Requested -> Approved
+                // mirroring while the user is still typing.
+                element?.addEventListener("input", function() {
+                    queueMicrotask(function() {
+                        const currentInstance = element.ej2_instances?.[0];
+                        const moduleName = currentInstance?.getModuleName?.();
+                        const value = moduleName === "numerictextbox"
+                            ? toNumber(element.value)
+                            : currentInstance?.value;
+
+                        sync(value);
+                    });
+                });
+
+                if (!instance) {
+                    element?.addEventListener("change", function() {
+                        sync();
+                    });
+                }
+            });
+        }
+
+        function resolveLoanEditMode(statusCode) {
+            const normalizedStatusCode = normalizeStatusCode(statusCode);
+            if (!normalizedStatusCode) {
+                return "requested";
+            }
+
+            const workflowStep = getWorkflowStep(normalizedStatusCode);
+            if (workflowStep?.IsTerminal) {
+                return "locked";
+            }
+
+            // In the loan workflow IsEditable selects which term set is edited:
+            // true  -> Requested Terms; false -> Approved Terms.
+            // Keep DRAFT as a safe fallback only when workflow metadata is unavailable.
+            if (workflowStep) {
+                return workflowStep.IsEditable ? "requested" : "approved";
+            }
+
+            return normalizedStatusCode === "DRAFT" ? "requested" : "approved";
+        }
+
+        function isCurrentStatusChangeAllowed() {
+            const currentStatusCode = normalizeStatusCode(document.getElementById("CurrentStatusCode")?.value);
+            if (!currentStatusCode) {
+                return true;
+            }
+
+            const workflowStep = getWorkflowStep(currentStatusCode);
+            return workflowStep ? !!workflowStep.AllowsStatusChange : true;
+        }
+
+        window.syncLoanCaseFormMode = function(statusCode) {
+            const selectedStatusCode = normalizeStatusCode(
+                statusCode ||
+                getFieldValue("StatusCode") ||
+                document.getElementById("CurrentStatusCode")?.value);
+            const editMode = resolveLoanEditMode(selectedStatusCode);
+            const statusChangeAllowed = isCurrentStatusChangeAllowed();
+            const disbursementEditable =
+                selectedStatusCode === "DISBURSED" &&
+                statusChangeAllowed;
+
+            if (editMode === "approved") {
+                copyRequestedTermsToApproved(false);
+            }
+
+            setFieldGroupEnabled(requestedFieldIds, editMode === "requested");
+            setFieldGroupEnabled(approvedFieldIds, editMode === "approved");
+            setFieldGroupEnabled(caseInfoFieldIds, editMode === "requested");
+            setFieldGroupEnabled(disbursementFieldIds, disbursementEditable);
+            setComponentEnabled("StatusCode", statusChangeAllowed);
+
+            const isWorkflowStepEditableInput = document.getElementById("IsWorkflowStepEditable");
+            if (isWorkflowStepEditableInput) {
+                isWorkflowStepEditableInput.value = editMode === "requested" ? "true" : "false";
+            }
+
+            setComponentEnabled("RequestedInterestRate", false);
+            setComponentEnabled("RequestedChargeRate", false);
+            setComponentEnabled("RequestedChargeAmount", false);
+            setComponentEnabled("RequestedEffectiveInterestRate", false);
+
+            const saveButton = document.querySelector("#@formDomId button[type='submit']");
+            if (saveButton) {
+                saveButton.disabled = !(editMode !== "locked" || statusChangeAllowed || disbursementEditable);
+            }
+
+            syncFirstInstallmentWithActiveTerms();
+        };
+
+        if (typeof window.setLoanCaseWorkflowSteps === "function") {
+            window.setLoanCaseWorkflowSteps(initialWorkflowSteps);
+        } else {
+            window.loanCaseWorkflowSteps = initialWorkflowSteps;
+        }
+
+        const initialStatusCode = normalizeStatusCode(
+            getFieldValue("StatusCode") ||
+            document.getElementById("CurrentStatusCode")?.value);
+
+        if (initialProductCode && !initialStatusCode && typeof window.refreshLoanCaseWorkflowStatuses === "function") {
+            window.refreshLoanCaseWorkflowStatuses("");
+        }
+
+        bindLoanTermCalculation("Requested");
+        bindLoanTermCalculation("Approved");
+        bindRequestedTermsCopy();
+
+        function parseInitialDateOnly(value) {
+            if (!value) return null;
+            const parts = String(value).split("-").map(Number);
+            if (parts.length !== 3 || parts.some(Number.isNaN)) return null;
+            return new Date(parts[0], parts[1] - 1, parts[2]);
+        }
+
+        function initializeLoanDatePickers(attempt) {
+            const entries = Object.entries(initialLoanDates);
+            const allReady = entries.every(function(entry) {
+                return !!document.getElementById(entry[0])?.ej2_instances?.[0];
+            });
+
+            if (!allReady && attempt < 20) {
+                setTimeout(function() { initializeLoanDatePickers(attempt + 1); }, 50);
+                return;
+            }
+
+            entries.forEach(function(entry) {
+                const dateValue = parseInitialDateOnly(entry[1]);
+                const instance = document.getElementById(entry[0])?.ej2_instances?.[0];
+                if (!dateValue || !instance) return;
+
+                instance.value = dateValue;
+                instance.dataBind?.();
+            });
+
+            const productDropdown = document.getElementById("ProductCode")?.ej2_instances?.[0];
+            const priceListDropdown = document.getElementById("PriceListId")?.ej2_instances?.[0];
+            if (initialProductCode && productDropdown && priceListDropdown &&
+                typeof window.onProductChange === "function") {
+                const selectedProduct = productDropdown.itemData
+                    ?? productDropdown.dataSource?.find?.(x => x.ProductCode === initialProductCode);
+                window.onProductChange({
+                    itemData: selectedProduct,
+                    preserveExistingSelection: true,
+                    preferredPriceListId: initialPriceListId,
+                    preferredPurposeCode: selectedLoanPurposeCode
+                });
+            }
+
+            window.syncLoanCaseFormMode(initialStatusCode);
+            initializeAmortPlanSettings(0);
+            window.updateLoanIncomeRatios();
+        }
+
+        window.validateLoanFirstInstallmentDate = validateFirstInstallmentDate;
+        window.getLoanActiveTermsPrefix = getActiveLoanTermsPrefix;
+        window.resolveLoanEditMode = resolveLoanEditMode;
+
+        initializeLoanDatePickers(0);
+    })();
+
+    window.loanPreSave = function(btn) {
+        const container = btn.closest(".form-container");
+
+        const getValue = function(id) {
+            const el = document.getElementById(id);
+            if (!el) return null;
+
+            const ej2 = el.ej2_instances?.[0];
+            if (ej2) {
+                if (typeof ej2.checked === "boolean") return ej2.checked;
+                return ej2.value;
+            }
+
+            if (el.matches("input, select, textarea")) return el.value;
+
+            const input = el.querySelector("input, select, textarea");
+            return input ? input.value : null;
+        };
+
+        const getText = function(id) {
+            const el = document.getElementById(id);
+            const ej2 = el?.ej2_instances?.[0];
+
+            if (ej2?.text) return ej2.text;
+            if (ej2?.inputElement?.value) return ej2.inputElement.value;
+            return null;
+        };
+
+        const toDateOnly = function(value) {
+            if (!value) return null;
+            if (value instanceof Date && !Number.isNaN(value.getTime())) {
+                const yyyy = value.getFullYear();
+                const mm = String(value.getMonth() + 1).padStart(2, "0");
+                const dd = String(value.getDate()).padStart(2, "0");
+                return `${yyyy}-${mm}-${dd}`;
+            }
+
+            const text = String(value).trim();
+            const eu = text.match(/^(\d{1,2})[./-](\d{1,2})[./-](\d{4})$/);
+            if (eu) {
+                return `${eu[3]}-${eu[2].padStart(2, "0")}-${eu[1].padStart(2, "0")}`;
+            }
+
+            return text.substring(0, 10);
+        };
+
+        const toNumber = function(value, defaultValue = 0) {
+            if (value === null || value === undefined || value === "") return defaultValue;
+            const parsed = Number(value);
+            return Number.isFinite(parsed) ? parsed : defaultValue;
+        };
+
+        const toNullableNumber = function(value) {
+            if (value === null || value === undefined || value === "") return null;
+            const parsed = Number(value);
+            return Number.isFinite(parsed) ? parsed : null;
+        };
+
+        const bankPartyId = getValue("BankPartyId") || document.getElementById("ccBankPartyBankPartyId")?.value;
+
+        const buildLoanModel = function() {
+            const statusCode = (
+                getValue("StatusCode") ||
+                document.getElementById("CurrentStatusCode")?.value ||
+                "DRAFT"
+            ).toString().trim().toUpperCase();
+            const requestedStartDate = toDateOnly(getValue("RequestedStartDate"));
+            const requestedMaturityDate = toDateOnly(getValue("RequestedMaturityDate"));
+            const requestedCreditAmount = getValue("RequestedCreditAmount");
+            const requestedInterestRate = getValue("RequestedInterestRate");
+            const requestedChargeRate = getValue("RequestedChargeRate");
+            const requestedChargeAmount = getValue("RequestedChargeAmount");
+            const requestedEffectiveInterestRate = getValue("RequestedEffectiveInterestRate");
+            const approvedStartDate = toDateOnly(getValue("ApprovedStartDate"));
+            const approvedMaturityDate = toDateOnly(getValue("ApprovedMaturityDate"));
+            const approvedCreditAmount = getValue("ApprovedCreditAmount");
+            const approvedInterestRate = getValue("ApprovedInterestRate");
+            const approvedChargeRate = getValue("ApprovedChargeRate");
+            const approvedChargeAmount = getValue("ApprovedChargeAmount");
+            const approvedEffectiveInterestRate = getValue("ApprovedEffectiveInterestRate");
+            const approvedPenaltyInterest = getValue("ApprovedPenaltyInterest");
+            const isWorkflowStepEditable =
+                String(getValue("IsWorkflowStepEditable") ?? "true").toLowerCase() === "true";
+            const disbursementBankCode = getValue("DisbursementBankCode");
+            const disbursementAccountNumber = getValue("DisbursementAccountNumber");
+            const amortTemplateCode = getValue("AmortPlan_TemplateCode");
+            const amortDayCountMethod = getValue("AmortPlan_DayCountMethod");
+            const amortPrincipalCalcMethod = getValue("AmortPlan_PrincipalCalcMethod");
+            const amortFrequencyCode = getValue("AmortPlan_FrequencyCode");
+            const activeTermsPrefix = window.getLoanActiveTermsPrefix?.() || "Requested";
+            const amortFirstDueDate = toDateOnly(getValue(activeTermsPrefix + "FirstInstallmentDate"));
+            const amortGraceType = getValue("AmortPlan_GraceType");
+            const amortUseIndexedRate = !!getValue("AmortPlan_UseIndexedRate");
+            const amortIndexCode = getValue("AmortPlan_IndexCode");
+            const amortIndexRatePercent = toNullableNumber(getValue("AmortPlan_IndexRatePercent"));
+            const amortFixedInstallmentAmount = toNullableNumber(getValue("AmortPlan_FixedInstallmentAmount"));
+            const amortFixedPrincipalAmount = toNullableNumber(getValue("AmortPlan_FixedPrincipalAmount"));
+            const outstandingAmount = getValue("OutstandingAmount");
+
+            ds.entity.setField("StatusCode", statusCode);
+            ds.entity.setField("CurrentStatusCode", statusCode);
+
+            return {
+                CreditCaseId: toNumber(getValue("CreditCaseId")),
+                CreditPurposeCode: getValue("CreditPurposeCode"),
+                GracePeriodRequested: toNumber(getValue("RequestedGracePeriod")),
+                RequestedGracePeriod: toNumber(getValue("RequestedGracePeriod")),
+                GracePeriodApproved: toNullableNumber(getValue("ApprovedGracePeriod")),
+                ApprovedGracePeriod: toNullableNumber(getValue("ApprovedGracePeriod")),
+                OutstandingAmount: outstandingAmount,
+                LoanTotalInterestAmount: getValue("LoanTotalInterestAmount"),
+                LoanDisbursementFeeAmount: getValue("LoanDisbursementFeeAmount"),
+                LoanNetDisbursementAmount: getValue("LoanNetDisbursementAmount"),
+                RequestedDisbursementFeeMinimumAmount: toNumber(getValue("RequestedDisbursementFeeMinimumAmount")),
+                ApprovedDisbursementFeeMinimumAmount: toNullableNumber(getValue("ApprovedDisbursementFeeMinimumAmount")),
+                IsWorkflowStepEditable: isWorkflowStepEditable,
+                BankCode: disbursementBankCode,
+                DisbursementAccountNumber: disbursementAccountNumber,
+                CreditCase: {
+                    CreditCaseId: toNumber(getValue("CreditCaseId")),
+                    CreditApplicationId: toNullableNumber(getValue("CreditApplicationId")),
+                    BankPartyId: toNumber(bankPartyId),
+                    FrameworkId: toNullableNumber(getValue("FrameworkId")),
+                    ProductCode: getValue("ProductCode"),
+                    ProductTypeCode: getValue("ProductTypeCode"),
+                    PriceListId: toNullableNumber(getValue("PriceListId")),
+                    WorkflowId: toNullableNumber(getValue("WorkflowId")),
+                    CurrencyCode: getValue("CurrencyCode") || "EUR",
+                    StageCode: getValue("StageCode") || "A0",
+                    LastUpdatedUserId: toNumber(getValue("LastUpdatedUserId"), -1),
+                    ConcurrencyStamp: getValue("ConcurrencyStamp"),
+                    CreditStatusCode: statusCode,
+                    StatusCode: statusCode,
+                    CreditDecisionReasonCode: getValue("CreditDecisionReasonCode"),
+                    DecisionReasonNotes: getValue("LoanDecisionReasonNotes"),
+                    CreditPurposeCode: getValue("CreditPurposeCode"),
+                    CaseDescription: getValue("CaseDescription"),
+                    OutstandingExposureAmount: outstandingAmount,
+                    StartDateRequested: requestedStartDate,
+                    MaturityDateRequested: requestedMaturityDate,
+                    CreditAmountRequested: toNumber(requestedCreditAmount),
+                    InterestRateRequested: toNumber(requestedInterestRate),
+                    PricingChargeRateRequested: toNumber(requestedChargeRate),
+                    PricingChargeAmountRequested: toNumber(requestedChargeAmount),
+                    EffectiveInterestRateRequested: toNumber(requestedEffectiveInterestRate),
+                    PenatlyInterestRequested: toNumber(getValue("RequestedPenaltyInterest") ?? approvedPenaltyInterest),
+                    IsIndividual: String(getValue("IsIndividual")).toLowerCase() === "true",
+                    StartDateApproved: approvedStartDate,
+                    MaturityDateApproved: approvedMaturityDate,
+                    CreditAmountApproved: toNullableNumber(approvedCreditAmount),
+                    InterestRateApproved: toNullableNumber(approvedInterestRate),
+                    PricingChargeRateApproved: toNullableNumber(approvedChargeRate),
+                    PricingChargeAmountApproved: toNullableNumber(approvedChargeAmount),
+                    EffectiveInterestRateApproved: toNullableNumber(approvedEffectiveInterestRate),
+                    PenatlyInterestApproved: toNullableNumber(approvedPenaltyInterest),
+                    DayInDelayActual: 0,
+                    DayInDelayMaximum: 0,
+                    CaseNumber: getValue("CaseNumber") || "DRAFT",
+                    DisbursementBankCode: disbursementBankCode,
+                    DisbursementAccountNumber: disbursementAccountNumber
+                },
+                CreditCaseAmortPlanVersion: {
+                    AmortizationTemplateCode: amortTemplateCode || null,
+                    DayCountCalculationTypeCode: amortDayCountMethod || "ActualActual_365_366",
+                    PrincipalCalculationMethodCode: amortPrincipalCalcMethod || "Annuity",
+                    FrequencyCode: amortFrequencyCode || null,
+                    FirstDueDate: amortFirstDueDate,
+                    GraceTypeCode: amortGraceType || "None",
+                    GraceUntilDate: null,
+                    UseIndexedRate: amortUseIndexedRate,
+                    IndexCode: amortUseIndexedRate ? (amortIndexCode || "EURIBOR_3M") : null,
+                    IndexRatePercent: amortUseIndexedRate ? amortIndexRatePercent : null,
+                    FixedInstallmentAmount: amortFixedInstallmentAmount,
+                    FixedPrincipalAmount: amortFixedPrincipalAmount,
+                    IsCurrent: true,
+                    IsLocked: false,
+                    IsSuperseded: false,
+                    IsActive: true
+                }
+            };
+        };
+
+        ds.entity.collectModel = buildLoanModel;
+        ds.entity.prepareModel = function() {
+            return buildLoanModel();
+        };
+
+        ds.entity.afterSave = async function(result, model) {
+            const updatedRow = result?.updatedRow || {};
+            const updatedCase = updatedRow.CreditCase || {};
+            const resolvedCreditCaseId = updatedRow.CreditCaseId ?? updatedCase.CreditCaseId ?? model.CreditCaseId ?? "";
+            const resolvedCaseNumber = updatedCase.CaseNumber ?? updatedRow.CreditCaseName ?? model.CreditCase?.CaseNumber ?? "";
+            const resolvedFormSessionId = container.dataset.formSessionId || "";
+
+            ds.entity.setField("CreditCaseId", resolvedCreditCaseId);
+            ds.entity.setField("CreditApplicationId", updatedCase.CreditApplicationId ?? model.CreditCase?.CreditApplicationId ?? "");
+            ds.entity.setField("CaseNumber", resolvedCaseNumber);
+            ds.entity.setField("WorkflowId", updatedCase.WorkflowId ?? model.CreditCase?.WorkflowId ?? "");
+            ds.entity.setField("FrameworkId", updatedCase.FrameworkId ?? model.CreditCase?.FrameworkId ?? "");
+            ds.entity.setField("CurrencyCode", updatedCase.CurrencyCode ?? model.CreditCase?.CurrencyCode ?? "EUR");
+            ds.entity.setField("StageCode", updatedCase.StageCode ?? model.CreditCase?.StageCode ?? "A0");
+            ds.entity.setField("LastUpdatedUserId", updatedCase.LastUpdatedUserId ?? model.CreditCase?.LastUpdatedUserId ?? -1);
+            ds.entity.setField("ConcurrencyStamp", updatedCase.ConcurrencyStamp ?? model.CreditCase?.ConcurrencyStamp ?? "");
+            const savedStatusCode =
+                updatedCase.CreditStatusCode ??
+                updatedCase.StatusCode ??
+                model.CreditCase?.CreditStatusCode ??
+                model.CreditCase?.StatusCode ??
+                "DRAFT";
+
+            ds.entity.setField("StatusCode", savedStatusCode);
+            ds.entity.setField("CurrentStatusCode", savedStatusCode);
+            // Refresh from the persisted status, not the status from opening the form.
+            try {
+                await window.refreshLoanCaseWorkflowStatuses?.(savedStatusCode);
+            } catch (error) {
+                console.error("Loan was saved, but refreshing its available statuses failed.", error);
+                notify?.warning?.("Saved successfully, but the next statuses could not be refreshed.");
+            }
+
+            ds.entity.setField("DisbursementBankCode", updatedRow.BankCode ?? updatedCase.DisbursementBankCode ?? model.BankCode ?? "");
+            ds.entity.setField("DisbursementAccountNumber", updatedRow.DisbursementAccountNumber ?? updatedCase.DisbursementAccountNumber ?? model.DisbursementAccountNumber ?? "");
+
+            if (typeof window.updateCreditHubCurrentCaseContext === "function") {
+                window.updateCreditHubCurrentCaseContext(resolvedCreditCaseId, resolvedCaseNumber, resolvedFormSessionId);
+            }
+
+            if (bankPartyId && typeof window.refreshCreditCasesGrid === "function") {
+                window.refreshCreditCasesGrid(bankPartyId);
+            } else if (bankPartyId && typeof window.loadApplication === "function") {
+                window.loadApplication(bankPartyId);
+            }
+
+            if (typeof window.refreshLoanSupportingTabs === "function") {
+                window.refreshLoanSupportingTabs();
+            }
+
+            window.renderLoanUpsertAmortPreview?.({
+                installments: updatedRow?.CreditCaseAmortPlanInstallments ?? [],
+                version: updatedRow?.CreditCaseAmortPlanVersion ?? {},
+                creditCase: updatedRow?.CreditCase ?? model?.CreditCase ?? {}
+            });
+
+        };
+
+        const model = buildLoanModel();
+        const creditCaseId = Number(model.CreditCaseId || 0);
+
+        const requiredCase = model.CreditCase;
+        if (!requiredCase.BankPartyId ||
+            !requiredCase.ProductCode ||
+            !requiredCase.StartDateRequested ||
+            !requiredCase.MaturityDateRequested ||
+            requiredCase.CreditAmountRequested <= 0) {
+            console.error("[CreditCaseLoan.preSave] Invalid model", model);
+            notify?.warning?.("Client, product, requested dates and credit amount are required.");
+            return;
+        }
+
+        const approvedRequiredValues = [
+            requiredCase.StartDateApproved,
+            requiredCase.MaturityDateApproved,
+            requiredCase.CreditAmountApproved,
+            requiredCase.InterestRateApproved,
+            requiredCase.EffectiveInterestRateApproved,
+            requiredCase.PricingChargeRateApproved,
+            requiredCase.PricingChargeAmountApproved,
+            requiredCase.PenatlyInterestApproved,
+            model.ApprovedGracePeriod,
+            getValue("ApprovedTermMonths")
+        ];
+        const hasMissingApprovedTerm = approvedRequiredValues.some(function(value) {
+            return value === null || value === undefined || value === "";
+        });
+
+        if (hasMissingApprovedTerm || Number(getValue("ApprovedTermMonths")) < 1) {
+            notify?.warning?.("All approved terms are required.");
+            return;
+        }
+
+        if (window.validateAllLoanProductLimits && !window.validateAllLoanProductLimits()) {
+            notify?.warning?.("Credit amount and months must be within the selected product limits.");
+            return;
+        }
+
+        const firstInstallmentValidation = window.validateLoanFirstInstallmentDate?.(
+            window.getLoanActiveTermsPrefix?.());
+        if (firstInstallmentValidation && !firstInstallmentValidation.valid) {
+            notify?.warning?.(firstInstallmentValidation.message);
+            return;
+        }
+
+        console.log("[CreditCaseLoan.preSave] model", model);
+
+        if (!ds.entity.validateHtmlForm(container) || !ds.entity.validateForm()) {
+            notify?.warning?.("Please correct validation errors");
+            return;
+        }
+
+        if (window.ds?.input?.validateRequiredDatePickers &&
+            !window.ds.input.validateRequiredDatePickers(container, { showToast: true })) {
+            return;
+        }
+
+        if (ds.entity.isSaving) return;
+
+        const formSessionId = container.dataset.formSessionId || null;
+        const isUpdate = creditCaseId > 0;
+        ds.entity.setSavingState(true, isUpdate
+            ? "Updating loan and amortization plan..."
+            : "Creating loan and amortization plan...");
+
+        const ajax = new ej.base.Ajax({
+            url: isUpdate
+                ? "/Credit/CreditCaseLoan/Update"
+                : "/Credit/CreditCaseLoan/Add",
+            type: "POST",
+            data: JSON.stringify(model),
+            contentType: "application/json"
+        });
+
+        ajax.beforeSend = function(args) {
+            if (formSessionId) {
+                args.httpRequest.setRequestHeader("FormSessionId", formSessionId);
+            }
+        };
+
+        ajax.send()
+            .then(async function(response) {
+                let result = {};
+                try { result = JSON.parse(response); } catch { }
+
+                if (result?.success !== true) {
+                    notify?.error?.(result?.message || "Save failed");
+                    return;
+                }
+
+                notify?.success?.("Saved successfully");
+                await ds.entity.afterSave?.(result, model, container, false);
+                window.renderLoanUpsertAmortPreview?.({
+                    installments: result?.updatedRow?.CreditCaseAmortPlanInstallments ?? [],
+                    version: result?.updatedRow?.CreditCaseAmortPlanVersion ?? {},
+                    creditCase: result?.updatedRow?.CreditCase ?? model?.CreditCase ?? {}
+                });
+            })
+            .catch(function(error) {
+                console.error(error);
+                notify?.error?.("Save failed");
+            })
+            .finally(function() {
+                ds.entity.setSavingState(false);
+            });
+    };
+
+    if (typeof window.onLoanCaseStatusChanged === "function") {
+        window.onLoanCaseStatusChanged(document.getElementById("StatusCode")?.ej2_instances?.[0]?.value || "@(Model?.CreditCase?.CreditStatusCode ?? string.Empty)");
+    }
+</script>
+
+<ejs-scripts></ejs-scripts>

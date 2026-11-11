@@ -1,0 +1,507 @@
+﻿@using Syncfusion.EJ2.DropDowns
+@using Syncfusion.EJ2.Inputs
+
+@{
+    ViewBag.Title = "Report Designer";
+    var formSessionId = ViewBag.FormSessionId;
+    var reports = ViewBag.Reports;
+    var universes = ViewBag.ReportUniverses;
+}
+
+<div class="container-fluid mt-3">
+
+    <div class="row">
+
+        <!-- ========================= -->
+        <!-- LEFT PANEL (25%) -->
+        <!-- ========================= -->
+        <div class="col-md-3">
+
+            <!-- Report -->
+            <div class="mb-3">
+                <ejs-dropdownlist id="reportDropdown"
+                                  dataSource="@(reports)"
+                                  change="onReportChanged"
+                                  placeholder="Report"
+                                  floatLabelType="Always">
+                    <e-dropdownlist-fields text="ReportName" value="ReportId"></e-dropdownlist-fields>
+                </ejs-dropdownlist>
+            </div>
+
+            <!-- Universe -->
+            <div class="mb-3">
+                <ejs-dropdownlist id="universeDropdown"
+                                  change="onUniverseChanged"
+                                  dataSource="@(universes)"
+                                  placeholder="Universe"
+                                  floatLabelType="Always">
+                    <e-dropdownlist-fields text="UniverseName" value="UniverseId"></e-dropdownlist-fields>
+                </ejs-dropdownlist>
+            </div>
+
+            <!-- Dynamic Parameters -->
+            <div id="universeParamsContainer" class="row g-3">
+                <!-- generated dynamically -->
+            </div>
+
+            <!-- Execute -->
+            <div class="mt-3">
+                <button type="button"
+                        class="btn btn-primary w-100"
+                        onclick="executeUniverse()">
+                    Execute
+                </button>
+            </div>
+
+        </div>
+
+        <!-- ========================= -->
+        <!-- RIGHT PANEL (75%) -->
+        <!-- ========================= -->
+        <div class="col-md-9">
+
+            <div class="grid-wrapper">
+                <div id="resultGrid"></div>
+            </div>
+
+        </div>
+
+    </div>
+
+</div>
+
+<div class="row mt-2">
+
+    <!-- ========================= -->
+    <!-- SPREADSHEET -->
+    <!-- ========================= -->
+    <div class="col-md-6">
+        <div id="spreadsheetHost"></div>
+    </div>
+
+    <!-- ========================= -->
+    <!-- MAPPING FORM -->
+    <!-- ========================= -->
+    <div class="col-md-6">
+        <div id="mappingHost"></div>
+    </div>
+
+</div>
+
+<style>
+    .grid-wrapper {
+        width: 100%;
+        height: 50vh;
+        overflow: auto;
+        border: 1px solid #ddd;
+        padding: 4px;
+        background: #fff;
+    }
+
+    #resultGrid {
+        min-width: 1000px; /* forces horizontal scroll */
+    }
+</style>
+
+<script>
+    const formSessionId = @Html.Raw(Json.Serialize(ViewBag.FormSessionId));
+
+    // ===============================
+    // GLOBAL REPORT DESIGNER STATE
+    // ===============================
+    window.ReportDesigner = {
+        selectedCell: null,
+
+        setSelectedCell(cellAddress) {
+            this.selectedCell = cellAddress;
+            console.log("📌 Selected Excel Cell:", cellAddress);
+
+            // push to mapping form if loaded
+            this.updateExcelCellInput(cellAddress);
+        },
+
+        updateExcelCellInput(cellAddress) {
+            const el = document.getElementById("ExcelCell");
+
+            if (!el || !el.ej2_instances || el.ej2_instances.length === 0) {
+                // mapping form not loaded yet — that's fine
+                return;
+            }
+
+            const txt = el.ej2_instances[0];
+            txt.value = cellAddress;
+            txt.dataBind();
+        }
+    };
+
+
+    function onReportChanged(args) {
+
+        if (!args?.itemData)
+            return;
+
+        const reportId = args.itemData.ReportId;
+        if (!reportId)
+            return;
+
+        console.log("Loading spreadsheet for report:", reportId);
+
+        const firstHost = document.getElementById("spreadsheetHost");
+        firstHost.innerHTML = "<div class='text-muted'>Loading spreadsheet...</div>";
+
+        const secondHost = document.getElementById("mappingHost");
+        secondHost.innerHTML = "<div class='text-muted'>Loading mapping...</div>";
+
+        const firstUrl = `/Report/ReportTemplate/PartialIndex?reportId=${reportId}`;
+        const secondUrl = `/Report/ReportMapping/Index?reportId=${reportId}`;
+
+        // ============================
+        // LOAD SPREADSHEET
+        // ============================
+        $.ajax({
+            url: firstUrl,
+            type: "GET",
+            cache: false,
+            success: function (html) {
+
+                firstHost.innerHTML = html;
+
+                let serverScripts = firstHost.querySelectorAll("script");
+
+                for (let i = 0; i < serverScripts.length; i++) {
+                    const oldScript = serverScripts[i];
+                    const script = document.createElement("script");
+
+                    if (oldScript.id) {
+                        script.id = oldScript.id;
+                    }
+
+                    script.type = oldScript.type || "text/javascript";
+                    script.text = oldScript.innerHTML;
+
+                    document.head.appendChild(script);
+                    oldScript.remove();
+                }
+            },
+            error: function (xhr, status, error) {
+                console.error("First AJAX failed:", error);
+                firstHost.innerHTML =
+                    "<div class='text-danger'>Failed to load spreadsheet.</div>";
+            }
+        });
+
+        // ============================
+        // LOAD MAPPING FORM
+        // ============================
+        $.ajax({
+            url: secondUrl,
+            type: "GET",
+            cache: false,
+            success: function (html2) {
+
+                secondHost.innerHTML = html2;
+
+                let serverScripts = secondHost.querySelectorAll("script");
+
+                for (let i = 0; i < serverScripts.length; i++) {
+                    const oldScript = serverScripts[i];
+                    const script = document.createElement("script");
+
+                    if (oldScript.id) {
+                        script.id = oldScript.id;
+                    }
+
+                    script.type = oldScript.type || "text/javascript";
+                    script.text = oldScript.innerHTML;
+
+                    document.head.appendChild(script);
+                    oldScript.remove();
+
+                    // ✅ CORRECT PLACE (AFTER ALL SCRIPTS)
+                    setTimeout(() => {
+                        if (window.wireSheetDropdown) {
+                            window.wireSheetDropdown();
+                        }
+                    }, 0);
+                }
+            },
+            error: function (xhr, status, error) {
+                console.error("Second AJAX failed:", error);
+                secondHost.innerHTML =
+                    "<div class='text-danger'>Failed to load mapping.</div>";
+            }
+        });
+    }
+
+    window.wireSheetDropdown = function () {
+
+        const el = document.getElementById("sheetDropdown");
+
+        if (!el || !el.ej2_instances || el.ej2_instances.length === 0) {
+            console.warn("sheetDropdown not initialized yet");
+            return;
+        }
+
+        const ddl = el.ej2_instances[0];
+
+        // 🔥 USE select, NOT change
+        ddl.select = function (args) {
+            console.log("📌 Sheet selected:", args);
+            window.onSheetChanged({ value: args.itemData.ReportSheetId });
+        };
+
+        console.log("✅ sheetDropdown wired (select event)");
+    };
+
+
+
+
+    function onUniverseChanged(args) {
+
+        const universeId = args.value;
+        const container = document.getElementById("universeParamsContainer");
+        container.innerHTML = "";
+
+        // Clear grid when universe changes
+        if (gridInstance) {
+            gridInstance.destroy();
+            gridInstance = null;
+            document.getElementById("resultGrid").innerHTML = "";
+        }
+
+        if (!universeId)
+            return;
+
+        $.ajax({
+            url: "/Report/Report/GetUniverseParams",
+            type: "GET",
+            data: { universeId: universeId },
+            headers: {
+                "FormSessionId": formSessionId
+            },
+            success: function (params) {
+
+                if (!params || params.length === 0)
+                    return;
+
+                params
+                    .sort((a, b) => a.ParamOrder - b.ParamOrder)
+                    .forEach(p => renderParam(p, container));
+            },
+            error: function (xhr) {
+                console.error("Failed to load universe params", xhr.responseText);
+            }
+        });
+    }
+
+    function renderParam(param, container) {
+
+        if (!param || !param.ParamType) {
+            console.warn("Invalid param definition:", param);
+            return;
+        }
+
+        const col = document.createElement("div");
+        col.className = "col-md-4";
+
+        const inputId = `param_${param.ParamKey || param.ParamName}`;
+
+        col.innerHTML = `<input id="${inputId}" />`;
+        container.appendChild(col);
+
+        const type = param.ParamType.toUpperCase();
+
+        switch (type) {
+
+            case "DDL": {
+                const ddl = new ej.dropdowns.DropDownList({
+                    placeholder: param.DisplayName ?? param.ParamName,
+                    required: param.IsRequired === true,
+                    floatLabelType: "Always",
+                    fields: { text: "Text", value: "Value" }
+                });
+
+                ddl.appendTo(`#${inputId}`);
+
+                loadDropdownData(param, ddl);
+                break;
+            }
+
+            case "NVARCHAR(50)":
+            case "NVARCHAR(100)": {
+                new ej.inputs.TextBox({
+                    placeholder: param.DisplayName ?? param.ParamName,
+                    value: param.DefaultValue ?? "",
+                    required: param.IsRequired === true,
+                    floatLabelType: "Always"
+                }).appendTo(`#${inputId}`);
+                break;
+            }
+
+            case "DATETIME": {
+                new ej.calendars.DatePicker({
+                    placeholder: param.DisplayName ?? param.ParamName,
+                    value: param.DefaultValue ? new Date(param.DefaultValue) : null,
+                    required: param.IsRequired === true,
+                    floatLabelType: "Always"
+                }).appendTo(`#${inputId}`);
+                break;
+            }
+
+            default:
+                console.warn("Unsupported ParamType:", param.ParamType);
+                break;
+        }
+    }
+
+    function loadDropdownData(param, ddlInstance) {
+        $.ajax({
+            url: "/Report/Report/GetUniverseParamDropdownData",
+            type: "POST",
+            contentType: "application/json",
+            headers: {
+                "FormSessionId": formSessionId
+            },
+            data: JSON.stringify({
+                projectAcronym: param.UIProjectAcronym,
+                modelName: param.UIModelName,
+                methodName: param.UIMethodName,
+                methodParams: param.UIMethodNameParams
+            }),
+            success: function (data) {
+
+                if (!data || data.length === 0) {
+                    ddlInstance.dataSource = [];
+                    ddlInstance.dataBind();
+                    return;
+                }
+
+                // SAME IDEA AS YOUR GRID CODE
+                const first = data[0];
+                const props = Object.keys(first);
+
+                if (props.length < 2) {
+                    console.warn("Dropdown data must have at least 2 properties", first);
+                    return;
+                }
+
+                const fkField = props[0]; // value
+                const fkValue = props[1]; // text
+
+                ddlInstance.fields = {
+                    value: fkField,
+                    text: fkValue
+                };
+
+                ddlInstance.dataSource = data;
+                ddlInstance.dataBind();
+            },
+            error: function (xhr) {
+                console.error("DDL load failed", xhr.responseText);
+            }
+        });
+    }
+
+    function collectUniverseParams() {
+
+        const params = {};
+
+        document.querySelectorAll('[id^="param_"]').forEach(el => {
+
+            const ejInstance = el.ej2_instances?.[0];
+            if (!ejInstance)
+                return;
+
+            const paramName = el.id.replace("param_", "");
+
+            if (ejInstance.value instanceof Date)
+                params[paramName] = ejInstance.value.toISOString();
+            else
+                params[paramName] = ejInstance.value;
+        });
+
+        return params;
+    }
+
+    function executeUniverse() {
+
+        const universeDropdown =
+            document.getElementById("universeDropdown").ej2_instances[0];
+
+        const universeId = universeDropdown.value;
+
+        if (!universeId) {
+            alert("Please select a universe.");
+            return;
+        }
+
+        const parameters = collectUniverseParams();
+
+        $.ajax({
+            url: "/Report/Report/ExecuteUniverseCommand",
+            type: "POST",
+            contentType: "application/json",
+            headers: {
+                "FormSessionId": formSessionId
+            },
+            data: JSON.stringify({
+                universeId: universeId,
+                parameters: parameters
+            }),
+            success: function (data) {
+                renderGrid(data);
+            },
+            error: function (xhr) {
+                console.error(xhr.responseText || "Execution failed.");
+            }
+        });
+    }
+
+    let gridInstance = null;
+
+    function renderGrid(data) {
+
+        if (gridInstance) {
+            gridInstance.destroy();
+            document.getElementById("resultGrid").innerHTML = "";
+        }
+
+        if (!data || data.length === 0) {
+            document.getElementById("resultGrid").innerHTML =
+                "<div class='text-muted'>No data returned.</div>";
+            return;
+        }
+
+        const columns = Object.keys(data[0]).map(key => ({
+            field: key,
+            headerText: key,
+            clipMode: "Ellipsis"
+        }));
+
+        gridInstance = new ej.grids.Grid({
+            dataSource: data,
+            columns: columns,
+
+            allowResizing: true,
+
+            height: "100%",
+            width: "100%",
+
+            enableHover: false,
+
+            allowSelection: true,
+            selectionSettings: {
+                type: "Multiple",
+                mode: "Cell"
+            },
+
+            allowKeyboard: true,
+
+            dataBound: function () {
+                this.autoFitColumns();
+            }
+        });
+
+        gridInstance.appendTo("#resultGrid");
+    }
+</script>

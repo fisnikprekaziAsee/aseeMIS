@@ -1,0 +1,134 @@
+﻿@using Syncfusion.EJ2.Spreadsheet
+
+@{
+    ViewData["Title"] = "Sheet-based Spreadsheet POC";
+}
+
+<div style="margin-bottom:10px">
+    <button onclick="newSheet()">➕ New Sheet</button>
+    <button onclick="saveSheet()">💾 Save Sheet</button>
+
+    <select id="sheetSelector" onchange="loadSelectedSheet()">
+        <option value="">-- select sheet --</option>
+    </select>
+</div>
+
+<ejs-spreadsheet id="spreadsheet" created="onCreated" allowOpen="true" openUrl="/Report/ReportSheetPoc/Open"></ejs-spreadsheet>
+
+<script>
+    let spreadsheet;
+    let currentSheetId = null;
+    let nextSheetId = 1;
+
+    function onCreated() {
+        spreadsheet = document.getElementById('spreadsheet').ej2_instances[0];
+
+        // Bind default sheet
+        currentSheetId = nextSheetId++;
+        spreadsheet.sheets[0].name = 'Sheet ' + currentSheetId;
+        spreadsheet.updateCell({ value: 'Sheet ' + currentSheetId }, 'A1');
+
+        refreshSheetList();
+    }
+
+    // -----------------------------
+    // CREATE NEW SHEET (SAFE)
+    // -----------------------------
+    function newSheet() {
+        currentSheetId = nextSheetId++;
+
+        // Keep only first sheet
+        while (spreadsheet.sheets.length > 1) {
+            spreadsheet.deleteSheet(1);
+        }
+
+        // Rename first sheet safely
+        spreadsheet.sheets[0].name = 'Sheet ' + currentSheetId;
+
+        spreadsheet.updateCell({ value: 'Sheet ' + currentSheetId }, 'A1');
+        spreadsheet.refresh();
+    }
+
+    // -----------------------------
+    // SAVE ACTIVE SHEET
+    // -----------------------------
+    function saveSheet() {
+        const s = spreadsheet.sheets[spreadsheet.activeSheetIndex];
+
+        if (!s || !currentSheetId) {
+            alert('No sheet loaded');
+            return;
+        }
+
+        fetch('/Report/ReportSheetPoc/SaveSheet', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                sheetId: currentSheetId,
+                reportId: 1,
+                sheetName: s.name,
+                order: currentSheetId,
+                sheetJson: {
+                    rows: s.rows || [],
+                    columns: s.columns || [],
+                    usedRange: s.usedRange || {}
+                }
+            })
+        })
+        .then(() => {
+            refreshSheetList();
+            alert('Sheet saved');
+        });
+    }
+
+    // -----------------------------
+    // LOAD SELECTED SHEET
+    // -----------------------------
+    function loadSelectedSheet() {
+        const ddl = document.getElementById('sheetSelector');
+        const id = ddl.value;
+
+        // 🔑 HARD GUARD
+        if (!id || id === "undefined") return;
+
+        fetch(`/Report/ReportSheetPoc/LoadSheet?sheetId=${id}`)
+            .then(r => {
+                if (!r.ok) throw new Error("Sheet not found");
+                return r.json();
+            })
+            .then(sheet => {
+                currentSheetId = sheet.sheetId;
+
+                // Reuse first sheet
+                spreadsheet.sheets[0].name = sheet.sheetName;
+                spreadsheet.sheets[0].rows = sheet.sheetJson.rows || [];
+                spreadsheet.sheets[0].columns = sheet.sheetJson.columns || [];
+                spreadsheet.sheets[0].usedRange = sheet.sheetJson.usedRange || {};
+
+                spreadsheet.refresh();
+            })
+            .catch(err => {
+                console.error(err);
+                alert('Failed to load sheet');
+            });
+    }
+
+    // -----------------------------
+    // LOAD SHEET LIST
+    // -----------------------------
+    function refreshSheetList() {
+        fetch('/Report/ReportSheetPoc/GetSheets')
+            .then(r => r.json())
+            .then(sheets => {
+                const ddl = document.getElementById('sheetSelector');
+                ddl.innerHTML = '<option value="">-- select sheet --</option>';
+
+                sheets.forEach(s => {
+                    const opt = document.createElement('option');
+                    opt.value = s.sheetId;
+                    opt.text = s.sheetName;
+                    ddl.appendChild(opt);
+                });
+            });
+    }
+</script>

@@ -1,0 +1,884 @@
+﻿@{
+    ViewData["Title"] = "ETL File Data Viewer";
+    var filesDropdown = ViewBag.FilesDropdown as List<Microsoft.AspNetCore.Mvc.Rendering.SelectListItem> ?? new();
+}
+
+<style>
+    :root {
+        --vw-primary: #4BA3E3;
+        --vw-primary-dark: #3B8CC7;
+        --vw-primary-light: #EBF5FB;
+        --vw-bg: #f4f6f9;
+        --vw-card: #ffffff;
+        --vw-border: #e0e4e8;
+        --vw-text: #333333;
+        --vw-muted: #7a8a9e;
+        --vw-danger: #e74c3c;
+        --vw-radius: 6px;
+        --vw-shadow: 0 1px 3px rgba(0,0,0,.05);
+    }
+
+    .vw-page {
+        background: var(--vw-bg);
+        min-height: 100vh;
+        padding: 24px 28px;
+    }
+
+    .vw-card {
+        background: var(--vw-card);
+        border: 1px solid var(--vw-border);
+        border-radius: var(--vw-radius);
+        box-shadow: var(--vw-shadow);
+        padding: 20px 24px;
+        margin-bottom: 20px;
+    }
+
+    .vw-card-header {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 18px;
+        padding-bottom: 12px;
+        border-bottom: 1px solid var(--vw-border);
+    }
+
+        .vw-card-header i {
+            color: var(--vw-primary);
+            font-size: 16px;
+        }
+
+        .vw-card-header span {
+            font-size: .88rem;
+            font-weight: 600;
+            color: var(--vw-text);
+        }
+
+        .vw-card-header .badge {
+            margin-left: auto;
+            font-size: .72rem;
+            font-weight: 500;
+            color: var(--vw-primary);
+            background: var(--vw-primary-light);
+            padding: 3px 10px;
+            border-radius: 10px;
+        }
+
+    .vw-filter-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 16px;
+        align-items: flex-end;
+    }
+
+    .vw-filter-group {
+        display: flex;
+        flex-direction: column;
+        min-width: 220px;
+        flex: 1;
+    }
+
+        .vw-filter-group label {
+            font-size: .78rem;
+            font-weight: 600;
+            color: var(--vw-text);
+            margin-bottom: 6px;
+            display: block;
+        }
+
+    #btnSearch {
+        min-width: 130px;
+        height: 36px;
+        border: none;
+        border-radius: var(--vw-radius);
+        background: var(--vw-primary);
+        color: #fff;
+        font-weight: 600;
+        font-size: .84rem;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        transition: background .15s;
+    }
+
+        #btnSearch:hover:not(:disabled) {
+            background: var(--vw-primary-dark);
+        }
+
+        #btnSearch:disabled {
+            background: #c5d3de;
+            color: #fff;
+            cursor: not-allowed;
+        }
+
+    #btnProcess.hovered {
+        background: linear-gradient(135deg, #16a34a, #22c55e);
+        color: #fff;
+        border-color: #16a34a;
+    }
+
+        #btnProcess.hovered i {
+            color: #fff;
+        }
+
+    .vw-alert {
+        display: none;
+        padding: 10px 16px;
+        border-radius: var(--vw-radius);
+        font-size: .82rem;
+        font-weight: 500;
+        margin-bottom: 14px;
+        align-items: center;
+        gap: 8px;
+    }
+
+        .vw-alert.show {
+            display: flex;
+        }
+
+        .vw-alert.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .vw-alert.danger {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .vw-alert.empty {
+            background: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeeba;
+        }
+
+    .vw-loader {
+        display: none;
+        text-align: center;
+        padding: 40px 0;
+    }
+
+        .vw-loader.show {
+            display: block;
+        }
+
+        .vw-loader .spinner {
+            width: 36px;
+            height: 36px;
+            border: 3px solid var(--vw-border);
+            border-top-color: var(--vw-primary);
+            border-radius: 50%;
+            animation: vw-spin .7s linear infinite;
+            margin: 0 auto 10px;
+        }
+
+
+    .vw-results-header {
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .vw-results-title {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+
+    .vw-results-actions {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-left: auto;
+    }
+
+    #btnProcess {
+        min-width: 110px;
+        height: 32px;
+        border: 1px solid #16a34a;
+        border-radius: 6px;
+        background: #16a34a;
+        color: #fff;
+        font-weight: 600;
+        font-size: .78rem;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        transition: background .2s, box-shadow .2s;
+    }
+
+        #btnProcess i {
+            color: #fff;
+            font-size: 12px;
+        }
+
+        #btnProcess:hover:not(:disabled) {
+            background: #15803d;
+            box-shadow: 0 2px 6px rgba(22, 163, 74, .25);
+        }
+
+        #btnProcess:disabled {
+            border-color: #d1d5db;
+            background: #e5e7eb;
+            color: #9ca3af;
+            cursor: not-allowed;
+        }
+
+            #btnProcess:disabled i {
+                color: #9ca3af;
+            }
+
+        #btnProcess.processed {
+            border-color: #d1d5db;
+            background: #f3f4f6;
+            color: #6b7280;
+            cursor: default;
+        }
+
+            #btnProcess.processed i {
+                color: #6b7280;
+            }
+
+    .vw-header-with-action {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    /* Nav button group (Previous + Next) */
+    .vw-nav-group {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .nav-syncfusion-btn {
+        display: inline-flex;
+        align-items: center;
+        border: none !important;
+        border-radius: 4px;
+        overflow: hidden;
+        background: #2d9cdb !important;
+        color: #fff !important;
+        height: 30px;
+        min-width: 90px;
+        font-size: 11px;
+        font-weight: 700;
+        padding: 0;
+    }
+
+        .nav-syncfusion-btn span {
+            color: #fff !important;
+        }
+
+        .nav-syncfusion-btn .e-btn-icon {
+            width: 30px;
+            height: 30px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+    /* Previous: icon on the LEFT, divider on its right */
+    .nav-prev .e-btn-icon {
+        border-right: 1px solid rgba(255,255,255,0.25);
+    }
+
+    .nav-prev span:last-child {
+        padding: 0 12px;
+        display: inline-flex;
+        align-items: center;
+    }
+
+    /* Next: icon on the RIGHT, divider on its left */
+    .nav-next .e-btn-icon {
+        border-left: 1px solid rgba(255,255,255,0.25);
+    }
+
+    .nav-next span:first-child {
+        padding: 0 12px;
+        display: inline-flex;
+        align-items: center;
+    }
+
+    .nav-syncfusion-btn .e-icons {
+        color: #fff !important;
+    }
+
+    .nav-syncfusion-btn:hover {
+        background: #2388c0 !important;
+    }
+
+    @@keyframes vw-spin {
+        to {
+            transform: rotate(360deg);
+        }
+    }
+
+    .vw-loader p {
+        color: var(--vw-muted);
+        font-size: .84rem;
+    }
+
+    .vw-empty {
+        display: none;
+        text-align: center;
+        padding: 48px 20px;
+        color: var(--vw-muted);
+    }
+
+        .vw-empty.show {
+            display: block;
+        }
+
+        .vw-empty .empty-icon {
+            font-size: 40px;
+            margin-bottom: 8px;
+            opacity: .4;
+        }
+
+        .vw-empty h3 {
+            font-size: .95rem;
+            font-weight: 600;
+            color: var(--vw-text);
+            margin: 0 0 4px;
+        }
+
+        .vw-empty p {
+            font-size: .82rem;
+            margin: 0;
+        }
+
+    #gridContainer {
+        display: none;
+    }
+
+        #gridContainer.show {
+            display: block;
+        }
+
+    /* Syncfusion overrides */
+    .e-grid {
+        border: 1px solid var(--vw-border) !important;
+        border-radius: var(--vw-radius) !important;
+        overflow: hidden;
+    }
+
+        .e-grid .e-headercell {
+            background: #f7f9fb !important;
+            font-weight: 600 !important;
+            font-size: .78rem !important;
+            color: var(--vw-text) !important;
+            border-color: var(--vw-border) !important;
+        }
+
+        .e-grid .e-rowcell {
+            font-size: .8rem !important;
+            color: var(--vw-text) !important;
+            border-color: #eef0f3 !important;
+        }
+
+        .e-grid .e-toolbar {
+            background: #f7f9fb !important;
+            border-color: var(--vw-border) !important;
+        }
+
+        .e-grid tr.e-altrow .e-rowcell:not(.e-selectionbackground.e-active) {
+            background-color: #fafbfc;
+        }
+
+        .e-grid .e-pager {
+            border-color: var(--vw-border) !important;
+        }
+
+    .e-input-group.e-outline,
+    .e-input-group.e-outline:not(.e-disabled):not(.e-float-icon-left) {
+        border-color: var(--vw-border) !important;
+        border-radius: var(--vw-radius) !important;
+    }
+
+        .e-input-group.e-outline.e-input-focus:not(.e-disabled) {
+            border-color: var(--vw-primary) !important;
+        }
+</style>
+
+<div class="vw-page">
+
+    <input type="hidden" id="formId" value="@ViewBag.FormId" />
+    <input type="hidden" id="formSessionId" value="@ViewBag.FormSessionId" />
+
+
+    <!-- Filter Card -->
+    <div class="vw-card">
+        <div class="vw-card-header vw-header-with-action">
+            <div style="display:flex; align-items:center; gap:10px;">
+                <i class="e-icons e-search"></i>
+                <span>Search File Data</span>
+            </div>
+
+            <!-- ✅ PREV + NEXT BUTTON GROUP -->
+            <div class="vw-nav-group">
+                <button id="btnPrevValidation"
+                        type="button"
+                        class="e-btn nav-syncfusion-btn nav-prev">
+                    <span class="e-btn-icon e-icons e-chevron-left"></span>
+                    <span>Previous</span>
+                </button>
+                <button id="btnNextValidation"
+                        type="button"
+                        class="e-btn nav-syncfusion-btn nav-next">
+                    <span>Next</span>
+                    <span class="e-btn-icon e-icons e-chevron-right"></span>
+                </button>
+            </div>
+        </div>
+
+     
+        <div class="vw-filter-row">
+            <div class="vw-filter-group">
+                <label for="dpReportingDate">Reporting Date</label>
+                <input id="dpReportingDate" type="text" />
+            </div>
+            <div class="vw-filter-group">
+                <label for="ddlFile">ETL File</label>
+                <input id="ddlFile" type="text" />
+            </div>
+            <div style="padding-bottom: 1px;">
+                <button id="btnSearch" disabled onclick="doSearch()">
+                    <i class="e-icons e-search"></i> Search
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div id="alertBox" class="vw-alert"></div>
+
+    <div id="loader" class="vw-loader">
+        <div class="spinner"></div>
+        <p>Loading data, please wait…</p>
+    </div>
+
+    <div id="emptyState" class="vw-empty">
+        <div class="empty-icon">📂</div>
+        <h3>No Data Found</h3>
+        <p>There are no records for the selected file and date.</p>
+    </div>
+
+    <!-- Results Card -->
+    <div class="vw-card" id="gridContainer">
+        <div class="vw-card-header vw-results-header">
+            <div class="vw-results-title">
+                <i class="e-icons e-grid-view"></i>
+                <span>Results</span>
+            </div>
+
+            <div class="vw-results-actions">
+                <button id="btnProcess" type="button" disabled onclick="doProcess()">
+                    <i class="e-icons e-play"></i> Process
+                </button>
+                <span class="badge" id="resultCount"></span>
+            </div>
+        </div>
+        <div id="sfGrid"></div>
+    </div>
+
+</div>
+
+@section Scripts {
+    <script>
+        var formId = document.getElementById("formId")?.value || "";
+        var formSessionId = document.getElementById("formSessionId")?.value || "";
+
+        var searchUrl = '@Url.Action("Search", "DwEtlFileDataViewer", new { area = "CredinsEtl" })';
+        var processUrl = '@Url.Action("Process", "DwEtlFileDataViewer", new { area = "CredinsEtl" })';
+        var isProcessedUrl = '@Url.Action("IsProcessed", "DwEtlFileDataViewer", new { area = "CredinsEtl" })';
+        var fileDropdownData = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(
+                    filesDropdown.Select(f => new { Value = f.Value, Text = f.Text })));
+
+    var dpInstance = null;
+    var ddlInstance = null;
+    var gridInstance = null;
+
+        document.addEventListener('DOMContentLoaded', function () {
+
+            document.getElementById('btnProcess').addEventListener('mouseenter', function () {
+                if (!this.disabled && !this.classList.contains('processed')) {
+                    this.classList.add('hovered');
+                }
+            });
+
+
+                    document.getElementById("btnNextValidation")?.addEventListener("click", function () {
+            window.location.href = "/DwEtlValidation/DwEtlJobValidation/Index/9903";
+        });
+
+
+                document.getElementById("btnPrevValidation")?.addEventListener("click", function () {
+                    window.location.href = "/CredinsEtl/CredinsEtl/Index/9901";
+        });
+
+            dpInstance = new ej.calendars.DatePicker({
+                placeholder: 'Select date',
+                format: 'MM/dd/yyyy',
+                cssClass: 'e-outline',
+                floatLabelType: 'Never',
+                showClearButton: true,
+                value: new Date(),
+                change: onFilterChange
+            });
+            dpInstance.appendTo('#dpReportingDate');
+
+            ddlInstance = new ej.dropdowns.DropDownList({
+                dataSource: fileDropdownData,
+                fields: { value: 'Value', text: 'Text' },
+                placeholder: 'Select a file',
+                cssClass: 'e-outline',
+                floatLabelType: 'Never',
+                showClearButton: true,
+                change: onFilterChange
+            });
+            ddlInstance.appendTo('#ddlFile');
+
+            onFilterChange();
+        });
+
+        function onFilterChange() {
+            var hasDate = dpInstance && dpInstance.value;
+            var hasFile = ddlInstance && ddlInstance.value;
+
+            document.getElementById('btnSearch').disabled = !(hasDate && hasFile);
+
+            var processButton = document.getElementById('btnProcess');
+            if (processButton && !gridInstance) {
+                processButton.disabled = true;
+            }
+        }
+
+        function checkProcessed() {
+            var fileId = ddlInstance.value;
+            var formattedDate = getFormattedDate();
+
+            var url = isProcessedUrl
+                + '?formId=' + encodeURIComponent(formId)
+                + '&dwEtlFileId=' + encodeURIComponent(fileId)
+                + '&reportingDate=' + encodeURIComponent(formattedDate);
+
+            fetch(url, {
+                headers: { "FormSessionId": formSessionId }
+            })
+                .then(function (r) { return r.json(); })
+                .then(function (result) {
+                    var btn = document.getElementById('btnProcess');
+                    if (result.processed) {
+                        btn.disabled = true;
+                        btn.classList.add('processed');
+                        btn.innerHTML = '<i class="e-icons e-check"></i> Processed';
+                    } else {
+                        btn.disabled = false;
+                        btn.classList.remove('processed');
+                        btn.innerHTML = '<i class="e-icons e-play"></i> Process';
+                    }
+                });
+        }
+
+        function setProcessEnabled(enabled) {
+            var btn = document.getElementById('btnProcess');
+            if (btn) {
+                btn.disabled = !enabled;
+            }
+        }
+
+        function showAlert(type, msg) {
+            var el = document.getElementById('alertBox');
+            el.className = 'vw-alert show ' + type;
+            el.innerHTML = '<span>' + msg + '</span>';
+        }
+
+        function hideAlert() {
+            document.getElementById('alertBox').className = 'vw-alert';
+        }
+
+        function showLoader() {
+            document.getElementById('loader').classList.add('show');
+        }
+
+        function hideLoader() {
+            document.getElementById('loader').classList.remove('show');
+        }
+
+        function showEmpty() {
+            document.getElementById('emptyState').classList.add('show');
+        }
+
+        function hideEmpty() {
+            document.getElementById('emptyState').classList.remove('show');
+        }
+
+        function showGrid() {
+            document.getElementById('gridContainer').classList.add('show');
+        }
+
+        function hideGrid() {
+            document.getElementById('gridContainer').classList.remove('show');
+        }
+
+        function resetResults() {
+            hideAlert();
+            hideEmpty();
+            hideGrid();
+            setProcessEnabled(false);
+
+            if (gridInstance) {
+                gridInstance.destroy();
+                gridInstance = null;
+            }
+
+            document.getElementById('sfGrid').innerHTML = '';
+            document.getElementById('resultCount').textContent = '';
+        }
+
+        function toHeaderText(field) {
+            return field
+                .replace(/([A-Z])/g, ' $1')
+                .replace(/^./, function (s) { return s.toUpperCase(); })
+                .trim();
+        }
+
+        function getFormattedDate() {
+            var dateVal = dpInstance.value;
+            if (!(dateVal instanceof Date)) return '';
+
+            var y = dateVal.getFullYear();
+            var m = String(dateVal.getMonth() + 1).padStart(2, '0');
+            var d = String(dateVal.getDate()).padStart(2, '0');
+
+            return y + '-' + m + '-' + d;
+        }
+
+        function doSearch() {
+            var fileId = ddlInstance.value;
+            var formattedDate = getFormattedDate();
+
+            resetResults();
+            showLoader();
+            document.getElementById('btnSearch').disabled = true;
+
+            var url = searchUrl
+                + '?formId=' + encodeURIComponent(formId)
+                + '&dwEtlFileId=' + encodeURIComponent(fileId)
+                + '&reportingDate=' + encodeURIComponent(formattedDate);
+
+            fetch(url, {
+                headers: { "FormSessionId": formSessionId }
+            })
+                .then(function (r) { return r.json(); })
+                .then(function (result) {
+                    hideLoader();
+                    onFilterChange();
+
+                    if (!result.ok) {
+                        showAlert('danger', result.message || 'An error occurred.');
+                        return;
+                    }
+
+                    if (!result.data || result.data.length === 0) {
+                        showEmpty();
+                        showAlert('empty', result.message || 'No data found.');
+                        return;
+                    }
+
+                    showAlert('success', result.message || 'Data loaded successfully.');
+                    buildGrid(result.data, result.totalCount || result.data.length);
+                    checkProcessed();
+                    setProcessEnabled(true);
+                })
+                .catch(function (err) {
+                    hideLoader();
+                    onFilterChange();
+                    showAlert('danger', 'Network error — please try again.');
+                    console.error(err);
+                });
+        }
+
+        function doProcess() {
+            var fileId = ddlInstance.value;
+            var formattedDate = getFormattedDate();
+
+            if (!fileId || !formattedDate) {
+                showAlert('danger', 'Please select file and date first.');
+                return;
+            }
+
+            setProcessEnabled(false);
+
+            var url = processUrl
+                + '?formId=' + encodeURIComponent(formId)
+                + '&dwEtlFileId=' + encodeURIComponent(fileId)
+                + '&reportingDate=' + encodeURIComponent(formattedDate);
+
+            fetch(url, {
+                method: 'POST',
+                headers: { "FormSessionId": formSessionId }
+            })
+            .then(function (r) { return r.json(); })
+            .then(function (result) {
+                if (!result.ok) {
+                    showAlert('danger', result.message || 'Process failed.');
+                    setProcessEnabled(true);
+                    return;
+                }
+
+                showAlert('success', result.message || 'Process completed successfully.');
+                checkProcessed();
+            })
+            .catch(function (err) {
+                console.error(err);
+                showAlert('danger', 'Network error while processing.');
+                setProcessEnabled(true);
+            });
+        }
+
+        function onToolbarClick(args) {
+            if (!gridInstance) return;
+
+            var fileName = 'EtlFileData_' + new Date().toISOString().slice(0, 10);
+            var itemId = (args.item.id || '').toLowerCase();
+
+            if (itemId.indexOf('excelexport') !== -1) {
+                gridInstance.excelExport({ fileName: fileName + '.xlsx' });
+            }
+            else if (itemId.indexOf('pdfexport') !== -1) {
+                gridInstance.pdfExport({ fileName: fileName + '.pdf' });
+            }
+            else if (itemId.indexOf('csvexport') !== -1) {
+                gridInstance.csvExport({ fileName: fileName + '.csv' });
+            }
+        }
+
+        function getAggregatesBySelectedFile(firstRow) {
+            var selectedFileId = parseInt(ddlInstance.value);
+            var aggregates = [];
+
+            if (!selectedFileId || !firstRow) {
+                return aggregates;
+            }
+
+            if (Object.prototype.hasOwnProperty.call(firstRow, 'OriginalAmount')) {
+                aggregates.push({
+                    columns: [
+                        { field: 'DaysOfDelayForCAandLoan', type: 'Average', format: 'N0', footerTemplate: 'Avg: ${Average}' },
+                        { field: 'OriginalAmount', type: 'Sum', format: 'N2', footerTemplate: 'Total: ${Sum}' },
+                        { field: 'AmountEur', type: 'Sum', format: 'N2', footerTemplate: 'Total: ${Sum}' },
+                        { field: 'ActiveAccrualAmountOriginalCurrency', type: 'Sum', format: 'N2', footerTemplate: 'Total: ${Sum}' },
+                        { field: 'ActiveAccrualAmountLocalCurrency', type: 'Sum', format: 'N2', footerTemplate: 'Total: ${Sum}' },
+                        { field: 'PassiveAccrualAmountOriginalCurrency', type: 'Sum', format: 'N2', footerTemplate: 'Total: ${Sum}' },
+                        { field: 'PassiveAccrualAmountLocalCurrency', type: 'Sum', format: 'N2', footerTemplate: 'Total: ${Sum}' },
+                        { field: 'PenaltyInterestAmountOriginalCurrency', type: 'Sum', format: 'N2', footerTemplate: 'Total: ${Sum}' },
+                        { field: 'PenaltyInterestAmountLocalCurrency', type: 'Sum', format: 'N2', footerTemplate: 'Total: ${Sum}' },
+                        { field: 'UnpaidInterestAmountOriginalCurrency', type: 'Sum', format: 'N2', footerTemplate: 'Total: ${Sum}' },
+                        { field: 'UnpaidInterestAmountLocalCurrency', type: 'Sum', format: 'N2', footerTemplate: 'Total: ${Sum}' }
+                    ]
+                });
+            }
+            else if (Object.prototype.hasOwnProperty.call(firstRow, 'BalanceAmount')) {
+                aggregates.push({
+                    columns: [
+                        { field: 'BalanceAmount', type: 'Sum', format: 'N2', footerTemplate: 'Total: ${Sum}' }
+                    ]
+                });
+            }
+
+            return aggregates;
+        }
+
+        function buildGrid(rowData, total) {
+            document.getElementById('resultCount').textContent = total.toLocaleString() + ' entries';
+
+            var firstRow = rowData[0];
+
+            var ejColumns = Object.keys(firstRow).map(function (key) {
+                var val = firstRow[key];
+                var isNumber = typeof val === 'number';
+
+                var column = {
+                    field: key,
+                    headerText: toHeaderText(key),
+                    minWidth: 120,
+                    width: 180,
+                    clipMode: 'EllipsisWithTooltip',
+                    textAlign: isNumber ? 'Right' : 'Left'
+                };
+
+                if (isNumber) {
+                    column.format = 'N2';
+                }
+
+                if (key === 'DaysOfDelayForCAandLoan') {
+                    column.format = 'N0';
+                }
+
+                return column;
+            });
+
+            var aggregates = getAggregatesBySelectedFile(firstRow);
+
+            gridInstance = new ej.grids.Grid({
+                dataSource: rowData,
+                columns: ejColumns,
+                aggregates: aggregates,
+                gridLines: 'Both',
+                allowPaging: true,
+                allowSorting: true,
+                allowMultiSorting: true,
+                allowFiltering: true,
+                allowResizing: true,
+                allowReordering: true,
+                allowSelection: true,
+                allowTextWrap: true,
+                allowExcelExport: true,
+                allowPdfExport: true,
+                showColumnChooser: true,
+                showColumnMenu: true,
+                enableStickyHeader: true,
+                enableHover: true,
+                enablePersistence: false,
+                enableAltRow: true,
+                toolbar: ['Search', 'ExcelExport', 'CsvExport', 'PdfExport', 'ColumnChooser'],
+                toolbarClick: onToolbarClick,
+                contextMenuItems: [
+                    'AutoFit', 'AutoFitAll',
+                    'SortAscending', 'SortDescending',
+                    'Copy',
+                    'PdfExport', 'ExcelExport', 'CsvExport',
+                    'FirstPage', 'PrevPage', 'LastPage', 'NextPage'
+                ],
+                pageSettings: {
+                    pageSize: 10,
+                    pageSizes: [10, 25, 50, 100, 'All'],
+                    pageCount: 5
+                },
+                filterSettings: {
+                    type: 'Excel',
+                    mode: 'Immediate',
+                    ignoreAccent: true
+                },
+                selectionSettings: {
+                    type: 'Multiple',
+                    mode: 'Row',
+                    checkboxOnly: false,
+                    enableSimpleMultiRowSelection: true
+                },
+                textWrapSettings: {
+                    wrapMode: 'Content'
+                }
+            });
+
+            gridInstance.appendTo('#sfGrid');
+            showGrid();
+        }
+    </script>
+}

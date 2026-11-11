@@ -1,0 +1,687 @@
+@model dsCredit.Core.ViewModels.CreditFrameworkViewModel
+@using aseeMIS.Areas.Common.ViewModels
+
+@{
+    var request = ViewData["EntityDetailRequest"] as aseeMIS.Areas.Common.DTOs.EntityDetailRequest;
+    var frameworkFormSessionId = request?.FormSessionId ?? ViewBag.FormSessionId ?? "";
+    var formId = request?.FormId ?? ViewBag.FormId;
+    bool isAdd = request?.IsAdd ?? ViewBag.IsAdd ?? true;
+    var isGridDialog = request?.IsGridDialog ?? false;
+    var gridName = request?.GridName ?? "";
+
+    var formDomId = "entityForm_" + frameworkFormSessionId;
+    var isFromCreditHub = ViewBag.IsFromCreditHub as bool? ?? false;
+    var bankPartySearchId = "FrameworkBankPartySearch_" + frameworkFormSessionId;
+    var bankPartySearchUrl = Url.Action("Search", "BankParty", new { area = "BankParty" })
+        ?? "/BankParty/BankParty/Search";
+    const string bankPartyFilteringFn = "filter_CreditFrameworkBankParty";
+    const string bankPartySelectFn = "select_CreditFrameworkBankParty";
+
+    var currencies = ViewData["FK_CurrencyCode"] ?? Enumerable.Empty<object>();
+    var frameworkStatuses = ViewData["FK_FrameworkStatusCode"] ?? Enumerable.Empty<object>();
+    var decisionReasons = ViewData["FK_FrameworkDecisionReasonCode"] ?? Enumerable.Empty<object>();
+    DateTime? agreementStartDateValue = Model.AgreementStartDate == default
+        ? null
+        : Model.AgreementStartDate.ToDateTime(TimeOnly.MinValue);
+    DateTime? agreementEndDateValue = Model.AgreementEndDate == default
+        ? null
+        : Model.AgreementEndDate.ToDateTime(TimeOnly.MinValue);
+
+    if (isAdd)
+    {
+        Model.CurrencyCode = "EUR";
+        Model.HasGeneralTerms = true;
+        Model.AgreementTermMonths = Model.AgreementTermMonths > 0
+            ? Model.AgreementTermMonths
+            : 12;
+        Model.FrameworkTitle = string.IsNullOrWhiteSpace(Model.FrameworkTitle)
+            ? "Marrëveshje gjenerale me Kontratë"
+            : Model.FrameworkTitle;
+    }
+}
+
+<style>
+    .fw-switch-row {
+        min-height: 58px;
+        padding: 1.15rem 0 0;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+        color: #25364a;
+        font-size: .75rem;
+        font-weight: 500;
+        /* Shto këtë nëse do ta ulësh më poshtë që të bjerë fiks në vijë me Currency  margin-top: 24px; */
+    }
+
+        .fw-switch-row .e-switch-wrapper {
+            flex: 0 0 auto;
+        }
+</style>
+
+<form id="@formDomId" onsubmit="return false;">
+    <div class="form-container"
+         data-form-session-id="@frameworkFormSessionId"
+         data-form-id="@formId"
+         data-primary-key="FrameworkId">
+
+        <div class="d-none">
+            <ejs-numerictextbox ejs-for="BankPartyId"
+                                id="BankPartyId"
+                                floatLabelType="Always">
+            </ejs-numerictextbox>
+        </div>
+
+        @if (!isFromCreditHub)
+        {
+            <section class="ds-card mb-3">
+                <div class="ds-card-h d-flex align-items-center gap-2">
+                    <i class="bi bi-search"></i>
+                    <span class="ds-card-title">Zgjidh klientin</span>
+                </div>
+                <div class="ds-card-b">
+                    @await Component.InvokeAsync("SearchAutocomplete", new SearchAutocompleteOptions
+                    {
+                        SearchUrl = bankPartySearchUrl,
+                        Placeholder = "Shkruaj së paku 2 shkronja për të kërkuar...",
+                        Id = bankPartySearchId,
+                        MinLength = 2,
+                        DebounceDelay = 300,
+                        SuggestionCount = 15,
+                        ValueField = "BankPartyId",
+                        TextField = "DisplayText",
+                        FilteringFn = bankPartyFilteringFn,
+                        OnSelectFn = bankPartySelectFn
+                    })
+                </div>
+            </section>
+        }
+
+        <div class="row g-3 mb-3 align-items-stretch">
+            <div class="col-12 col-md-6 col-xl-4">
+                <section class="ds-card h-100">
+                    <div class="ds-card-h d-flex align-items-center gap-2">
+                        <i class="bi bi-card-heading"></i>
+                        <span class="ds-card-title">Të dhënat e përgjithshme</span>
+                    </div>
+                    <div class="ds-card-b">
+                        <div class="row g-3">
+                            <div class="col-6">
+                                <ejs-numerictextbox ejs-for="FrameworkId" id="FrameworkId"
+                                                    placeholder="Id" floatLabelType="Always"
+                                                    format="n0" decimals="0" showSpinButton="false"
+                                                    enabled="false"></ejs-numerictextbox>
+                            </div>
+                            <div class="col-6">
+                                <ejs-textbox ejs-for="FrameworkNo" id="FrameworkNo"
+                                             placeholder="Limit No." floatLabelType="Always"
+                                             enabled="false"></ejs-textbox>
+                            </div>
+                            <div class="col-12 ds-required-empty">
+                                <ejs-textbox ejs-for="FrameworkTitle" id="FrameworkTitle"
+                                             maxlength="200" placeholder="Title"
+                                             required="true" floatLabelType="Always"></ejs-textbox>
+                            </div>
+
+                            <div class="col-12">
+                                <ejs-textbox ejs-for="FrameworkDescription" id="FrameworkDescription"
+                                             multiline="true" placeholder="Description"
+                                             floatLabelType="Always"></ejs-textbox>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+            </div>
+
+            <div class="col-12 col-md-6 col-xl-5">
+                <section class="ds-card h-100">
+                    <div class="ds-card-h d-flex align-items-center gap-2">
+                        <i class="bi bi-bank"></i>
+                        <span class="ds-card-title">AMOUNTS &amp; TERM</span>
+                    </div>
+                    <div class="ds-card-b">
+                        <div class="row g-3">
+                            <div class="col-6 ds-required-empty">
+                                <ejs-numerictextbox ejs-for="FrameworkLimitAmount" id="FrameworkLimitAmount"
+                                                    format="n2" placeholder="Limit Amount"
+                                                    floatLabelType="Always" showSpinButton="false" required="true"></ejs-numerictextbox>
+                            </div>
+                            <div class="col-6 ds-required-empty">
+                                <ejs-dropdownlist ejs-for="CurrencyCode" id="CurrencyCode"
+                                                  dataSource="@currencies"
+                                                  placeholder="Currency" required="true"
+                                                  floatLabelType="Always">
+                                    <e-dropdownlist-fields text="CurrencyName" value="CurrencyCode"></e-dropdownlist-fields>
+                                </ejs-dropdownlist>
+                            </div>
+                            <div class="col-6">
+                                <ejs-numerictextbox ejs-for="FrameworkUtilizedAmount"
+                                                    id="FrameworkUtilizedAmount" format="n2"
+                                                    placeholder="Utilized Amount" floatLabelType="Always" showSpinButton="false"
+                                                    enabled="false"></ejs-numerictextbox>
+                            </div>
+                            <div class="col-6">
+                                <ejs-numerictextbox id="FrameworkNotUtilizedAmount" format="n2"
+                                                    placeholder="Utilized Amount" floatLabelType="Always" showSpinButton="false"
+                                                    enabled="false"></ejs-numerictextbox>
+                            </div>
+
+                            <div class="col-5 ds-required-empty">
+                                <ejs-datepicker id="AgreementStartDate"
+                                                value="@agreementStartDateValue"
+                                                placeholder="Start Date" change="calculateEndDate"
+                                                format="dd/MM/yyyy" enableMask="false"
+                                                data-dateonly="true" floatLabelType="Always"
+                                                required="true"></ejs-datepicker>
+                            </div>
+                            <div class="col-2 ds-required-empty">
+                                <ejs-numerictextbox ejs-for="AgreementTermMonths"
+                                                    id="AgreementTermMonths"
+                                                    placeholder="Months"
+                                                    change="calculateEndDate"
+                                                    floatLabelType="Always"
+                                                    showSpinButton="false"
+                                                    decimals="0"
+                                                    format="N0"
+                                                    min="1"
+                                                    max="240"
+                                                    validateDecimalOnType="true"
+                                                    required="true"></ejs-numerictextbox>
+                            </div>
+                            <div class="col-5 ds-required-empty">
+                                <ejs-datepicker id="AgreementEndDate"
+                                                value="@agreementEndDateValue"
+                                                placeholder="End Date" format="dd/MM/yyyy"
+                                                enableMask="false" data-dateonly="true"
+                                                floatLabelType="Always"
+                                                required="true"></ejs-datepicker>
+                            </div>
+                        </div>
+                    </section>
+                </div>
+
+                <div class="col-12 col-md-12 col-lg-12 col-xl-3">
+                    <section class="ds-card h-100">
+                        <div class="ds-card-h d-flex align-items-center gap-2">
+                            <i class="bi bi-shield-check"></i>
+                            <span class="ds-card-title">STATUS</span>
+                        </div>
+                        <div class="ds-card-b">
+                            <div class="row g-3">
+                                <div class="col-12 col-md-3 col-xl-12">
+                                    <div class="fw-switch-row">
+                                        <span>Marrëveshje Gjenerale?</span>
+                                        <ejs-switch ejs-for="HasGeneralTerms"
+                                                    id="HasGeneralTerms"
+                                                    change="onHasGeneralTermsChange">
+                                        </ejs-switch>
+                                    </div>
+                                </div>
+                                <div class="col-12 col-md-3 col-xl-12 ds-required-empty">
+                                    <ejs-dropdownlist ejs-for="FrameworkStatusCode" id="FrameworkStatusCode"
+                                                      dataSource="@frameworkStatuses"
+                                                      placeholder="Status" floatLabelType="Always"
+                                                      required="true">
+                                        <e-dropdownlist-fields text="FrameworkStatusName" value="FrameworkStatusCode"></e-dropdownlist-fields>
+                                    </ejs-dropdownlist>
+                                </div>
+                                <div class="col-12 col-md-3 col-xl-12">
+                                    <ejs-dropdownlist ejs-for="FrameworkDecisionReasonCode"
+                                                      id="FrameworkDecisionReasonCode"
+                                                      dataSource="@decisionReasons"
+                                                      placeholder="Decision Reason"
+                                                      floatLabelType="Always">
+                                        <e-dropdownlist-fields text="FrameworkDecisionReasonName" value="FrameworkDecisionReasonCode"></e-dropdownlist-fields>
+                                    </ejs-dropdownlist>
+                                </div>
+                                <div class="col-12 col-md-3 col-xl-12">
+                                    <ejs-textbox ejs-for="DecisionReasonNotes" id="DecisionReasonNotes"
+                                                 placeholder="Decision Notes"
+                                                 floatLabelType="Always"></ejs-textbox>
+                                </div>
+                            </div>
+                        </div>
+                    </section>
+                </div>
+            </div>
+
+            <div class="d-flex justify-content-end mb-3">
+                <button type="button" class="btn btn-primary" onclick="chFwPreSave(this)">
+                    <i class="bi bi-save me-1"></i>Save
+                </button>
+            </div>
+        </div>
+    </form>
+
+    <script>
+        window.@bankPartySelectFn = function(args) {
+            const bankPartyId = Number(args?.itemData?.BankPartyId || 0);
+            const bankPartyInput = document.getElementById("BankPartyId")?.ej2_instances?.[0];
+            if (!bankPartyId || !bankPartyInput) return;
+
+            bankPartyInput.value = bankPartyId;
+            bankPartyInput.dataBind?.();
+            window.loadCreditFrameworkStatuses?.(bankPartyId, null);
+        };
+
+        window.onHasGeneralTermsChange = function(args) {
+            const titleTextbox = document.getElementById("FrameworkTitle")?.ej2_instances?.[0];
+            if (!titleTextbox) return;
+
+            titleTextbox.value = args?.checked
+                ? "Marrëveshje gjenerale me Kontratë"
+                : "Marrëveshje gjenerale pa Kontratë";
+            titleTextbox.dataBind?.();
+        };
+
+        window.calculateEndDate = function() {
+            const startDatePicker = document.getElementById("AgreementStartDate")?.ej2_instances?.[0];
+            const termInput = document.getElementById("AgreementTermMonths")?.ej2_instances?.[0];
+            const endDatePicker = document.getElementById("AgreementEndDate")?.ej2_instances?.[0];
+
+            if (!startDatePicker || !termInput || !endDatePicker) return;
+
+            const startDate = startDatePicker.value;
+            const months = termInput.value;
+
+            if (!startDate || !months) return;
+
+            let endDate = new Date(startDate);
+            endDate.setMonth(endDate.getMonth() + months);
+
+            endDatePicker.value = endDate;
+            endDatePicker.dataBind?.();
+        };
+
+        (function() {
+            const isFromCreditHub = @(isFromCreditHub ? "true" : "false");
+            const initialBankPartyId = @(Model.BankPartyId);
+            const bankPartySearchId = '@bankPartySearchId';
+            const bankPartySearchUrl = '@Html.Raw(bankPartySearchUrl)';
+            const availableStatusesUrl = '@Url.Action("GetStatuses", "WorkflowCreditFrameworkExtensions", new { area = "Wfe" })';
+            const availableDecisionReasonsUrl = '@Url.Action("GetDecisionReasons", "WorkflowCreditFrameworkExtensions", new { area = "Wfe" })';
+            const frameworkFormSessionId = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(frameworkFormSessionId));
+            const initialFrameworkStatusCode = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.FrameworkStatusCode));
+            const initialFrameworkDecisionReasonCode = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.FrameworkDecisionReasonCode));
+
+            function initializeBankPartySearch(attempt) {
+                if (isFromCreditHub) return;
+
+                const autocomplete = document.getElementById(bankPartySearchId)?.ej2_instances?.[0];
+                if (!autocomplete) {
+                    if (attempt < 20) {
+                        setTimeout(function() {
+                            initializeBankPartySearch(attempt + 1);
+                        }, 50);
+                    }
+                    return;
+                }
+
+                if (!@(isAdd ? "true" : "false")) {
+                    autocomplete.enabled = false;
+                    autocomplete.dataBind?.();
+                }
+
+                if (initialBankPartyId <= 0) return;
+
+                fetch(bankPartySearchUrl + '?searchText=' + encodeURIComponent(initialBankPartyId), {
+                    headers: { Accept: 'application/json' }
+                })
+                    .then(response => response.ok ? response.json() : [])
+                    .then(rows => {
+                        const selected = (Array.isArray(rows) ? rows : [])
+                            .find(row => Number(row.BankPartyId) === initialBankPartyId);
+                        if (!selected) return;
+
+                        autocomplete.dataSource = [selected];
+                        autocomplete.value = selected.DisplayText;
+                        autocomplete.dataBind?.();
+                    })
+                    .catch(() => {});
+            }
+
+            initializeBankPartySearch(0);
+
+            let allFrameworkDecisionReasons = [];
+            const frameworkAgreementStartDate = '@(Model.AgreementStartDate == default ? "" : Model.AgreementStartDate.ToString("yyyy-MM-dd"))';
+            const frameworkAgreementEndDate = '@(Model.AgreementEndDate == default ? "" : Model.AgreementEndDate.ToString("yyyy-MM-dd"))';
+
+            function getEjsInstance(id) {
+                return document.getElementById(id)?.ej2_instances?.[0] ?? null;
+            }
+
+            function parseDateOnly(value) {
+                if (!value) return null;
+
+                const parts = value.split('-').map(Number);
+                if (parts.length !== 3 || parts.some(Number.isNaN)) return null;
+
+                return new Date(parts[0], parts[1] - 1, parts[2]);
+            }
+
+            function applyFrameworkDates() {
+                const startDatePicker = getEjsInstance("AgreementStartDate");
+                const endDatePicker = getEjsInstance("AgreementEndDate");
+
+                if (!startDatePicker || !endDatePicker) {
+                    return false;
+                }
+
+                startDatePicker.value = parseDateOnly(frameworkAgreementStartDate);
+                endDatePicker.value = parseDateOnly(frameworkAgreementEndDate);
+                startDatePicker.dataBind();
+                endDatePicker.dataBind();
+                const scope = document.getElementById("AgreementStartDate")?.closest(".form-container") || document;
+                window.ds?.input?.normalizeSyncfusionDatePickers?.(scope);
+                return true;
+            }
+
+            function applyFrameworkDecisionReasonFilter(statusCode, keepCurrentValue) {
+                const ddl = getEjsInstance("FrameworkDecisionReasonCode");
+                if (!ddl) return;
+
+                const notes = getEjsInstance("DecisionReasonNotes");
+                const all = allFrameworkDecisionReasons;
+                const statusDdl = getEjsInstance("FrameworkStatusCode");
+                const statusRows = Array.isArray(statusDdl?.dataSource)
+                    ? statusDdl.dataSource
+                    : [];
+                const statusOption = statusRows.find(x =>
+                    String(x.FrameworkStatusCode || x.frameworkStatusCode || "").toLowerCase()
+                    === String(statusCode || "").toLowerCase());
+                const configuredCodes =
+                    statusOption?.AllowedDecisionReasonCodes
+                    ?? statusOption?.allowedDecisionReasonCodes;
+                let allowedCodes = [];
+
+                if (Array.isArray(configuredCodes)) {
+                    allowedCodes = configuredCodes;
+                } else if (typeof configuredCodes === "string" && configuredCodes.trim()) {
+                    try {
+                        const parsedCodes = JSON.parse(configuredCodes);
+                        allowedCodes = Array.isArray(parsedCodes) ? parsedCodes : [];
+                    } catch {
+                        allowedCodes = [];
+                    }
+                }
+
+                const allowedSet = new Set(
+                    allowedCodes.map(x => String(x).toLowerCase())
+                );
+                const filtered = all.filter(x =>
+                    allowedSet.has(String(
+                        x.FrameworkDecisionReasonCode
+                        || x.frameworkDecisionReasonCode
+                        || "").toLowerCase()));
+                const hasDecisionReasons = filtered.length > 0;
+                const currentValue = keepCurrentValue
+                    ? (ddl.value || initialFrameworkDecisionReasonCode)
+                    : null;
+                ddl.dataSource = filtered;
+                ddl.enabled = hasDecisionReasons;
+
+                if (hasDecisionReasons && keepCurrentValue && currentValue && filtered.some(x =>
+                    String(
+                        x.FrameworkDecisionReasonCode
+                        || x.frameworkDecisionReasonCode
+                        || "").toLowerCase()
+                    === String(currentValue).toLowerCase())) {
+                    ddl.value = currentValue;
+                } else {
+                    ddl.value = null;
+                    ddl.text = null;
+                }
+
+                ddl.dataBind();
+
+                if (notes) {
+                    notes.enabled = hasDecisionReasons;
+                    if (!hasDecisionReasons) {
+                        notes.value = null;
+                    }
+                    notes.dataBind();
+                }
+            }
+
+            function handleFrameworkStatusSelection(statusCode, keepCurrentValue) {
+                applyFrameworkDecisionReasonFilter(statusCode, keepCurrentValue);
+            }
+
+            function wireFrameworkStatusChange() {
+                const statusDdl = getEjsInstance("FrameworkStatusCode");
+                if (!statusDdl) return;
+
+                statusDdl.change = function(args) {
+                    const statusCode = args?.value ?? null;
+                    handleFrameworkStatusSelection(statusCode, false);
+                };
+
+                statusDdl.dataBind();
+
+                if (!statusDdl.value && statusDdl.dataSource && statusDdl.dataSource.length === 1) {
+                    const first = statusDdl.dataSource[0];
+                    statusDdl.value = first.FrameworkStatusCode;
+                    statusDdl.dataBind();
+                }
+
+                handleFrameworkStatusSelection(statusDdl.value ?? null, true);
+            }
+
+            async function loadCreditFrameworkStatuses(bankPartyId, currentStatusCode) {
+                const statusDdl = getEjsInstance("FrameworkStatusCode");
+                if (!statusDdl || !bankPartyId) return;
+
+                const query = new URLSearchParams({
+                    bankPartyId: String(bankPartyId)
+                });
+
+                if (currentStatusCode) {
+                    query.set("currentStatusCode", currentStatusCode);
+                }
+
+                const response = await fetch(`${availableStatusesUrl}?${query.toString()}`, {
+                    headers: {
+                        Accept: "application/json",
+                        FormSessionId: frameworkFormSessionId
+                    }
+                });
+
+                if (!response.ok) {
+                    throw new Error(`Failed to load Credit Framework statuses. (${response.status})`);
+                }
+
+                const statuses = await response.json();
+                const rows = Array.isArray(statuses) ? statuses : [];
+                const selectedValue = currentStatusCode
+                    && rows.some(x => x.FrameworkStatusCode === currentStatusCode)
+                        ? currentStatusCode
+                        : rows[0]?.FrameworkStatusCode ?? null;
+
+                statusDdl.dataSource = rows;
+                statusDdl.value = selectedValue;
+                statusDdl.dataBind();
+                handleFrameworkStatusSelection(selectedValue, true);
+            }
+
+            window.loadCreditFrameworkStatuses = loadCreditFrameworkStatuses;
+
+            async function loadCreditFrameworkDecisionReasons() {
+                const response = await fetch(availableDecisionReasonsUrl, {
+                    headers: {
+                        Accept: "application/json",
+                        FormSessionId: frameworkFormSessionId
+                    }
+                });
+
+                if (!response.ok) {
+                    throw new Error(`Failed to load Credit Framework decision reasons. (${response.status})`);
+                }
+
+                const reasons = await response.json();
+                allFrameworkDecisionReasons = Array.isArray(reasons) ? reasons : [];
+            }
+
+            function initializeFrameworkWhenReady(attempt) {
+                if (applyFrameworkDates()) {
+                    if (initialBankPartyId > 0) {
+                        loadCreditFrameworkDecisionReasons()
+                            .then(function() {
+                                return loadCreditFrameworkStatuses(
+                                    initialBankPartyId,
+                                    initialFrameworkStatusCode);
+                            })
+                            .then(wireFrameworkStatusChange)
+                            .catch(error => console.error(error));
+                    } else {
+                        loadCreditFrameworkDecisionReasons()
+                            .then(wireFrameworkStatusChange)
+                            .catch(error => console.error(error));
+                    }
+                    return;
+                }
+
+                if (attempt < 20) {
+                    setTimeout(function() {
+                        initializeFrameworkWhenReady(attempt + 1);
+                    }, 50);
+                }
+            }
+
+            if (document.readyState === "loading") {
+                document.addEventListener("DOMContentLoaded", function() {
+                    initializeFrameworkWhenReady(0);
+                });
+            } else {
+                initializeFrameworkWhenReady(0);
+            }
+
+            window.chFwPreSave = function(triggerElement) {
+                const container = triggerElement?.closest?.(".form-container")
+                    || document.querySelector(".e-dialog .form-container[data-form-session-id]")
+                    || document.querySelector(".form-container[data-form-session-id]");
+
+                if (!validateFrameworkRequiredFields(container)) {
+                    return;
+                }
+
+                const model = ds.entity.collectModel(container);
+                applyFrameworkDatesToModel(model);
+                model.FrameworkNo = model.FrameworkNo || "undefined";
+                applySelectedStatusEntityActive(model);
+
+                if (@Html.Raw(System.Text.Json.JsonSerializer.Serialize(isGridDialog))) {
+                    saveGridPartialDialogEditor(
+                        @Html.Raw(System.Text.Json.JsonSerializer.Serialize(gridName)),
+                        ds.entity.hydrateForeignKeyDisplayFields(model, container)
+                    );
+                    return;
+                }
+
+                ds.entity.prepareModel = function(model, container, isUpdate) {
+                    applyFrameworkDatesToModel(model);
+                    model.FrameworkNo = model.FrameworkNo || "undefined";
+                    applySelectedStatusEntityActive(model);
+                    return model;
+                };
+
+                ds.entity.afterSave = isFromCreditHub
+                    ? function(result, model, container, isUpdate) {
+                        const reloadFramework = window.loadFramework || window.chLoadFramework;
+                        if (model.BankPartyId && typeof reloadFramework === "function") {
+                            setTimeout(function() {
+                                reloadFramework(model.BankPartyId, true);
+                            }, 500);
+                        }
+                    }
+                    : null;
+
+                ds.entity.save(triggerElement);
+            };
+
+            function validateFrameworkRequiredFields(container) {
+                const scope = container || document;
+                window.ds?.input?.normalizeSyncfusionDatePickers?.(scope);
+
+                const dateValidator = window.ds?.input?.validateRequiredDatePickers;
+                if (typeof dateValidator === "function"
+                    && !dateValidator(scope, { showToast: true })) {
+                    return false;
+                }
+
+                const valueOf = function(id) {
+                    const instance = getEjsInstance(id);
+                    return instance ? instance.value : document.getElementById(id)?.value;
+                };
+                const isValidDate = function(value) {
+                    return value instanceof Date
+                        && !Number.isNaN(value.getTime())
+                        && value.getFullYear() > 1;
+                };
+
+                const bankPartyId = Number(valueOf("BankPartyId") || 0);
+                const title = String(valueOf("FrameworkTitle") || "").trim();
+                const limitAmount = Number(valueOf("FrameworkLimitAmount") || 0);
+                const currencyCode = String(valueOf("CurrencyCode") || "").trim();
+                const startDate = valueOf("AgreementStartDate");
+                const termMonths = Number(valueOf("AgreementTermMonths") || 0);
+                const endDate = valueOf("AgreementEndDate");
+                const statusCode = String(valueOf("FrameworkStatusCode") || "").trim();
+
+                const isValid = bankPartyId > 0
+                    && title.length > 0
+                    && limitAmount > 0
+                    && currencyCode.length > 0
+                    && isValidDate(startDate)
+                    && termMonths > 0
+                    && isValidDate(endDate)
+                    && statusCode.length > 0;
+
+                if (!isValid) {
+                    window.notify?.warning?.("Ju lutem plotësoni të gjitha fushat e detyrueshme.");
+                    return false;
+                }
+
+                if (endDate < startDate) {
+                    window.notify?.warning?.("Data e përfundimit duhet të jetë pas datës së fillimit.");
+                    return false;
+                }
+
+                return true;
+            }
+
+            function applyFrameworkDatesToModel(model) {
+                const toDateOnly = function(value) {
+                    if (!(value instanceof Date) || Number.isNaN(value.getTime())) {
+                        return null;
+                    }
+
+                    const year = value.getFullYear();
+                    const month = String(value.getMonth() + 1).padStart(2, "0");
+                    const day = String(value.getDate()).padStart(2, "0");
+                    return `${year}-${month}-${day}`;
+                };
+
+                model.AgreementStartDate = toDateOnly(
+                    getEjsInstance("AgreementStartDate")?.value);
+                model.AgreementEndDate = toDateOnly(
+                    getEjsInstance("AgreementEndDate")?.value);
+                return model;
+            }
+
+            function applySelectedStatusEntityActive(model) {
+                const statusDdl = getEjsInstance("FrameworkStatusCode");
+                const selectedStatus =
+                    statusDdl?.itemData
+                    ?? statusDdl?.dataSource?.find?.(row =>
+                        String(row?.FrameworkStatusCode ?? row?.frameworkStatusCode)
+                        === String(statusDdl?.value));
+                const SetEntityActive =
+                    selectedStatus?.SetEntityActive
+                    ?? selectedStatus?.SetEntityActive;
+
+                if (SetEntityActive !== null && SetEntityActive !== undefined) {
+                    model.IsActive = Boolean(SetEntityActive);
+                }
+            }
+        })();
+    </script>

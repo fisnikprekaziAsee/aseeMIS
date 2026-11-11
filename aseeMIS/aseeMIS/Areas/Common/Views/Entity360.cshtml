@@ -1,0 +1,339 @@
+@model aseeMIS.Areas.Common.ViewModels.Entity360PageViewModel
+@using Syncfusion.EJ2.Navigations
+@using System.Text.Json
+
+@{
+    bool isNewRecord = string.IsNullOrWhiteSpace(Model.PrimaryKey);
+    if (Model?.PrimaryKey == null) isNewRecord = true;
+
+    bool parentExpanded = true; // i pari open by default
+    var entityLoadWarning = ViewBag.EntityLoadWarning as string;
+}
+
+@if (!string.IsNullOrWhiteSpace(entityLoadWarning))
+{
+    <div class="alert alert-danger">@entityLoadWarning</div>
+}
+
+@if (isNewRecord)
+{
+    if (!string.IsNullOrWhiteSpace(Model.DetailPath))
+        {
+        @await Component.InvokeAsync("EntityDetailWidget",
+        new aseeMIS.Areas.Common.DTOs.EntityDetailRequest
+        {
+            ViewPath = Model.HeaderPath,
+            Model = Model.EntityModelData,
+            FormSessionId = Model.FormSessionId,
+            FormId = Model.FormId,
+            EntityPrimaryKeyValue = Model.PrimaryKey,
+            Area = Model.Area,
+            Source = dsMIS.Core.Enums.EnumEntityDetailHost.Entity360
+        })
+    }
+    else
+    {
+        <div class="alert alert-warning mb-0">DetailPath is not configured.</div>
+    }
+}
+else
+{
+    // <div id="DivHeaderBannes" class="mb-3">
+    //     @if (!string.IsNullOrWhiteSpace(Model.HeaderPath))
+    //     {
+    //         @await Component.InvokeAsync("EntityHeaderWidget",
+    //         new { viewPath = Model.HeaderPath, model = Model.EntityModelData })
+    //     }
+    // </div>
+
+    <!-- ===== ENTITY360 TOOLBAR ===== -->
+    <div class="entity360-toolbar mb-3">
+        <ejs-toolbar id="entityToolbar" width="100%">
+
+            <e-toolbar-items>
+
+                <!-- LEFT SIDE -->
+                <e-toolbar-item prefixIcon="e-icons e-file-new"
+                                text="New"
+                                tooltipText="Create New Record"
+                                align="Left">
+                </e-toolbar-item>
+
+                <e-toolbar-item type="Separator" align="Left"></e-toolbar-item>
+
+                <e-toolbar-item prefixIcon="bi bi-clipboard-check"
+                                text="Review All"
+                                tooltipText="Open Review All Form"
+                                id="toolbarApproveAll"
+                                align="Left">
+                </e-toolbar-item>
+
+                <e-toolbar-item type="Separator" align="Left"></e-toolbar-item>
+
+                <e-toolbar-item prefixIcon="e-icons e-print"
+                                text="Print"
+                                tooltipText="Print Document"
+                                align="Left">
+                </e-toolbar-item>
+
+
+                <!-- RIGHT SIDE -->
+                <e-toolbar-item prefixIcon="bi bi-arrows-expand"
+                                text="Expand All"
+                                tooltipText="Expand all accordions"
+                                id="toolbarExpand"
+                                align="Right">
+                </e-toolbar-item>
+
+                <e-toolbar-item prefixIcon="bi bi-arrows-collapse"
+                                text="Collapse All"
+                                tooltipText="Collapse all accordions"
+                                id="toolbarCollapse"
+                                align="Right">
+                </e-toolbar-item>
+
+            </e-toolbar-items>
+
+        </ejs-toolbar>
+    </div>
+
+    <!-- ===== Reject All Dialog ===== -->
+    <ejs-dialog id="rejectDialog"
+                header="Reject All Records"
+                width="400px"
+                visible="false"
+                showCloseIcon="true"
+                allowDragging="true"
+                isModal="true">
+        <e-content-template>
+            <form id="rejectForm">
+                <div class="mb-3">
+                    <label for="RejectionTypeCode" class="form-label fw-bold">Rejection Type</label>
+                    <ejs-dropdownlist id="RejectionTypeCode"
+                                      placeholder="Select a reason"
+                                      floatLabelType="Auto"
+                                      dataSource="@(ViewBag.ConstantValues ?? new List<object>())"
+                                      fields="@(new Syncfusion.EJ2.DropDowns.DropDownListFieldSettings { Text = "ConstantValue", Value = "ConstantKey" })">
+                    </ejs-dropdownlist>
+                </div>
+
+                <div class="mb-3">
+                    <label for="RejectionComments" class="form-label fw-bold">Comments</label>
+                    <textarea id="RejectionComments" class="form-control" rows="3"
+                              placeholder="Write a brief explanation..."></textarea>
+                </div>
+
+                <div class="text-end">
+                    <button type="button" id="btnRejectConfirm" class="btn btn-danger">Reject All</button>
+                    <button type="button" id="btnRejectCancel" class="btn btn-secondary">Cancel</button>
+                </div>
+            </form>
+        </e-content-template>
+    </ejs-dialog>
+
+    <div class="accordion" id="formAccordion">
+
+        <!-- ========================= -->
+        <!-- Parent: Entity Details -->
+        <!-- ========================= -->
+        <div class="accordion-item">
+            <h2 class="accordion-header" id="heading_entity">
+                <button class="accordion-button"
+                        type="button"
+                        data-bs-toggle="collapse"
+                        data-bs-target="#collapse_entity"
+                        aria-expanded="true"
+                        aria-controls="collapse_entity">
+                    <span class="stepper-number">1</span>
+                    <span>Entity Details</span>
+                </button>
+            </h2>
+
+            <div id="collapse_entity" class="accordion-collapse collapse show">
+                <div class="accordion-body">
+                    @if (string.IsNullOrWhiteSpace(Model.DetailPath))
+                    {
+                        <div class="alert alert-warning mb-0">DetailPath is not configured for this form (FlowForm360EditPath / FlowForm360AddPath).</div>
+                    }
+                    else
+                    {
+                        @await Component.InvokeAsync(
+                            "EntityDetailWidget",
+                            new aseeMIS.Areas.Common.DTOs.EntityDetailRequest
+                            {
+                                ViewPath = Model.DetailPath,
+                                Model = Model.EntityModelData,
+                                FormSessionId = Model.FormSessionId,
+                                FormId = Model.FormId,
+                                EntityPrimaryKeyValue = Model.PrimaryKey,
+                                Area = Model.Area,
+                                Source = dsMIS.Core.Enums.EnumEntityDetailHost.Entity360
+                            }
+                        )
+                    }
+                </div>
+            </div>
+        </div>
+
+        <!-- ========================= -->
+        <!-- Children -->
+        <!-- ========================= -->
+        @if (Model.ChildForms != null)
+        {
+            var i = 1;
+            foreach (var child in Model.ChildForms)
+            {
+                i++;
+
+                var collapseId = $"collapse_child_{child.FormId}";
+                var headingId = $"heading_child_{child.FormId}";
+
+                <div class="accordion-item">
+                    <h2 class="accordion-header" id="@headingId">
+                        <button class="accordion-button collapsed"
+                                type="button"
+                                data-bs-toggle="collapse"
+                                data-bs-target="#@collapseId"
+                                aria-expanded="false"
+                                aria-controls="@collapseId">
+                            <span class="stepper-number">@i</span>
+                            <span>@child.FormTitle</span>
+                        </button>
+                    </h2>
+
+                    <div id="@collapseId" class="accordion-collapse collapse">
+                        <div class="accordion-body">
+                            @await Component.InvokeAsync(
+                                "GridDetailWidget",
+                                new aseeMIS.Areas.Common.DTOs.GridRequest
+                                {
+                                    FormId = child.FormId,
+                                    FormSessionId = Model.FormSessionId,
+                                    ForeignAttributeName = Model.ForeignAttribute,
+                                    PrimaryAttributeName = Model.PrimaryKeyAttribute,
+                                    TargetId = Model.PrimaryKey,
+                                    ContextFormType = dsMIS.Core.Enums.EnumContextFormType.CHILD,
+                                    GridType = "CRUD",
+                                    RemoteMode = false,
+                                    GridName = $"GRID_{Model.FormSessionId}_{child.FormId}"
+                                }
+                            )
+                        </div>
+                    </div>
+                </div>
+            }
+        }
+
+    </div> <!-- ✅ ONLY CLOSED HERE -->
+}
+
+<!-- dialogs OUTSIDE the else block, same as before -->
+<ejs-dialog id="ApprovalDialog" isModal="true" width="90%" height="80%" showCloseIcon="true" visible="false">
+    <e-content-template>
+        <div id="dialogContent"><!-- SDLT content injected dynamically --></div>
+    </e-content-template>
+</ejs-dialog>
+
+<ejs-dialog id="DocumentDialog"
+            isModal="true"
+            width="90%"
+            height="80%"
+            showCloseIcon="true"
+            visible="false"
+            enableResize="true"
+            allowDragging="true"
+            zIndex="1500">
+    <e-content-template>
+        <div id="documentDialogContent"><!-- Loaded dynamically --></div>
+    </e-content-template>
+</ejs-dialog>
+
+@section Scripts {
+    <script>
+        document.addEventListener("DOMContentLoaded", function () {
+            const toolbar = document.getElementById("entityToolbar")?.ej2_instances?.[0];
+
+            if (!toolbar) return;
+
+            toolbar.clicked = function (args) {
+                switch (args.item.text) {
+                    case "New":
+                        window.location.href = `/Common/Entity360/Index/@Model.FormId`;
+                        break;
+
+                    case "Expand All":
+                        document.querySelectorAll(".accordion-collapse")
+                        .forEach(el => {
+                            el.classList.add("show");
+                        });
+                        break;
+
+                    case "Collapse All":
+                        document.querySelectorAll(".accordion-collapse")
+                        .forEach(el => {
+                            el.classList.remove("show");
+                        });
+                        break;
+
+                    case "Print":
+                        openDocumentGenerator("@Model.FormId", "@Model.PrimaryKey");
+                        break;
+
+                    case "Review All":
+                        openReviewAllForm("@Model.PrimaryKey");
+                        break;
+                }
+            };
+
+            function openDocumentGenerator(formId, entityPrimaryKeyValue) {
+                const formSessionId = "@Model.FormSessionId";
+
+                $.ajax({
+                    url: "/DocEng/DocumentGenerator/View",
+                    type: "GET",
+                    data: { formId, entityPrimaryKeyValue },
+                    headers: { "FormSessionId": formSessionId },
+                    success: function (html) {
+                        const documentDialog = document.getElementById("DocumentDialog")?.ej2_instances?.[0];
+                        if (!documentDialog) return notify.error("DocumentDialog not found.");
+
+                        $("#documentDialogContent").html(html);
+                        documentDialog.header = "<div class='fw-bold text-primary'>Generate Document</div>";
+                        documentDialog.show();
+                    },
+                    error: function (_, __, err) {
+                        console.error("❌ Failed to load Document Generator:", err);
+                        notify.error("Error loading document generator view.");
+                    }
+                });
+            }
+
+            function openReviewAllForm(targetId) {
+                $.ajax({
+                    url: "/Common/SDLT/SDLTReviewForm",
+                    type: "POST",
+                    headers: {
+                        "FormSessionId": "@Model.FormSessionId",
+                        "IsReviewAll": "true"
+                    },
+                    data: { targetId },
+                    success: function (html) {
+                        const approvalDialog = document.getElementById("ApprovalDialog")?.ej2_instances?.[0];
+                        if (!approvalDialog) return notify.error("ApprovalDialog not found.");
+
+                        $("#dialogContent").html(html);
+                        approvalDialog.header = `<div class='fw-bold'>Review All Changes</div>`;
+                        approvalDialog.show();
+
+                        $("#dialogContent script").each(function () {
+                            try { eval($(this).text()); } catch { }
+                        });
+                    },
+                    error: function (_, __, err) {
+                        notify.error("Error loading review form: " + err);
+                    }
+                });
+            }
+        });
+    </script>
+}

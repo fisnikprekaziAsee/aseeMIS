@@ -1,0 +1,23 @@
+﻿@using Syncfusion.EJ2.Grids
+
+@{
+    ViewData["Title"] = "Batch Editing Grid";
+}
+
+<script src="https://cdn.syncfusion.com/ej2/20.3.47/dist/ej2.min.js"></script>
+
+<h2>Batch Editing Grid</h2>
+
+<ejs-grid id="Grid" dataSource="@Model" toolbar="@(new List<string> { "Update", "Cancel"})"
+          editSettings="@(new GridEditSettings { AllowEditing = true, Mode = EditMode.Batch })" toolbarClick="toolbarClick"
+          allowPaging="true">
+    <e-grid-columns>
+        <e-grid-column field="Id" headerText="ID" isPrimaryKey="true" textAlign="Right" width="100"></e-grid-column>
+        <e-grid-column field="Name" headerText="Name" width="150" isReadOnly="true"></e-grid-column>
+        <e-grid-column field="Quantity" headerText="Quantity" textAlign="Right" width="120" isReadOnly="true"></e-grid-column>
+        <e-grid-column field="IsActive" headerText="Active" width="100" editType="booleanedit"></e-grid-column>
+    </e-grid-columns>
+</ejs-grid>
+
+<script>
+</script>

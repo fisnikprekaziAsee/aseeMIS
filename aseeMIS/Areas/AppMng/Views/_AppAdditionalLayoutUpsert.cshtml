@@ -1,0 +1,124 @@
+@model dsAppMng.Core.ViewModels.AppAdditionalLayoutViewModel
+
+@{
+    var request = ViewData["EntityDetailRequest"] as aseeMIS.Areas.Common.DTOs.EntityDetailRequest
+        ?? throw new InvalidOperationException("EntityDetailRequest is required.");
+
+    var formSessionId = request.FormSessionId;
+    var formId = request.FormId;
+    var isAdd = request.IsAdd || (Model?.AdditionalLayoutId ?? 0) == 0;
+
+    var formDomId = "entityForm_" + formSessionId;
+
+    if (isAdd && Model != null && !Model.IsActive)
+    {
+        Model.IsActive = true;
+    }
+}
+
+<form id="@formDomId" onsubmit="return false;">
+    <div class="form-container"
+         data-form-session-id="@formSessionId"
+         data-form-id="@formId"
+         data-primary-key="AdditionalLayoutId">
+
+        <div class="row g-4 mb-3">
+            <div class="col-md-2">
+                <ejs-numerictextbox ejs-for="AdditionalLayoutId"
+                                    id="AdditionalLayoutId"
+                                    placeholder="Layout Id"
+                                    floatLabelType="Always"
+                                    showSpinButton="false"
+                                    enabled="@(!isAdd ? false : true)"
+                                    required="true">
+                </ejs-numerictextbox>
+            </div>
+
+            <div class="col-md-3 ds-required-empty">
+                <ejs-textbox ejs-for="LayoutCode"
+                             id="LayoutCode"
+                             maxlength="100"
+                             placeholder="Layout Code"
+                             floatLabelType="Always"
+                             required="true"
+                             enabled="@(!isAdd ? false : true)">
+                </ejs-textbox>
+            </div>
+
+            <div class="col-md-7 ds-required-empty">
+                <ejs-textbox ejs-for="LayoutName"
+                             id="LayoutName"
+                             maxlength="250"
+                             placeholder="Layout Name"
+                             floatLabelType="Always"
+                             required="true">
+                </ejs-textbox>
+            </div>
+        </div>
+
+        <div class="row g-4 mb-3">
+            <div class="col-12">
+                <ejs-textbox ejs-for="LayoutDescription"
+                             id="LayoutDescription"
+                             maxlength="500"
+                             multiline="true"
+                             placeholder="Layout Description"
+                             floatLabelType="Always">
+                </ejs-textbox>
+            </div>
+        </div>
+
+        <div class="row g-4 mb-3">
+            <div class="col-md-2">
+                <ejs-numerictextbox ejs-for="RowWidth"
+                                    id="RowWidth"
+                                    min="1"
+                                    max="12"
+                                    decimals="0"
+                                    format="n0"
+                                    placeholder="Row Width"
+                                    floatLabelType="Always">
+                </ejs-numerictextbox>
+            </div>
+
+            <div class="col-md-10">
+                <ejs-textbox ejs-for="IconClass"
+                             id="IconClass"
+                             maxlength="100"
+                             placeholder="Icon Class"
+                             floatLabelType="Always">
+                </ejs-textbox>
+            </div>
+        </div>
+
+        <div class="row g-4 mb-3 align-items-center">
+            <div class="col-md-2">
+                <ejs-checkbox ejs-for="IsActive"
+                              id="IsActive"
+                              label="Active">
+                </ejs-checkbox>
+            </div>
+
+            @if (!isAdd)
+            {
+                <div class="col-md-4">
+                    <span class="badge text-bg-light border text-muted fw-normal">
+                        <i class="bi bi-info-circle"></i>
+                        @(request.IsApprovedText ?? string.Empty)
+                    </span>
+                </div>
+            }
+
+            <div class="col-12">
+                <div class="d-flex justify-content-end gap-2">
+                    <button type="button"
+                            class="btn btn-primary"
+                            onclick="ds.entity.save(this)">
+                        <i class="bi bi-save"></i>
+                        Save
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</form>

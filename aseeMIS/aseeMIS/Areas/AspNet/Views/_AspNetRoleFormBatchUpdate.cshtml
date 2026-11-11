@@ -1,0 +1,454 @@
+@using Syncfusion.EJ2.DropDowns
+@using Syncfusion.EJ2.Lists
+
+@* CSRF token for AJAX *@
+<form id="batchUpdateTokenForm">
+    @Html.AntiForgeryToken()
+</form>
+
+<div class="col-lg-12 control-section msg-default-section">
+    <div class="content-section">
+        <ejs-message id="BatchUpdate_MSG" visible="false" showCloseIcon="true"></ejs-message>
+    </div>
+</div>
+
+<br />
+
+<style>
+    /* Selected/Total - simple text (no rounded badges) */
+    .perm-counter {
+        font-size: 0.95rem;
+        font-weight: 600;
+        user-select: none;
+    }
+
+        .perm-counter .sel {
+            color: #1b5e20;
+        }
+        /* green */
+        .perm-counter .tot {
+            color: #111;
+        }
+        /* black */
+        .perm-counter .sep {
+            color: #6b7280;
+        }
+    /* gray */
+
+    /* Filter bar style */
+    .filter-label {
+        font-weight: 600;
+        color: #374151;
+    }
+
+    .filter-wrap .form-control {
+        border: 1px solid #cbd5e1;
+    }
+
+    .filter-wrap .btn {
+        border: 1px solid #9ca3af;
+    }
+
+    /* Buttons compact */
+    .btn-row-right {
+        display: flex;
+        justify-content: flex-end;
+        gap: 8px;
+        align-items: center;
+    }
+</style>
+
+<div class="row">
+    <!-- Left Column -->
+    <div class="col-md-4">
+        <div class="mb-3">
+            <label for="roleDropdown">Select Role:</label>
+            <ejs-dropdownlist id="roleDropdown"
+                              dataSource="@ViewBag.Roles"
+                              placeholder="Select Role"
+                              value="@ViewBag.SelectedRoleId"
+                              enabled="@(!((bool?)(ViewBag.LockRole) ?? false))"
+                              fields="@(new DropDownListFieldSettings { Value = "Id", Text = "Name" })">
+            </ejs-dropdownlist>
+        </div>
+
+        <div class="mb-3">
+            <label for="actionDropdown">Select Permission:</label>
+            <ejs-dropdownlist id="actionDropdown"
+                              dataSource="@ViewBag.Actions"
+                              placeholder="Select Permission"
+                              fields="@(new DropDownListFieldSettings { Value = "ConstantKey", Text = "ConstantValue" })">
+            </ejs-dropdownlist>
+        </div>
+
+        <div class="mb-3">
+            <button type="button" id="btnLoadForms" class="e-btn e-primary">Load Forms</button>
+        </div>
+    </div>
+
+    <!-- Right Column -->
+    <div class="col-md-8" id="formsSection" style="display:none;">
+        <h5>Batch Update Role Forms</h5>
+
+        @* Description now includes TOTAL options *@
+        <p class="text-muted" id="permissionDescription">
+            Select forms to grant the permission for this role.
+        </p>
+
+        <!-- Filter -->
+        <div class="mb-2 filter-wrap">
+            <label class="filter-label" for="filterTextbox">Filter Forms:</label>
+            <div class="input-group">
+                <input type="text" id="filterTextbox" class="form-control"
+                       placeholder="Search by FormId or FormTitle...">
+                <button type="button" id="btnClearFilter" class="btn btn-secondary">
+                    <i class="e-icons e-clear"></i> Clear
+                </button>
+            </div>
+        </div>
+
+        <!-- FILTERED counters + Select all filtered -->
+        <div class="d-flex flex-wrap align-items-center justify-content-between mb-2 gap-2">
+            <div class="perm-counter">
+                <span class="sel">Selected: <span id="checkedCount">0</span></span>
+                <span class="sep ms-2">|</span>
+                <span class="tot ms-2">Total: <span id="totalCount">0</span></span>
+            </div>
+
+            <div class="d-flex align-items-center gap-2">
+                <button type="button" id="btnSelectAllFiltered" class="e-btn e-outline e-small">
+                    <i class="e-icons e-check"></i> Select All (Filtered)
+                </button>
+                <button type="button" id="btnUnselectAllFiltered" class="e-btn e-outline e-small">
+                    <i class="e-icons e-close"></i> Unselect All (Filtered)
+                </button>
+            </div>
+        </div>
+
+        <div id="BatchUpdateCheckboxHost">
+            @* Height reduced *@
+            <ejs-listbox id="FormCheckboxList" height="360">
+                <e-listbox-fields text="DisplayTitle" value="FormId"></e-listbox-fields>
+                <e-listbox-selectionsettings showCheckbox="true" mode="Multiple"></e-listbox-selectionsettings>
+            </ejs-listbox>
+        </div>
+
+        @* Save button moved to the right *@
+        <div class="mt-3 btn-row-right">
+            <button type="button" id="btnSave" class="e-btn e-success">
+                <i class="e-icons e-save"></i> Save Permissions
+            </button>
+        </div>
+    </div>
+
+    <div class="col-md-8" id="instructionsSection">
+        <div class="alert alert-info mt-4">
+            <strong>Instructions:</strong>
+            <ul class="mb-0">
+                <li>Select a Role from the dropdown</li>
+                <li>Select a Permission type (e.g., IsInsertable, IsReadable)</li>
+                <li>Click "Load Forms" to see all available forms</li>
+                <li>Check the forms you want to grant permission to</li>
+                <li>Click "Save Permissions" to apply changes</li>
+            </ul>
+        </div>
+    </div>
+</div>
+
+<script>
+    // -------------------- Global state --------------------
+    window.RoleFormsBatch = window.RoleFormsBatch || {};
+    RoleFormsBatch.formSessionId = '@(ViewBag.FormSessionId ?? "")';
+    RoleFormsBatch.originalFormData = [];
+    RoleFormsBatch.filteredFormData = [];
+    RoleFormsBatch.lastLoadedTotal = 0; // TOTAL options from server (unfiltered)
+
+    // -------------------- Message helpers --------------------
+    window.showSuccessMessage = function (message) {
+        var msg = document.getElementById("BatchUpdate_MSG");
+        if (msg && msg.ej2_instances && msg.ej2_instances[0]) {
+            var m = msg.ej2_instances[0];
+            m.severity = 'Success';
+            m.content = message;
+            m.visible = true;
+            setTimeout(function () { m.visible = false; }, 5000);
+        }
+    };
+
+    window.showErrorMessage = function (message) {
+        var msg = document.getElementById("BatchUpdate_MSG");
+        if (msg && msg.ej2_instances && msg.ej2_instances[0]) {
+            var m = msg.ej2_instances[0];
+            m.severity = 'Error';
+            m.content = message;
+            m.visible = true;
+        }
+    };
+
+    // -------------------- EJ2 getters --------------------
+    function getRoleDropdown() {
+        var el = document.getElementById("roleDropdown");
+        return el && el.ej2_instances ? el.ej2_instances[0] : null;
+    }
+    function getActionDropdown() {
+        var el = document.getElementById("actionDropdown");
+        return el && el.ej2_instances ? el.ej2_instances[0] : null;
+    }
+    function getListBox() {
+        var el = document.getElementById("FormCheckboxList");
+        return el && el.ej2_instances ? el.ej2_instances[0] : null;
+    }
+    function getCsrfToken() {
+        return document.querySelector('input[name="__RequestVerificationToken"]')?.value || "";
+    }
+
+    // -------------------- Description (TOTAL options) --------------------
+    function updatePermissionDescription(actionText) {
+        var total = RoleFormsBatch.lastLoadedTotal || 0;
+        document.getElementById("permissionDescription").innerHTML =
+            'Select forms to grant the <strong>' + actionText + '</strong> permission for this role. ' +
+            '(<strong>' + total + '</strong> options)';
+    }
+
+    // -------------------- FILTERED Counter (selected/total in current filter) --------------------
+    function updateCheckedCounter() {
+        var listBox = getListBox();
+        if (!listBox) return;
+
+        var selectedCount = Array.isArray(listBox.value) ? listBox.value.length : 0;
+        var totalCount = Array.isArray(RoleFormsBatch.filteredFormData) ? RoleFormsBatch.filteredFormData.length : 0;
+
+        document.getElementById("checkedCount").innerText = selectedCount;
+        document.getElementById("totalCount").innerText = totalCount;
+    }
+
+    // -------------------- Filtering --------------------
+    window.filterForms = function () {
+        var filterText = (document.getElementById("filterTextbox")?.value || "").toLowerCase().trim();
+        var listBox = getListBox();
+        if (!listBox) return;
+
+        if (!filterText) {
+            RoleFormsBatch.filteredFormData = RoleFormsBatch.originalFormData.slice();
+        } else {
+            RoleFormsBatch.filteredFormData = RoleFormsBatch.originalFormData.filter(function (item) {
+                var idStr = String(item.FormId || "").toLowerCase();
+                var title = String(item.FormTitle || "").toLowerCase();
+                var display = String(item.DisplayTitle || "").toLowerCase();
+                return idStr.includes(filterText) || title.includes(filterText) || display.includes(filterText);
+            });
+        }
+
+        // Keep selection that exists in filtered set
+        var selectedIds = Array.isArray(listBox.value) ? listBox.value.slice() : [];
+        listBox.dataSource = RoleFormsBatch.filteredFormData;
+        listBox.dataBind();
+
+        if (selectedIds.length > 0) {
+            var allowed = new Set(RoleFormsBatch.filteredFormData.map(x => x.FormId));
+            var stillValid = selectedIds.filter(id => allowed.has(id));
+            listBox.value = stillValid;
+            listBox.dataBind();
+        }
+
+        updateCheckedCounter();
+    };
+
+    window.clearFilter = function () {
+        var tb = document.getElementById("filterTextbox");
+        if (tb) tb.value = "";
+        window.filterForms();
+    };
+
+    // -------------------- Select/Unselect All (Filtered) --------------------
+    window.selectAllFiltered = function () {
+        var listBox = getListBox();
+        if (!listBox) return;
+
+        var current = Array.isArray(listBox.value) ? listBox.value.slice() : [];
+        var addIds = (RoleFormsBatch.filteredFormData || []).map(x => String(x.FormId));
+
+        var set = new Set(current.map(String));
+        addIds.forEach(id => set.add(String(id)));
+
+        listBox.value = Array.from(set);
+        listBox.dataBind();
+        updateCheckedCounter();
+    };
+
+    window.unselectAllFiltered = function () {
+        var listBox = getListBox();
+        if (!listBox) return;
+
+        var current = Array.isArray(listBox.value) ? listBox.value.slice() : [];
+        if (current.length === 0) return;
+
+        var removeSet = new Set((RoleFormsBatch.filteredFormData || []).map(x => String(x.FormId)));
+        var kept = current.filter(id => !removeSet.has(String(id)));
+
+        listBox.value = kept;
+        listBox.dataBind();
+        updateCheckedCounter();
+    };
+
+    // -------------------- Load Forms (AJAX) --------------------
+    window.loadBatchUpdateData = function () {
+        var roleDd = getRoleDropdown();
+        var actionDd = getActionDropdown();
+        if (!roleDd || !actionDd) return;
+
+        var selectedRoleId = parseInt(roleDd.value, 10);
+        var formAction = actionDd.value;
+
+        var roleStr = isNaN(selectedRoleId) ? "" : String(selectedRoleId).trim();
+        var actionStr = formAction == null ? "" : String(formAction).trim();
+
+        if (roleStr === "" || actionStr === "") {
+            showErrorMessage("Please select both Role and Permission");
+            return;
+        }
+
+        showSuccessMessage("Loading forms...");
+
+        $.ajax({
+            url: '@Url.Action("LoadFormsForBatchUpdate", "AspNetRoleForm", new { area = "AspNet" })',
+            type: 'POST',
+            contentType: 'application/json',
+            headers: {
+                'RequestVerificationToken': getCsrfToken(),
+                'FormSessionId': RoleFormsBatch.formSessionId
+            },
+            data: JSON.stringify({ roleId: selectedRoleId, formAction: formAction }),
+            success: function (result) {
+                if (result && result.success && result.data) {
+
+                    RoleFormsBatch.lastLoadedTotal = (result.data || []).length;
+
+                    // Store FormId as string for EJ2 selection stability
+                    var formatted = (result.data || []).map(function (item) {
+                        return {
+                            FormId: String(item.FormId),
+                            FormParentId: item.FormParentId,
+                            FormTitle: item.FormTitle,
+                            FullPathTitle: item.FullPathTitle,
+                            IsChecked: item.IsChecked === true,
+                            DisplayTitle: item.FullPathTitle || (item.FormId + " - " + (item.FormTitle || "[Untitled]"))
+                        };
+                    });
+
+                    RoleFormsBatch.originalFormData = formatted;
+                    RoleFormsBatch.filteredFormData = formatted.slice();
+
+                    var listBox = getListBox();
+                    if (!listBox) return;
+
+                    listBox.fields = { text: 'DisplayTitle', value: 'FormId' };
+                    listBox.dataSource = RoleFormsBatch.filteredFormData;
+                    listBox.dataBind();
+
+                    // Preselect checked (strings!)
+                    var preSelected = (result.data || [])
+                        .filter(x => x.IsChecked === true)
+                        .map(x => String(x.FormId));
+
+                    listBox.value = preSelected;
+                    listBox.dataBind();
+
+                    var actionText = actionDd.text || formAction;
+                    updatePermissionDescription(actionText);
+
+                    document.getElementById("formsSection").style.display = "block";
+                    document.getElementById("instructionsSection").style.display = "none";
+
+                    updateCheckedCounter();
+                    showSuccessMessage("Forms loaded successfully (" + RoleFormsBatch.lastLoadedTotal + " forms available)");
+                } else {
+                    showErrorMessage("Failed to load forms: " + (result?.error || "Unknown error"));
+                }
+            },
+            error: function (xhr) {
+                var err = "An error occurred while loading forms.";
+                if (xhr.responseJSON && xhr.responseJSON.error) err = xhr.responseJSON.error;
+                showErrorMessage(err);
+            }
+        });
+    };
+
+    // -------------------- Save --------------------
+    window.saveBatchUpdate = function () {
+        var roleDd = getRoleDropdown();
+        var actionDd = getActionDropdown();
+        var listBox = getListBox();
+        if (!roleDd || !actionDd || !listBox) return;
+
+        var selectedRoleId = parseInt(roleDd.value, 10);
+        var formAction = actionDd.value;
+
+        var roleStr = isNaN(selectedRoleId) ? "" : String(selectedRoleId).trim();
+        var actionStr = formAction == null ? "" : String(formAction).trim();
+
+        if (roleStr === "" || actionStr === "") {
+            showErrorMessage("Please select both Role and Permission");
+            return;
+        }
+
+        var selectedIds = Array.isArray(listBox.value) ? listBox.value : [];
+        var checkedIds = selectedIds.map(x => parseInt(x, 10)).filter(x => !isNaN(x));
+
+        showSuccessMessage("Saving permissions...");
+
+        $.ajax({
+            url: '@Url.Action("BatchUpdateSave", "AspNetRoleForm", new { area = "AspNet" })',
+            type: 'POST',
+            contentType: 'application/json',
+            headers: {
+                'RequestVerificationToken': getCsrfToken(),
+                'FormSessionId': RoleFormsBatch.formSessionId
+            },
+            data: JSON.stringify({
+                selectedFormIds: checkedIds,
+                roleId: selectedRoleId,
+                formAction: formAction
+            }),
+            success: function (result) {
+                showSuccessMessage((result?.message || "Saved") + " (" + checkedIds.length + " forms selected)");
+            },
+            error: function (xhr) {
+                var err = "An error occurred while saving.";
+                if (xhr.responseJSON && xhr.responseJSON.error) err = xhr.responseJSON.error;
+                showErrorMessage(err);
+            }
+        });
+    };
+
+    // -------------------- Wire events --------------------
+    document.addEventListener("DOMContentLoaded", function () {
+        document.getElementById("btnLoadForms")?.addEventListener("click", window.loadBatchUpdateData);
+        document.getElementById("btnSave")?.addEventListener("click", window.saveBatchUpdate);
+        document.getElementById("btnClearFilter")?.addEventListener("click", window.clearFilter);
+        document.getElementById("filterTextbox")?.addEventListener("keyup", window.filterForms);
+
+        document.getElementById("btnSelectAllFiltered")?.addEventListener("click", window.selectAllFiltered);
+        document.getElementById("btnUnselectAllFiltered")?.addEventListener("click", window.unselectAllFiltered);
+
+        // Update counter on every check/uncheck
+        var listBox = getListBox();
+        if (listBox) {
+            listBox.change = function () { updateCheckedCounter(); };
+        }
+
+        // Role lock support
+        var lockRole = @(((bool?)(ViewBag.LockRole) ?? false).ToString().ToLower());
+        var presetRoleId = @(ViewBag.SelectedRoleId ?? 0);
+        if (lockRole) {
+            setTimeout(function () {
+                var roleDd = getRoleDropdown();
+                if (roleDd) {
+                    roleDd.value = presetRoleId;
+                    roleDd.enabled = false;
+                    roleDd.dataBind();
+                }
+            }, 50);
+        }
+    });
+</script>

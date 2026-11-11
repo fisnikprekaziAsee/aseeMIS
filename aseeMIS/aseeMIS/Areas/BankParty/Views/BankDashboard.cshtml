@@ -1,0 +1,189 @@
+@model aseeMIS.Areas.BankParty.Controllers.BankDashboardController.DashboardViewModel
+@using aseeMIS.Areas.BankParty.Enums
+@using System.Text.Json
+
+@{
+    ViewData["Title"] = "Bank Dashboard";
+
+    var widgets = Model.Widgets;
+
+    // enum -> DOM id mapping (C# side)
+    var widgetIds = new Dictionary<BankClientWidgetEnum, string>
+    {
+        [BankClientWidgetEnum.AccountActivity] = "w-account",
+        [BankClientWidgetEnum.CreditInformation] = "w-credit",
+        [BankClientWidgetEnum.Accounts] = "w-accounts",
+        [BankClientWidgetEnum.Cards] = "w-cards",
+        [BankClientWidgetEnum.Loans] = "w-loans"
+    };
+
+    string colClass = widgets.Count switch
+    {
+        1 => "col-12",
+        2 => "col-12 col-lg-6",
+        3 => "col-12 col-lg-4",
+        4 => "col-12 col-lg-3",
+        _ => "col-12 col-lg-3"
+    };
+}
+
+
+<style>
+    .card-soft {
+        border-radius: 14px;
+        box-shadow: 0 2px 8px rgba(15,23,42,.05);
+    }
+
+    .badge-pill {
+        border-radius: 999px;
+    }
+
+    .quick-links .qlink {
+        display: inline-flex;
+        align-items: center;
+        gap: .5rem;
+        padding: .45rem .75rem;
+        border-radius: .5rem;
+        color: var(--bs-primary);
+        text-decoration: none;
+        font-weight: 600;
+    }
+
+        .quick-links .qlink:hover {
+            background: rgba(var(--bs-primary-rgb),.08);
+            text-decoration: none;
+        }
+</style>
+
+<div class="container-xxl py-3">
+
+    <div class="card card-soft mt-3">
+        <div class="p-3">
+            <div class="fw-semibold mb-1">Client Search</div>
+            <div class="text-muted small">
+                Search for existing clients by ID, name, or account number
+            </div>
+
+            <div class="mt-3" style="min-width:280px;">
+                @await Component.InvokeAsync("SearchAutocomplete",
+                new aseeMIS.Areas.Common.ViewModels.SearchAutocompleteOptions
+                {
+                    SearchUrl = Url.Action("Search", "BankParty", new { area = "BankParty" }),
+                    Id = "customerSearch",
+                    Placeholder = "Search Customer (name, code)",
+                    MinLength = 3,
+                    DebounceDelay = 1000,
+                    SuggestionCount = 10,
+                    ValueField = "BankPartyId",
+                    TextField = "DisplayText"
+                })
+            </div>
+
+            <div class="mt-3 quick-links d-flex flex-wrap gap-2">
+                <a href="/Common/Entity360/Index/13" class="qlink">Individual Resident</a>
+                <a href="/Common/Entity360/Index/13" class="qlink">Individual Non-Resident</a>
+                <a href="/Common/Entity360/Index/14" class="qlink">Business Resident</a>
+                <a href="/Common/Entity360/Index/14" class="qlink">Business Non-Resident</a>
+            </div>
+
+            @if (Model.HasSearched)
+            {
+                <div class="alert alert-light border mt-3 mb-0 small">
+                    No client found for <strong>@Model.SearchQuery</strong>.
+                </div>
+            }
+        </div>
+    </div>
+
+    <div id="client-header" class="d-none mt-3"></div>
+
+    <div id="client-sections" class="d-none mt-3">
+        <div class="row g-3">
+            @foreach (var w in widgets)
+            {
+                <div id="@widgetIds[w]" class="@colClass"></div>
+            }
+        </div>
+    </div>
+</div>
+
+<script>
+    (function () {
+
+        const acId = "customerSearch";
+        const headerEl = document.getElementById("client-header");
+        const bodyEl   = document.getElementById("client-sections");
+
+        // enum values serialized as strings
+        const widgets = @Html.Raw(
+            JsonSerializer.Serialize(
+                Model.Widgets,
+                new JsonSerializerOptions {
+                    Converters = { new System.Text.Json.Serialization.JsonStringEnumConverter() }
+                }));
+
+
+        const urls = {
+            AccountActivity:     "@Url.Action("RenderAccountActivity", "BankDashboard", new { area = "BankParty" })",
+            CreditInformation:  "@Url.Action("RenderCreditInformation", "BankDashboard", new { area = "BankParty" })",
+            Accounts:           "@Url.Action("RenderAccounts", "BankDashboard", new { area = "BankParty" })",
+            Cards:              "@Url.Action("RenderCards", "BankDashboard", new { area = "BankParty" })",
+            Loans:              "@Url.Action("RenderLoans", "BankDashboard", new { area = "BankParty" })"
+        };
+
+        const ids = {
+            AccountActivity: "w-account",
+            CreditInformation: "w-credit",
+            Accounts: "w-accounts",
+            Cards: "w-cards",
+            Loans: "w-loans"
+        };
+
+        function $(id){ return document.getElementById(id); }
+        function ej(id){ return $(id)?.ej2_instances?.[0]; }
+
+        function loadWidget(widget, value){
+            const el = $(ids[widget]);
+            if (!el) return;
+
+            el.innerHTML = '<div class="text-muted small">Loading…</div>';
+
+            fetch(urls[widget] + "?idOrDisplay=" + encodeURIComponent(value))
+                .then(r => r.text())
+                .then(html => el.innerHTML = html || "")
+                .catch(() =>
+                    el.innerHTML = '<div class="alert alert-danger small">Failed to load.</div>');
+        }
+
+        function attach(){
+            const ac = ej(acId);
+            if (!ac) return false;
+
+            ac.select = function(e){
+                const d = e?.itemData;
+                const value = d ? d[ac.fields.value] : null;
+                if (!value) return;
+
+                headerEl.classList.remove("d-none");
+                bodyEl.classList.remove("d-none");
+
+                headerEl.innerHTML = '<div class="text-muted small">Loading header…</div>';
+
+                fetch("@Url.Action("RenderIndividualHeader", "BankDashboard", new { area = "BankParty" })"
+                    + "?idOrDisplay=" + encodeURIComponent(value))
+                    .then(r => r.text())
+                    .then(html => headerEl.innerHTML = html || "");
+
+                widgets.forEach(w => loadWidget(w, value));
+            };
+
+            return true;
+        }
+
+        let tries = 0;
+        const t = setInterval(() => {
+            if (attach() || ++tries > 100) clearInterval(t);
+        }, 50);
+
+    })();
+</script>

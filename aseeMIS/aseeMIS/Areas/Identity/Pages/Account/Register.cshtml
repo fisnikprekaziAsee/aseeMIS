@@ -1,0 +1,135 @@
+@page
+@model RegisterModel
+@{
+    ViewData["Title"] = "Register";
+}
+
+<!-- Full-screen centered container -->
+<div class="d-flex justify-content-center align-items-center mt-5" style="background-color: #f6f7fb;">
+    <div class="card shadow p-5 m-5 " style="background: #fff; border-radius: 10px;">
+        <!-- Brand Logo -->
+        <div class="text-center mb-3">
+            <h3 class="fw-bold" style="color:#0d9dda">aseeMIS</h3>
+        </div>
+
+        <!-- Welcome Message -->
+        <p class="text-center text-muted">Register to continue</p>
+        <section>
+            <form id="registerForm" asp-route-returnUrl="@Model.ReturnUrl" method="post" enctype="multipart/form-data">
+                <h3>Create a new account</h3>
+                <hr />
+                <div asp-validation-summary="ModelOnly" class="text-danger" role="alert"></div>
+
+                <!-- First Name and Last Name in one row -->
+                <div class="row">
+                    <div class="col-md-6 mb-2">
+                        <label asp-for="Input.FirstName">First Name</label>
+                        <input asp-for="Input.FirstName" class="form-control" autocomplete="given-name" aria-required="true" />
+
+                        <span asp-validation-for="Input.FirstName" class="text-danger"></span>
+                    </div>
+                    <div class="col-md-6 mb-2">
+                        <label asp-for="Input.LastName">Last Name</label>
+                        <input asp-for="Input.LastName" class="form-control" autocomplete="family-name" aria-required="true" />
+
+                        <span asp-validation-for="Input.LastName" class="text-danger"></span>
+                    </div>
+                </div>
+
+                <!-- Date of Birth and Email in one row -->
+                <div class="row">
+                    <div class="col-md-6 mb-2">
+                        <label asp-for="Input.DateOfBirth">Date of Birth</label>
+                        <input asp-for="Input.DateOfBirth" class="form-control" type="date" aria-required="true" />
+
+                        <span asp-validation-for="Input.DateOfBirth" class="text-danger"></span>
+                    </div>
+                    <div class="col-md-6 mb-2">
+                        <label asp-for="Input.Email">Email</label>
+                        <input asp-for="Input.Email" class="form-control" autocomplete="username" aria-required="true" />
+
+                        <span asp-validation-for="Input.Email" class="text-danger"></span>
+                    </div>
+                </div>
+
+                <!-- Password and Confirm Password in one row -->
+                <div class="row">
+                    <div class="col-md-6 mb-2">
+                        <label asp-for="Input.Password">Password</label>
+                        <input asp-for="Input.Password" class="form-control" autocomplete="new-password" aria-required="true" />
+
+                        <span asp-validation-for="Input.Password" class="text-danger"></span>
+
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label asp-for="Input.ConfirmPassword">Confirm Password</label>
+                        <input asp-for="Input.ConfirmPassword" class="form-control" autocomplete="new-password" aria-required="true" />
+
+                        <span asp-validation-for="Input.ConfirmPassword" class="text-danger"></span>
+
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div class="col-md-6 mb-2">
+                        <label asp-for="Input.Gender">Gender</label>
+                        <select asp-for="Input.Gender" class="form-select" aria-required="true">
+                            <option value="" selected>-- Select Gender --</option>
+                            <option value="M">Male</option>
+                            <option value="F">Female</option>
+                            <option value="O">Other</option>
+                        </select>
+                        <span asp-validation-for="Input.Gender" class="text-danger"></span>
+                    </div>
+
+                    <div class="col-md-6 mb-2">
+                        <div class="mb-2">
+                            <label asp-for="Input.PhoneNumber">Phone Number</label>
+                            <input asp-for="Input.PhoneNumber" class="form-control" type="tel" />
+
+                            <span asp-validation-for="Input.PhoneNumber" class="text-danger"></span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Language Code -->
+                <div class=" mb-3">
+
+                    <label asp-for="Input.LanguageCode">Language Code</label>
+                    <select asp-for="Input.LanguageCode" class="form-select" aria-required="true">
+                        <option value="" selected>-- Select Language --</option>
+                        @foreach (var code in Model.Languages)
+                        {
+                            <option value="@code">@code</option>
+                        }
+                    </select>
+                    <span asp-validation-for="Input.LanguageCode" class="text-danger"></span>
+                </div>
+
+                <!-- Profile Picture -->
+                <div class="form-group mb-4">
+                    <label asp-for="Input.ProfilePicture" class="form-label">Profile Picture (Optional)</label>
+                    <input asp-for="Input.ProfilePicture" class="form-control" type="file" onchange="previewProfilePicture(this)" />
+                </div>
+                <div class="mb-2">
+                    <img id="profilePicturePreview" src="" alt="Profile Picture Preview" class="img-thumbnail" style="max-width: 150px; max-height: 150px; object-fit: cover; display: none;" />
+                </div>
+
+                <!-- Two-Factor Authentication and IsActive -->
+                <div class="form-check mb-2">
+                    <input asp-for="Input.TwoFactorEnabled" class="form-check-input" type="checkbox" />
+                    <label asp-for="Input.TwoFactorEnabled" class="form-check-label">Enable Two-Factor Authentication</label>
+                </div>
+
+                <!-- Submit Button -->
+                <button id="registerSubmit" type="submit" class="w-100 btn btn-lg btn-primary">Register</button>
+            </form>
+        </section>
+    </div>
+</div>
+
+
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

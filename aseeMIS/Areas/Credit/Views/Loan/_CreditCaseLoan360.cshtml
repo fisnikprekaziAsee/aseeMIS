@@ -1,0 +1,284 @@
+@model dsCredit.Core.ViewModels.CreditCaseLoanViewModel
+
+<ul class="nav nav-tabs mb-3" id="loan360Tabs" role="tablist">
+    <li class="nav-item" role="presentation">
+        <button class="nav-link active"
+                data-bs-toggle="tab"
+                data-bs-target="#tab-case-info"
+                type="button">
+            <i class="bi bi-file-earmark-text me-1"></i>
+            Credit Case Information
+        </button>
+    </li>
+
+    @if ((ViewBag.ShowContractFarmingTab as bool?) == true)
+    {
+        <li class="nav-item" role="presentation">
+            <button class="nav-link"
+                    data-bs-toggle="tab"
+                    data-bs-target="#tab-contract-farming"
+                    type="button">
+                <i class="bi bi-tree me-1"></i>
+                Contract Farming
+            </button>
+        </li>
+    }
+
+    <li class="nav-item" role="presentation">
+        <button class="nav-link"
+                data-bs-toggle="tab"
+                data-bs-target="#tab-rates"
+                type="button">
+            <i class="bi bi-percent me-1"></i>
+            Rate Components
+        </button>
+    </li>
+
+    <li class="nav-item" role="presentation">
+        <button class="nav-link"
+                data-bs-toggle="tab"
+                data-bs-target="#tab-subsidy"
+                type="button">
+            <i class="bi bi-cash-coin me-1"></i>
+            Interest Subsidies
+        </button>
+    </li>
+</ul>
+
+<div class="tab-content">
+    <div class="tab-pane fade show active" id="tab-case-info">
+        @await Html.PartialAsync(
+            "~/Areas/Credit/Views/Loan/_CreditCaseLoanUpsert.cshtml",
+            Model,
+            ViewData)
+    </div>
+
+    @if ((ViewBag.ShowContractFarmingTab as bool?) == true)
+    {
+        <div class="tab-pane fade" id="tab-contract-farming">
+            <div class="text-muted small p-3">Open the tab to load the contract farming details.</div>
+        </div>
+    }
+
+    <div class="tab-pane fade" id="tab-rates"></div>
+
+    <div class="tab-pane fade" id="tab-subsidy"></div>
+</div>
+
+<script>
+    (function () {
+        const loan360HostPane = document.currentScript?.closest("#ccMasterTabsContent > .tab-pane")
+            || document.currentScript?.closest(".tab-pane");
+        const contractFarmingTabButton = document.querySelector('[data-bs-target="#tab-contract-farming"]');
+        const rateComponentsTabButton = document.querySelector('[data-bs-target="#tab-rates"]');
+        const interestSubsidiesTabButton = document.querySelector('[data-bs-target="#tab-subsidy"]');
+        const contractFarmingContainer = document.getElementById("tab-contract-farming");
+        const rateComponentsContainer = document.getElementById("tab-rates");
+        const interestSubsidiesContainer = document.getElementById("tab-subsidy");
+        const supportTabUrls = {
+            contractFarming: '@(ViewBag.ContractFarmingDetailsUrl ?? string.Empty)',
+            rateComponents: '@(ViewBag.RateComponentsUrl ?? Url.Action("LoadRateComponentsTab", "CreditCaseLoan", new { area = "Credit" }))',
+            interestSubsidies: '@(ViewBag.InterestSubsidiesUrl ?? Url.Action("LoadInterestSubsidiesTab", "CreditCaseLoan", new { area = "Credit" }))'
+        };
+
+        if (contractFarmingTabButton && !contractFarmingTabButton.dataset.bound) {
+            contractFarmingTabButton.dataset.bound = "1";
+            contractFarmingTabButton.addEventListener("shown.bs.tab", function () {
+                loadLoanContractFarmingTab(false);
+            });
+        }
+
+        if (rateComponentsTabButton && !rateComponentsTabButton.dataset.bound) {
+            rateComponentsTabButton.dataset.bound = "1";
+            rateComponentsTabButton.addEventListener("shown.bs.tab", function () {
+                loadLoanRateComponentsTab(false);
+            });
+        }
+
+        if (interestSubsidiesTabButton && !interestSubsidiesTabButton.dataset.bound) {
+            interestSubsidiesTabButton.dataset.bound = "1";
+            interestSubsidiesTabButton.addEventListener("shown.bs.tab", function () {
+                loadLoanInterestSubsidiesTab(false);
+            });
+        }
+
+        function getElementValue(id) {
+            const element = document.getElementById(id);
+            if (!element) {
+                return null;
+            }
+
+            const instance = element.ej2_instances?.[0];
+            if (instance) {
+                if (typeof instance.checked !== "undefined") {
+                    return instance.checked;
+                }
+
+                if (typeof instance.value !== "undefined") {
+                    return instance.value;
+                }
+            }
+
+            if (element.type === "checkbox") {
+                return element.checked;
+            }
+
+            return element.value;
+        }
+
+        function normalizeTextValue(value) {
+            if (value === undefined || value === null) {
+                return "";
+            }
+
+            return String(value).trim();
+        }
+
+        function isMeaningfulValue(value) {
+            return !(value === undefined || value === null || value === "");
+        }
+
+        function getLoanContext() {
+            const creditCaseId = getElementValue("CreditCaseId");
+            const bankPartyId =
+                document.getElementById("ccBankPartyBankPartyId")?.value ??
+                getElementValue("BankPartyId");
+            const caseNumber = normalizeTextValue(getElementValue("CaseNumber"));
+            const productCode = normalizeTextValue(getElementValue("ProductCode"));
+
+            return {
+                creditCaseId: isMeaningfulValue(creditCaseId) && creditCaseId !== 0 && creditCaseId !== "0" ? creditCaseId : "",
+                bankPartyId: isMeaningfulValue(bankPartyId) && bankPartyId !== 0 && bankPartyId !== "0" ? bankPartyId : "",
+                caseNumber: caseNumber,
+                productCode: productCode
+            };
+        }
+
+        function getLoanFormSessionId() {
+            return document.querySelector("#tab-case-info .form-container")?.dataset.formSessionId || "@ViewBag.FormSessionId" || "";
+        }
+
+        function getLoanChildFormSessionId(formId) {
+            return typeof window.getCreditHubChildSession === "function"
+                ? window.getCreditHubChildSession(formId) || getLoanFormSessionId()
+                : getLoanFormSessionId();
+        }
+
+        function updateHubDocumentContext() {
+            const context = getLoanContext();
+
+            if (loan360HostPane) {
+                loan360HostPane.dataset.creditCaseId = context.creditCaseId || "";
+                loan360HostPane.dataset.caseNumber = context.caseNumber || "";
+                loan360HostPane.dataset.formSessionId = getLoanFormSessionId() || "";
+            }
+
+            if (typeof window.updateCreditHubCurrentCaseContext === "function") {
+                window.updateCreditHubCurrentCaseContext(context.creditCaseId, context.caseNumber, getLoanFormSessionId());
+            }
+        }
+
+        function renderLoanSupportGridHtml(container, html) {
+            if (!container) {
+                return;
+            }
+
+            container.innerHTML = html;
+
+            setTimeout(function () {
+                if (window.ds?.entity?.init) {
+                    ds.entity.init();
+                }
+
+                if (window.ej?.base) {
+                    ej.base.enableRipple(true);
+                }
+            }, 0);
+        }
+
+        function loadLoanSupportGridTab(container, url, forceReload, loadingText, childFormId) {
+            if (!container || !url) {
+                return Promise.resolve();
+            }
+
+            if (!forceReload && container.dataset.loaded === "true") {
+                return Promise.resolve();
+            }
+
+            const context = getLoanContext();
+            const requestUrl = new URL(url, window.location.origin);
+
+            if (context.creditCaseId) {
+                requestUrl.searchParams.set("creditCaseId", context.creditCaseId);
+            }
+
+            requestUrl.searchParams.set("formSessionId", getLoanChildFormSessionId(childFormId));
+
+            container.innerHTML = `<div class="p-3 text-muted">${loadingText}</div>`;
+
+            return fetch(requestUrl, {
+                headers: {
+                    "X-Requested-With": "XMLHttpRequest"
+                }
+            })
+                .then(response => response.text())
+                .then(html => {
+                    renderLoanSupportGridHtml(container, html);
+                    container.dataset.loaded = "true";
+                })
+                .catch(error => {
+                    console.error(error);
+                    container.innerHTML = `
+                        <div class="text-danger p-3">
+                            Failed to load tab content.
+                        </div>
+                    `;
+                    throw error;
+                });
+        }
+
+        function loadLoanRateComponentsTab(forceReload) {
+            return loadLoanSupportGridTab(
+                rateComponentsContainer,
+                supportTabUrls.rateComponents,
+                forceReload,
+                "Loading rate components...",
+                315);
+        }
+
+        function loadLoanContractFarmingTab(forceReload) {
+            return loadLoanSupportGridTab(
+                contractFarmingContainer,
+                supportTabUrls.contractFarming,
+                forceReload,
+                "Loading contract farming details...",
+                323);
+        }
+
+        function loadLoanInterestSubsidiesTab(forceReload) {
+            return loadLoanSupportGridTab(
+                interestSubsidiesContainer,
+                supportTabUrls.interestSubsidies,
+                forceReload,
+                "Loading interest subsidies...",
+                316);
+        }
+
+        function refreshLoanSupportingTabs() {
+            if (contractFarmingContainer?.dataset.loaded === "true") {
+                loadLoanContractFarmingTab(true);
+            }
+
+            if (rateComponentsContainer?.dataset.loaded === "true") {
+                loadLoanRateComponentsTab(true);
+            }
+
+            if (interestSubsidiesContainer?.dataset.loaded === "true") {
+                loadLoanInterestSubsidiesTab(true);
+            }
+        }
+
+        window.refreshLoanSupportingTabs = refreshLoanSupportingTabs;
+        updateHubDocumentContext();
+    })();
+</script>

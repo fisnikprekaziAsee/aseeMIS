@@ -1,0 +1,1068 @@
+@model aseeMIS.Areas.BankParty.ViewModels.BankPartyContextWidgetOptions
+
+@{
+    var wid = string.IsNullOrWhiteSpace(Model?.WidgetId)
+        ? "bpCtx"
+        : Model.WidgetId;
+
+    var hfId = wid + "BankPartyId";
+    var hfTypeId = wid + "IsIndividual";
+    var ctxId = wid + "Context";
+
+    var btnIndividualId = wid + "BtnIndividual";
+    var btnBusinessId = wid + "BtnBusiness";
+
+    var viewEntityButtonId = wid + "ViewEntity";
+    var entityDialogId = wid + "EntityDialog";
+    var entityDialogContentId = wid + "EntityDialogContent";
+
+    var widgetBodyId = wid + "Body";
+    var collapseButtonId = wid + "CollapseButton";
+
+    var searchIndividualsUrl = Url.Action(
+        "SearchIndividuals",
+        "BankParty",
+        new { area = "BankParty" });
+
+    var searchBusinessesUrl = Url.Action(
+        "SearchLegalEntities",
+        "BankParty",
+        new { area = "BankParty" });
+
+    var individualHeaderContextUrl = Url.Action(
+        "GetIndividualContextHeader",
+        "BankParty",
+        new { area = "BankParty" });
+
+    var legalEntityHeaderContextUrl = Url.Action(
+        "GetLegalEntityContextHeader",
+        "BankParty",
+        new { area = "BankParty" });
+
+    var selectedBankPartyId = Model?.SelectedBankPartyId ?? 0;
+    var hasPreselectedBankParty = selectedBankPartyId > 0;
+
+    var initialIsIndividual =
+        Model?.SelectedIsIndividual
+        ?? Model?.DefaultIsIndividual
+        ?? true;
+}
+
+<style>
+    .bp-ctx-widget {
+        width: 100%;
+        background: #fff;
+        border: 1px solid #dbe3ee;
+        border-radius: 14px;
+        box-shadow: 0 2px 10px rgba(15, 23, 42, .05);
+        padding: 1rem 1.1rem;
+    }
+
+    .bp-ctx-title-row {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 1rem;
+        margin-bottom: 1.25rem;
+    }
+
+    .bp-ctx-widget.is-widget-collapsed .bp-ctx-title-row {
+        margin-bottom: 0;
+    }
+
+    .bp-ctx-title {
+        display: flex;
+        align-items: center;
+        gap: .5rem;
+        font-size: .96rem;
+        font-weight: 700;
+        color: #0f172a;
+    }
+
+    .bp-ctx-subtitle {
+        margin-top: .2rem;
+        font-size: .84rem;
+        color: #94a3b8;
+    }
+
+    .bp-ctx-collapse-btn {
+        width: 34px;
+        height: 31px;
+        padding: 0;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+        .bp-ctx-collapse-btn i {
+            line-height: 1;
+        }
+
+    .bp-type-group {
+        display: flex;
+        min-height: 38px;
+        border: 1px solid #dbe3ee;
+        border-radius: 10px;
+        overflow: hidden;
+        background: #fff;
+    }
+
+    .bp-type-btn {
+        flex: 1 1 50%;
+        border: 0;
+        background: transparent;
+        color: #64748b;
+        font-size: .86rem;
+        font-weight: 600;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: .4rem;
+        padding: 0 .75rem;
+        cursor: pointer;
+    }
+
+        .bp-type-btn + .bp-type-btn {
+            border-left: 1px solid #dbe3ee;
+        }
+
+        .bp-type-btn.active {
+            background: var(--ds-blue);
+            color: #fff;
+        }
+
+        .bp-type-btn:hover:not(.active) {
+            background: #f4f8ff;
+            color: var(--ds-blue);
+        }
+
+    .bp-ctx-results {
+        margin-top: .75rem;
+        border: 1px solid #e4e9ef;
+        border-radius: 10px;
+        overflow: hidden;
+        background: #fff;
+    }
+
+    .bp-ctx-result {
+        width: 100%;
+        border: 0;
+        border-bottom: 1px solid #edf1f5;
+        background: #fff;
+        padding: .75rem .9rem;
+        text-align: left;
+        display: flex;
+        justify-content: space-between;
+        gap: 1rem;
+        cursor: pointer;
+    }
+
+        .bp-ctx-result:last-child {
+            border-bottom: 0;
+        }
+
+        .bp-ctx-result:hover {
+            background: #f4f8ff;
+        }
+
+    .bp-ctx-result-title {
+        font-weight: 700;
+        color: #0f172a;
+        line-height: 1.25;
+    }
+
+    .bp-ctx-result-meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: .45rem .75rem;
+        margin-top: .3rem;
+        color: #64748b;
+        font-size: .8rem;
+    }
+
+    .bp-ctx-result-type {
+        flex-shrink: 0;
+        align-self: flex-start;
+        border: 1px solid #dbe3ee;
+        border-radius: 999px;
+        padding: .18rem .6rem;
+        color: #475569;
+        background: #f8fafc;
+        font-size: .72rem;
+        font-weight: 700;
+    }
+
+    .bp-ctx-region {
+        margin-top: .9rem;
+    }
+</style>
+
+<div class="bp-ctx-widget"
+     id="@wid"
+     data-search-individual-url="@searchIndividualsUrl"
+     data-search-business-url="@searchBusinessesUrl"
+     data-individual-context-url="@individualHeaderContextUrl"
+     data-legal-context-url="@legalEntityHeaderContextUrl"
+     data-language-code="@(Model?.LanguageCode ?? "en")"
+     data-collapse-after-selection="@(Model?.CollapseAfterSelection == true ? "true" : "false")"
+     data-selected-bank-party-id="@selectedBankPartyId"
+     data-initial-is-individual="@(initialIsIndividual ? "true" : "false")">
+
+    <div class="bp-ctx-title-row">
+        <div>
+            <div class="bp-ctx-title">
+                <i class="bi bi-search"></i>
+                <span>@Model?.Title</span>
+            </div>
+
+            @if (!string.IsNullOrWhiteSpace(Model?.Subtitle))
+            {
+                <div class="bp-ctx-subtitle">
+                    @Model.Subtitle
+                </div>
+            }
+        </div>
+
+        <div class="d-flex align-items-center gap-2">
+            @if (Model?.ShowEntityFormButton == true)
+            {
+                <button type="button"
+                        class="btn btn-outline-primary btn-sm d-none"
+                        id="@viewEntityButtonId">
+                    <i class="bi bi-eye me-1"></i>
+                    View Bank Party
+                </button>
+            }
+
+            <button type="button"
+                    class="btn btn-outline-secondary btn-sm @(hasPreselectedBankParty && Model?.CollapseAfterSelection == true ? string.Empty : "d-none")"
+                    id="@wid-change-btn">
+                <i class="bi bi-pencil-square me-1"></i>
+                Change
+            </button>
+
+            <button type="button"
+                    class="btn btn-outline-secondary btn-sm bp-ctx-collapse-btn"
+                    id="@collapseButtonId"
+                    aria-expanded="true"
+                    aria-controls="@widgetBodyId"
+                    title="Collapse">
+                <i class="bi bi-chevron-up"></i>
+            </button>
+        </div>
+    </div>
+
+    <div id="@widgetBodyId">
+        <div class="bp-ctx-toolbar @(hasPreselectedBankParty && Model?.CollapseAfterSelection == true ? "d-none" : string.Empty)"
+             id="@wid-search-body">
+
+            <div class="row g-2 align-items-end">
+                @if (Model?.ShowEntityTypeButtons == true)
+                {
+                    <div class="col-12 col-lg-3">
+                        <div class="bp-type-group">
+                            <button type="button"
+                                    class="bp-type-btn @(!initialIsIndividual ? "active" : string.Empty)"
+                                    id="@btnBusinessId">
+                                <i class="bi bi-building"></i>
+                                Business
+                            </button>
+
+                            <button type="button"
+                                    class="bp-type-btn @(initialIsIndividual ? "active" : string.Empty)"
+                                    id="@btnIndividualId">
+                                <i class="bi bi-person"></i>
+                                Individual
+                            </button>
+                        </div>
+                    </div>
+                }
+
+                <div class="col-12 @(Model?.ShowEntityTypeButtons == true ? "col-lg-7" : "col-lg-10")">
+                    <div class="input-group">
+                        <span class="input-group-text bg-white">
+                            <i class="bi bi-search text-muted"></i>
+                        </span>
+
+                        <input type="text"
+                               id="@wid-search-text"
+                               class="form-control"
+                               autocomplete="off"
+                               placeholder="Name, party code, identification number" />
+                    </div>
+                </div>
+
+                <div class="col-12 col-lg-2">
+                    <button type="button"
+                            class="btn ds-btn-blue w-100"
+                            id="@wid-search-btn">
+                        Search
+                    </button>
+                </div>
+            </div>
+
+            <div class="bp-ctx-results d-none"
+                 id="@wid-results">
+            </div>
+        </div>
+
+        <div id="@ctxId"
+             class="bp-ctx-region d-none">
+        </div>
+    </div>
+
+    <input type="hidden"
+           id="@hfId"
+           name="BankPartyId"
+           value="@selectedBankPartyId" />
+
+    <input type="hidden"
+           id="@hfTypeId"
+           name="IsIndividual"
+           value="@(initialIsIndividual ? "true" : "false")" />
+</div>
+
+@if (Model?.ShowEntityFormButton == true)
+{
+    <ejs-dialog id="@entityDialogId"
+                header="Bank Party"
+                visible="false"
+                isModal="true"
+                showCloseIcon="true"
+                width="90vw"
+                height="90vh"
+                target="body">
+
+        <e-content-template>
+            <div id="@entityDialogContentId" class="p-3">
+                Loading...
+            </div>
+        </e-content-template>
+    </ejs-dialog>
+}
+
+<script>
+    (function() {
+        const wid = '@wid';
+        const root = document.getElementById(wid);
+
+        if (!root) {
+            return;
+        }
+
+        const searchIndividualsUrl =
+            root.dataset.searchIndividualUrl;
+
+        const searchBusinessesUrl =
+            root.dataset.searchBusinessUrl;
+
+        const individualContextUrl =
+            root.dataset.individualContextUrl;
+
+        const legalEntityContextUrl =
+            root.dataset.legalContextUrl;
+
+        const languageCode =
+            root.dataset.languageCode || 'en';
+
+        const collapseAfterSelection =
+            root.dataset.collapseAfterSelection === 'true';
+
+        const preselectedBankPartyId =
+            Number(root.dataset.selectedBankPartyId || 0);
+
+        const hf =
+            document.getElementById('@hfId');
+
+        const hfType =
+            document.getElementById('@hfTypeId');
+
+        const ctx =
+            document.getElementById('@ctxId');
+
+        const searchBody =
+            document.getElementById('@wid-search-body');
+
+        const searchText =
+            document.getElementById('@wid-search-text');
+
+        const searchBtn =
+            document.getElementById('@wid-search-btn');
+
+        const results =
+            document.getElementById('@wid-results');
+
+        const btnBusiness =
+            document.getElementById('@btnBusinessId');
+
+        const btnIndividual =
+            document.getElementById('@btnIndividualId');
+
+        const changeBtn =
+            document.getElementById('@wid-change-btn');
+
+        const viewEntityButton =
+            document.getElementById('@viewEntityButtonId');
+
+        const widgetBody =
+            document.getElementById('@widgetBodyId');
+
+        const collapseButton =
+            document.getElementById('@collapseButtonId');
+
+        const hostFormSessionId =
+            '@(Model?.FormSessionId ?? string.Empty)';
+
+        let isIndividual =
+            root.dataset.initialIsIndividual === 'true';
+
+        let rows = [];
+
+        function read(row, name) {
+            if (!row) {
+                return null;
+            }
+
+            const camelCaseName =
+                name.charAt(0).toLowerCase() + name.slice(1);
+
+            return row[name] ??
+                row[camelCaseName] ??
+                null;
+        }
+
+        function escapeHtml(value) {
+            return String(value ?? '')
+                .replaceAll('&', '&amp;')
+                .replaceAll('<', '&lt;')
+                .replaceAll('>', '&gt;')
+                .replaceAll('"', '&quot;')
+                .replaceAll("'", '&#039;');
+        }
+
+        function getTitle(row) {
+            return read(row, 'FullName')
+                || read(row, 'PartyLegalName')
+                || '-';
+        }
+
+        function clearResults() {
+            rows = [];
+
+            if (!results) {
+                return;
+            }
+
+            results.innerHTML = '';
+            results.classList.add('d-none');
+        }
+
+        function setStatus(message, isError) {
+            if (!results) {
+                return;
+            }
+
+            results.innerHTML = `
+                    <div class="p-3 ${isError ? 'text-danger' : 'text-muted'}">
+                        ${escapeHtml(message)}
+                    </div>`;
+
+            results.classList.remove('d-none');
+        }
+
+        function updateTypeButtons() {
+            btnIndividual?.classList.toggle(
+                'active',
+                isIndividual);
+
+            btnBusiness?.classList.toggle(
+                'active',
+                !isIndividual);
+        }
+
+        function setWidgetCollapsed(collapsed) {
+            if (!widgetBody || !collapseButton) {
+                return;
+            }
+
+            widgetBody.classList.toggle(
+                'd-none',
+                collapsed);
+
+            collapseButton.setAttribute(
+                'aria-expanded',
+                collapsed ? 'false' : 'true');
+
+            collapseButton.title =
+                collapsed ? 'Expand' : 'Collapse';
+
+            const icon =
+                collapseButton.querySelector('i');
+
+            if (icon) {
+                icon.classList.toggle(
+                    'bi-chevron-up',
+                    !collapsed);
+
+                icon.classList.toggle(
+                    'bi-chevron-down',
+                    collapsed);
+            }
+
+            root.classList.toggle(
+                'is-widget-collapsed',
+                collapsed);
+        }
+
+        function dispatchCleared() {
+            window.dispatchEvent(
+                new CustomEvent('bankparty:cleared', {
+                    detail: {
+                        widgetId: wid
+                    }
+                }));
+        }
+
+        function dispatchSelected(bankPartyId) {
+            window.dispatchEvent(
+                new CustomEvent('bankparty:selected', {
+                    detail: {
+                        widgetId: wid,
+                        bankPartyId: bankPartyId,
+                        isIndividual: isIndividual
+                    }
+                }));
+        }
+
+        function clearSelectedBankParty(raiseEvent) {
+            const hadSelectedBankParty =
+                Number(hf?.value || 0) > 0;
+
+            if (hf) {
+                hf.value = '0';
+            }
+
+            changeBtn?.classList.add('d-none');
+            viewEntityButton?.classList.add('d-none');
+            searchBody?.classList.remove('d-none');
+
+            root.classList.remove(
+                'is-selection-collapsed');
+
+            if (ctx) {
+                ctx.innerHTML = '';
+                ctx.classList.add('d-none');
+            }
+
+            clearResults();
+
+            if (raiseEvent && hadSelectedBankParty) {
+                dispatchCleared();
+            }
+        }
+
+        function setMode(nextIsIndividual) {
+            const hadSelectedBankParty =
+                Number(hf?.value || 0) > 0;
+
+            isIndividual =
+                nextIsIndividual === true;
+
+            if (hfType) {
+                hfType.value =
+                    isIndividual ? 'true' : 'false';
+            }
+
+            updateTypeButtons();
+            clearResults();
+
+            if (hadSelectedBankParty) {
+                clearSelectedBankParty(true);
+            } else if (ctx) {
+                ctx.innerHTML = '';
+                ctx.classList.add('d-none');
+            }
+
+            searchText?.focus();
+        }
+
+        function renderRows(nextRows) {
+            rows = Array.isArray(nextRows)
+                ? nextRows
+                : [];
+
+            if (!rows.length) {
+                setStatus(
+                    'No clients found.',
+                    false);
+
+                return;
+            }
+
+            if (!results) {
+                return;
+            }
+
+            results.innerHTML = rows.map(
+                function(row, index) {
+                    const partyCode =
+                        read(row, 'PartyCode') || '-';
+
+                    const identificationNumber =
+                        read(row, 'IdentificationNumber') || '-';
+
+                    const municipality =
+                        read(row, 'ContactMunicipalityName') || '';
+
+                    const residency =
+                        read(row, 'ResidencyText')
+                        || (read(row, 'IsResident')
+                            ? 'Resident'
+                            : 'Non-Resident');
+
+                    const typeLabel =
+                        isIndividual
+                            ? 'Individual'
+                            : 'Business';
+
+                    return `
+                            <button type="button"
+                                    class="bp-ctx-result"
+                                    data-result-index="${index}">
+                                <span>
+                                    <span class="bp-ctx-result-title">
+                                        ${escapeHtml(getTitle(row))}
+                                    </span>
+
+                                    <span class="bp-ctx-result-meta">
+                                        <span>
+                                            Code: ${escapeHtml(partyCode)}
+                                        </span>
+
+                                        <span>
+                                            ID: ${escapeHtml(identificationNumber)}
+                                        </span>
+
+                                        <span>
+                                            ${escapeHtml(residency)}
+                                        </span>
+
+                                        ${municipality
+                            ? `<span>${escapeHtml(municipality)}</span>`
+                            : ''}
+                                    </span>
+                                </span>
+
+                                <span class="bp-ctx-result-type">
+                                    ${typeLabel}
+                                </span>
+                            </button>`;
+                }).join('');
+
+            results.classList.remove('d-none');
+        }
+
+        async function runSearch() {
+            const term =
+                (searchText?.value || '').trim();
+
+            if (term.length < 2) {
+                setStatus(
+                    'Write at least 2 characters to search.',
+                    false);
+
+                return;
+            }
+
+            setStatus(
+                'Searching...',
+                false);
+
+            const searchUrl =
+                isIndividual
+                    ? searchIndividualsUrl
+                    : searchBusinessesUrl;
+
+            const url =
+                new URL(
+                    searchUrl,
+                    window.location.origin);
+
+            url.searchParams.set(
+                'searchText',
+                term);
+
+            try {
+                const response =
+                    await fetch(url.toString(), {
+                        headers: {
+                            Accept: 'application/json'
+                        }
+                    });
+
+                if (!response.ok) {
+                    throw new Error(
+                        'Search request failed.');
+                }
+
+                const data =
+                    await response.json();
+
+                renderRows(data);
+            } catch (error) {
+                console.error(error);
+
+                setStatus(
+                    'Search failed. Please try again.',
+                    true);
+            }
+        }
+
+        function collapseSelectionArea() {
+            changeBtn?.classList.remove('d-none');
+            searchBody?.classList.add('d-none');
+
+            root.classList.add(
+                'is-selection-collapsed');
+
+            clearResults();
+        }
+
+        function expandSelectionArea() {
+            setWidgetCollapsed(false);
+            clearSelectedBankParty(true);
+            searchText?.focus();
+        }
+
+        async function loadHeader(bankPartyId) {
+            if (!ctx) {
+                return;
+            }
+
+            const contextUrl =
+                isIndividual
+                    ? individualContextUrl
+                    : legalEntityContextUrl;
+
+            const url =
+                new URL(
+                    contextUrl,
+                    window.location.origin);
+
+            url.searchParams.set(
+                'bankPartyId',
+                bankPartyId);
+
+            url.searchParams.set(
+                'languageCode',
+                languageCode);
+
+            ctx.innerHTML = `
+                    <div class="text-muted p-2">
+                        Loading profile header...
+                    </div>`;
+
+            ctx.classList.remove('d-none');
+
+            try {
+                const response =
+                    await fetch(url.toString());
+
+                if (!response.ok) {
+                    throw new Error(
+                        'Context header request failed.');
+                }
+
+                ctx.innerHTML =
+                    await response.text();
+
+                viewEntityButton?.classList.remove(
+                    'd-none');
+
+                dispatchSelected(bankPartyId);
+            } catch (error) {
+                console.error(error);
+
+                ctx.innerHTML = `
+                        <div class="text-danger p-2">
+                            Failed to load selected profile header.
+                        </div>`;
+            }
+        }
+
+        async function selectBankParty(
+            bankPartyId,
+            selectedIsIndividual) {
+
+            const normalizedBankPartyId =
+                Number(bankPartyId || 0);
+
+            if (!normalizedBankPartyId) {
+                return;
+            }
+
+            isIndividual =
+                selectedIsIndividual === true;
+
+            if (hf) {
+                hf.value =
+                    String(normalizedBankPartyId);
+            }
+
+            if (hfType) {
+                hfType.value =
+                    isIndividual ? 'true' : 'false';
+            }
+
+            updateTypeButtons();
+
+            if (collapseAfterSelection) {
+                collapseSelectionArea();
+            } else {
+                clearResults();
+            }
+
+            await loadHeader(
+                normalizedBankPartyId);
+        }
+
+        function selectRow(index) {
+            const row = rows[index];
+
+            if (!row) {
+                return;
+            }
+
+            const bankPartyId =
+                Number(
+                    read(row, 'BankPartyId') || 0);
+
+            if (!bankPartyId) {
+                return;
+            }
+
+            selectBankParty(
+                bankPartyId,
+                isIndividual);
+        }
+
+        btnIndividual?.addEventListener(
+            'click',
+            function() {
+                setMode(true);
+            });
+
+        btnBusiness?.addEventListener(
+            'click',
+            function() {
+                setMode(false);
+            });
+
+        searchBtn?.addEventListener(
+            'click',
+            runSearch);
+
+        changeBtn?.addEventListener(
+            'click',
+            expandSelectionArea);
+
+        collapseButton?.addEventListener(
+            'click',
+            function() {
+                const isCurrentlyCollapsed =
+                    widgetBody?.classList.contains(
+                        'd-none') === true;
+
+                setWidgetCollapsed(
+                    !isCurrentlyCollapsed);
+            });
+
+        searchText?.addEventListener(
+            'keydown',
+            function(event) {
+                if (event.key !== 'Enter') {
+                    return;
+                }
+
+                event.preventDefault();
+                runSearch();
+            });
+
+        results?.addEventListener(
+            'click',
+            function(event) {
+                const button =
+                    event.target.closest(
+                        '[data-result-index]');
+
+                if (!button) {
+                    return;
+                }
+
+                selectRow(
+                    Number(
+                        button.dataset.resultIndex));
+            });
+
+        async function executeEntityDialogScripts(
+            container) {
+
+            const scripts =
+                Array.from(
+                    container.querySelectorAll(
+                        'script'));
+
+            for (const oldScript of scripts) {
+                const newScript =
+                    document.createElement(
+                        'script');
+
+                Array.from(
+                    oldScript.attributes)
+                    .forEach(function(attribute) {
+                        newScript.setAttribute(
+                            attribute.name,
+                            attribute.value);
+                    });
+
+                if (oldScript.src) {
+                    await new Promise(
+                        function(resolve, reject) {
+                            newScript.onload =
+                                resolve;
+
+                            newScript.onerror =
+                                reject;
+
+                            oldScript.parentNode
+                                ?.replaceChild(
+                                    newScript,
+                                    oldScript);
+                        });
+                } else {
+                    newScript.text =
+                        oldScript.text
+                        || oldScript.textContent
+                        || '';
+
+                    oldScript.parentNode
+                        ?.replaceChild(
+                            newScript,
+                            oldScript);
+                }
+            }
+        }
+
+        async function openSelectedBankParty() {
+            const bankPartyId =
+                Number(hf?.value || 0);
+
+            if (!bankPartyId) {
+                return;
+            }
+
+            const targetFormId =
+                hfType?.value === 'true'
+                    ? 16
+                    : 17;
+
+            const dialog =
+                document
+                    .getElementById('@entityDialogId')
+                    ?.ej2_instances?.[0];
+
+            const content =
+                document.getElementById(
+                    '@entityDialogContentId');
+
+            if (!dialog || !content) {
+                return;
+            }
+
+            content.innerHTML =
+                'Loading...';
+
+            dialog.header =
+                hfType?.value === 'true'
+                    ? 'Bank Party Individual'
+                    : 'Bank Party Legal Entity';
+
+            dialog.show();
+
+            try {
+                const response =
+                    await fetch(
+                        '/Common/Entity360/EntityDetail',
+                        {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type':
+                                    'application/json',
+                                'FormSessionId':
+                                    hostFormSessionId
+                            },
+                            body: JSON.stringify({
+                                formId:
+                                    targetFormId,
+                                source:
+                                    1,
+                                gridName:
+                                    wid,
+                                gridEditorAction:
+                                    'edit',
+                                isAdd:
+                                    false,
+                                entityPrimaryKeyValue:
+                                    String(bankPartyId)
+                            })
+                        });
+
+                if (!response.ok) {
+                    content.innerHTML =
+                        await response.text()
+                        || 'Failed to load Bank Party.';
+
+                    return;
+                }
+
+                content.innerHTML =
+                    await response.text();
+
+                await executeEntityDialogScripts(
+                    content);
+
+                window.ds?.entity?.init?.();
+
+                if (window.ej?.base) {
+                    ej.base.enableRipple(true);
+
+                    if (typeof ej.base.init ===
+                        'function') {
+                        try {
+                            ej.base.init(content);
+                        } catch {
+                            ej.base.init();
+                        }
+                    }
+                }
+            } catch (error) {
+                console.error(error);
+
+                content.innerHTML =
+                    'Unexpected error while loading Bank Party.';
+            }
+        }
+
+        viewEntityButton?.addEventListener(
+            'click',
+            openSelectedBankParty);
+
+        updateTypeButtons();
+
+        if (preselectedBankPartyId > 0) {
+            selectBankParty(
+                preselectedBankPartyId,
+                isIndividual);
+        }
+    })();
+</script>

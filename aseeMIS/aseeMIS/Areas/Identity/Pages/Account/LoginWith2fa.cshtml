@@ -1,0 +1,58 @@
+@page
+@model LoginWith2faModel
+@{
+    ViewData["Title"] = "Two-factor authentication";
+}
+
+
+<!-- Full-screen centered container -->
+<div class="d-flex justify-content-center align-items-center mt-5" style="background-color: #f6f7fb;">
+    <div class="card shadow p-5 m-5 " style="background: #fff; border-radius: 10px;">
+
+        <!-- Brand Logo -->
+        <div class="text-center mb-4">
+            <h2 class="fw-bold" style="color:#0d9dda">aseeMIS</h2>
+        </div>
+
+        <!-- Welcome Message -->
+        <h5 class="text-center ">Two-factor authentication</h5>
+        <section>
+            <form method="post" asp-route-returnUrl="@Model.ReturnUrl">
+
+                <input asp-for="RememberMe" type="hidden" />
+                <div asp-validation-summary="ModelOnly" class="text-danger" role="alert"></div>
+                <div class="form-floating mb-3">
+                    <input asp-for="Input.TwoFactorCode" class="form-control" autocomplete="off" />
+                    <label asp-for="Input.TwoFactorCode" class="form-label"></label>
+                    <span asp-validation-for="Input.TwoFactorCode" class="text-danger"></span>
+                </div>
+                <div class="checkbox mb-3">
+                    <label asp-for="Input.RememberMachine" class="form-label">
+                        <input asp-for="Input.RememberMachine" />
+                        @Html.DisplayNameFor(m => m.Input.RememberMachine)
+                    </label>
+                </div>
+
+                <!-- Login Button -->
+                <div>
+                    <!-- Sign In Button -->
+                    <button id="login-submit" type="submit" class="btn btn-primary w-100 fw-bold text-white">Log in</button>
+                </div>
+
+                <!-- Links for Forgot Password, Register, Resend Email -->
+                <div class="mt-3 text-center">
+                    <a id="Login" asp-area="Identity" asp-page="/Account/Login" class="text-muted small">Return to Login</a>
+                    <a id="recovery-code-login" asp-area="Identity" asp-page="./LoginWithRecoveryCode" asp-route-returnUrl="@Model.ReturnUrl" class="text-muted small">Log in with a recovery code</a>.
+                </div>
+            </form>
+        </section>
+    </div>
+</div>
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}
+<style>
+    .card {
+        max-width: 500px;
+    }
+</style>

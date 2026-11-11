@@ -1,0 +1,566 @@
+@model dsCredit.Core.ViewModels.CreditCaseFactoringInvoiceViewModel
+@using System.Globalization
+@using System.Text.Json
+@using aseeMIS.Areas.Common.ViewModels
+
+@{
+    var request = ViewData["EntityDetailRequest"] as aseeMIS.Areas.Common.DTOs.EntityDetailRequest
+        ?? throw new InvalidOperationException("EntityDetailRequest is required.");
+
+    var formSessionId = request.FormSessionId;
+    var formId = request.FormId;
+    var isAdd = request.IsAdd || (Model?.FactoringInvoiceId ?? 0) == 0;
+    var isGridDialog = request.IsGridDialog;
+    var gridName = request.GridName ?? string.Empty;
+    var formDomId = "factoringInvoiceForm_" + request.FormSessionId;
+    var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = null };
+    var initialModelJson = JsonSerializer.Serialize(Model ?? new dsCredit.Core.ViewModels.CreditCaseFactoringInvoiceViewModel(), jsonOptions);
+
+    string DateText(DateOnly? value) => value.HasValue && value.Value != default ? value.Value.ToString("dd/MM/yyyy") : string.Empty;
+    string DecimalText(decimal? value) => value?.ToString("0.##", CultureInfo.InvariantCulture) ?? string.Empty;
+    string DecimalTextRequired(decimal value) => value.ToString("0.##", CultureInfo.InvariantCulture);
+
+    var invoiceSourceType = Model?.FactoringAgreementId.HasValue == true ? "AGREEMENT" : "PARTY";
+    var downloadUrl = Url.Action("Download", "CRUD", new { area = "Common" }) ?? "/Common/CRUD/Download";
+    var invoicePath = Model?.InvoicePath ?? string.Empty;
+
+    DateTime? ToDatePickerValue(DateOnly? value)
+        => value.HasValue && value.Value != default
+            ? value.Value.ToDateTime(TimeOnly.MinValue)
+            : null;
+
+    var invoiceIssueDate = ToDatePickerValue(Model?.InvoiceIssueDate == default ? null : Model?.InvoiceIssueDate);
+    var invoiceDueDate = ToDatePickerValue(Model?.InvoiceDueDate == default ? null : Model?.InvoiceDueDate);
+    var bankInvoiceDueDate = ToDatePickerValue(Model?.BankInvoiceDueDate == default ? null : Model?.BankInvoiceDueDate);
+    var disbursementDate = ToDatePickerValue(
+        Model?.DisbursementDate == default || Model?.DisbursementDate == null
+            ? DateOnly.FromDateTime(DateTime.Today)
+            : Model.DisbursementDate);
+
+    var counterpartySearchId = "FactoringCounterpartySearch_" + formSessionId;
+    var bankPartySearchUrl = Url.Action("Search", "BankParty", new { area = "BankParty" }) ?? "/BankParty/BankParty/Search";
+    var counterpartyListUrl = Url.Action("GetCounterpartyBankParties", "CreditCaseFactoring", new { area = "Credit" }) ?? "/Credit/CreditCaseFactoring/GetCounterpartyBankParties";
+    var counterpartyFilteringFn = "filter_FactoringInvoiceCounterparty_" + formSessionId.Replace("-", "_");
+    var counterpartySelectFn = "select_FactoringInvoiceCounterparty_" + formSessionId.Replace("-", "_");
+}
+
+<form id="@formDomId" onsubmit="return false;">
+    <div class="form-container ds-factoring-invoice-form"
+         data-form-session-id="@formSessionId"
+         data-form-id="@formId"
+         data-primary-key="FactoringInvoiceId">
+
+        <input type="hidden" id="FactoringInvoiceId" name="FactoringInvoiceId" value="@(Model?.FactoringInvoiceId ?? 0)" />
+        <input type="hidden" id="CreditCaseId" name="CreditCaseId" value="@(Model?.CreditCaseId ?? 0)" />
+        <input type="hidden" id="InvoiceSourceType" name="InvoiceSourceType" value="@invoiceSourceType" />
+        <input type="hidden" id="FactoringPartyRoleCode" name="FactoringPartyRoleCode" value="@(Model?.FactoringPartyRoleCode ?? string.Empty)" maxlength="50" />
+        <input type="hidden" id="InvoiceIsNotified" name="InvoiceIsNotified" value="@((Model?.IsNotified ?? false).ToString().ToLowerInvariant())" />
+
+        <div class="ds-card mb-0">
+            <div class="ds-card-h d-flex align-items-center gap-2">
+                <i class="bi bi-receipt"></i>
+                <span class="ds-card-title">Factoring Invoice</span>
+            </div>
+
+            <div class="ds-card-b">
+                <div class="row g-3 mb-3">
+                    <div class="col-md-6">
+                        <div class="factoring-invoice-section-title"><i class="bi bi-arrow-left-right me-1"></i>Modeli i ndërveprimit</div>
+                        <div class="factoring-invoice-choice-row">
+                            <button type="button" class="factoring-invoice-choice" data-source-type="PARTY">
+                                <span class="factoring-invoice-choice-title">Standard</span>
+                                <span class="factoring-invoice-choice-desc">Pala factoring direkt</span>
+                            </button>
+                            <button type="button" class="factoring-invoice-choice" data-source-type="AGREEMENT">
+                                <span class="factoring-invoice-choice-title">Me marrëveshje</span>
+                                <span class="factoring-invoice-choice-desc">Përmes factoring agreement</span>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="factoring-invoice-section-title"><i class="bi bi-person-badge me-1"></i>Roli në faturë</div>
+                        <div class="factoring-invoice-choice-row">
+                            <button type="button" class="factoring-invoice-choice" data-role-code="SELLER">
+                                <span class="factoring-invoice-choice-title">Shitës</span>
+                                <span class="factoring-invoice-choice-desc">Faturë e lëshuar (receivable)</span>
+                            </button>
+                            <button type="button" class="factoring-invoice-choice" data-role-code="BUYER">
+                                <span class="factoring-invoice-choice-title">Blerës</span>
+                                <span class="factoring-invoice-choice-desc">Faturë e pranuar (payable)</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row g-3 mb-3 factoring-invoice-party-panel">
+                    <div class="col-md-8">
+                        <label class="form-label small text-muted mb-1">Pala kundrejt</label>
+        <input type="hidden" id="FactoringBankPartyId" name="FactoringBankPartyId" value="@(Model?.FactoringBankPartyId ?? 0)" />
+        <input type="hidden" id="CaseOwnerBankPartyId" name="CaseOwnerBankPartyId" value="0" />
+        <input type="hidden" id="CaseOwnerIsIndividual" name="CaseOwnerIsIndividual" value="false" />
+                        <div class="factoring-invoice-party-standard@(invoiceSourceType == "AGREEMENT" ? " d-none" : string.Empty)">
+                            @await Component.InvokeAsync("SearchAutocomplete", new SearchAutocompleteOptions
+                            {
+                                SearchUrl = bankPartySearchUrl,
+                                Placeholder = "Kërko palën (min. 2 karaktere)...",
+                                Id = counterpartySearchId,
+                                MinLength = 2,
+                                DebounceDelay = 300,
+                                SuggestionCount = 15,
+                                ValueField = "BankPartyId",
+                                TextField = "DisplayText",
+                                FloatLabelType = "Never",
+                                FilteringFn = counterpartyFilteringFn,
+                                OnSelectFn = counterpartySelectFn
+                            })
+                        </div>
+                        <div class="factoring-invoice-party-agreement@(invoiceSourceType != "AGREEMENT" ? " d-none" : string.Empty)">
+                            <select id="FactoringCounterpartyBankPartySelect" class="form-select form-select-sm">
+                                <option value=""></option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="col-md-4 d-flex align-items-end">
+                        <div class="form-check mb-2">
+                            <input id="NotificationRequired" name="NotificationRequired" type="checkbox" class="form-check-input" checked="@(Model?.NotificationRequired == true)" />
+                            <label class="form-check-label small" for="NotificationRequired">Lajmërim i detyrueshëm</label>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row g-3 mb-3 factoring-invoice-agreement-panel d-none">
+                    <div class="col-md-8">
+                        <label class="form-label small text-muted mb-1" for="FactoringAgreementId">Marrëveshja factoring</label>
+                        <select id="FactoringAgreementId" name="FactoringAgreementId" class="form-select form-select-sm">
+                            <option value=""></option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="row g-3 mb-3">
+                    <div class="col-md-4">
+                        <label class="form-label small text-muted mb-1" for="InvoiceFactoringTypeCode">Lloji i financimit</label>
+                        <select id="InvoiceFactoringTypeCode" name="FactoringTypeCode" class="form-select form-select-sm">
+                            <option value=""></option>
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label small text-muted mb-1" for="RiskBearerCode">Risk Bearer</label>
+                        <select id="RiskBearerCode" name="RiskBearerCode" class="form-select form-select-sm">
+                            <option value=""></option>
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label small text-muted mb-1" for="InvoiceRecoursePolicyCode">Politika e rimbursimit</label>
+                        <select id="InvoiceRecoursePolicyCode" name="RecoursePolicyCode" class="form-select form-select-sm">
+                            <option value=""></option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="ds-card mb-3 border">
+                    <div class="ds-card-h py-2 d-flex align-items-center justify-content-between gap-2 flex-wrap">
+                        <span class="ds-card-title">Detajet e faturës</span>
+                        <span class="small text-muted" data-pricing-status></span>
+                    </div>
+                    <div class="ds-card-b pt-0">
+                        <div class="row g-2 mb-2">
+                            <div class="col-md-3">
+                                <label class="form-label small text-muted mb-1" for="InvoiceNumber">Numri i faturës</label>
+                                <input id="InvoiceNumber" name="InvoiceNumber" class="form-control form-control-sm" maxlength="100" value="@(Model?.InvoiceNumber ?? string.Empty)" />
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label small text-muted mb-1" for="InvoiceIssueDate">Data e lëshimit</label>
+                                <ejs-datepicker id="InvoiceIssueDate"
+                                                value="@invoiceIssueDate"
+                                                placeholder="dd/MM/yyyy"
+                                                format="dd/MM/yyyy"
+                                                enableMask="false"
+                                                data-dateonly="true"
+                                                floatLabelType="Never" />
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label small text-muted mb-1" for="InvoiceDueDate">Data e pagesës</label>
+                                <ejs-datepicker id="InvoiceDueDate"
+                                                value="@invoiceDueDate"
+                                                placeholder="dd/MM/yyyy"
+                                                format="dd/MM/yyyy"
+                                                enableMask="false"
+                                                data-dateonly="true"
+                                                floatLabelType="Never" />
+                                <div class="small text-muted mt-1" data-invoice-tenor="issue-to-due"></div>
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label small text-muted mb-1" for="DisbursementDate">Data e disbursimit</label>
+                                <ejs-datepicker id="DisbursementDate"
+                                                value="@disbursementDate"
+                                                placeholder="dd/MM/yyyy"
+                                                format="dd/MM/yyyy"
+                                                enableMask="false"
+                                                data-dateonly="true"
+                                                floatLabelType="Never" />
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label small text-muted mb-1" for="BankInvoiceDueDate">Bank Due</label>
+                                <ejs-datepicker id="BankInvoiceDueDate"
+                                                value="@bankInvoiceDueDate"
+                                                placeholder="dd/MM/yyyy"
+                                                format="dd/MM/yyyy"
+                                                enableMask="false"
+                                                data-dateonly="true"
+                                                floatLabelType="Never" />
+                                <div class="small text-muted mt-1" data-invoice-tenor="disbursement-to-bank"></div>
+                            </div>
+                        </div>
+
+                        <div class="row g-2 mb-2">
+                            <div class="col-md-2">
+                                <label class="form-label small text-muted mb-1" for="InvoiceAmount" title="Vlera totale e faturës">Shuma e faturës</label>
+                                <ejs-numerictextbox id="InvoiceAmount"
+                                                    value="@(Model?.InvoiceAmount ?? 0)"
+                                                    format="n2"
+                                                    decimals="2"
+                                                    min="0"
+                                                    step="0.01"
+                                                    showSpinButton="false"
+                                                    floatLabelType="Never" />
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label small text-muted mb-1" for="RequestedAmount" title="Sa financim kërkon klienti (≤ shuma e faturës)">Shuma e kërkuar</label>
+                                <ejs-numerictextbox id="RequestedAmount"
+                                                    value="@(Model?.RequestedAmount ?? 0)"
+                                                    format="n2"
+                                                    decimals="2"
+                                                    min="0"
+                                                    step="0.01"
+                                                    showSpinButton="false"
+                                                    floatLabelType="Never" />
+                                <div class="invalid-feedback">Shuma e kërkuar duhet të jetë ≤ shuma e faturës.</div>
+                                <div class="small text-muted mt-1" data-requested-amount-hint>Maksimumi: shuma e faturës</div>
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label small text-muted mb-1" for="DilutionReservePercent" title="Përqindja e pjesës jo-eligible (kthime, credit notes)">Dilution (%)</label>
+                                <ejs-numerictextbox id="DilutionReservePercent"
+                                                    value="@(Model?.DilutionReservePercent ?? 0)"
+                                                    format="n2"
+                                                    decimals="2"
+                                                    min="0"
+                                                    step="0.01"
+                                                    showSpinButton="false"
+                                                    floatLabelType="Never" />
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label small text-muted mb-1" for="DilutionReserveAmount" title="Pjesa e faturës që banka nuk e konsideron eligible">Dilution Amount</label>
+                                <ejs-numerictextbox id="DilutionReserveAmount"
+                                                    value="@(Model?.DilutionReserveAmount ?? 0)"
+                                                    format="n2"
+                                                    decimals="2"
+                                                    min="0"
+                                                    step="0.01"
+                                                    showSpinButton="false"
+                                                    floatLabelType="Never" />
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label small text-muted mb-1" for="EligibleAmount" title="Shuma e faturës − Dilution Amount">Eligible Amount</label>
+                                <ejs-numerictextbox id="EligibleAmount"
+                                                    value="@(Model?.EligibleAmount ?? 0)"
+                                                    format="n2"
+                                                    decimals="2"
+                                                    min="0"
+                                                    step="0.01"
+                                                    showSpinButton="false"
+                                                    floatLabelType="Never" />
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label small text-muted mb-1" for="ApprovedAmount" title="Sa aprovon banka nga shuma e kërkuar/eligible">Approved Amount</label>
+                                <ejs-numerictextbox id="ApprovedAmount"
+                                                    value="@(Model?.ApprovedAmount ?? 0)"
+                                                    format="n2"
+                                                    decimals="2"
+                                                    min="0"
+                                                    step="0.01"
+                                                    showSpinButton="false"
+                                                    floatLabelType="Never" />
+                            </div>
+                        </div>
+
+                        <div class="row g-2 mb-2">
+                            <div class="col-md-2">
+                                <label class="form-label small text-muted mb-1" for="RetentionAmount" title="Pjesa e aprovuar që nuk i jepet menjëherë klientit">Retention</label>
+                                <ejs-numerictextbox id="RetentionAmount"
+                                                    value="@(Model?.RetentionAmount ?? 0)"
+                                                    format="n2"
+                                                    decimals="2"
+                                                    min="0"
+                                                    step="0.01"
+                                                    showSpinButton="false"
+                                                    floatLabelType="Never" />
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label small text-muted mb-1" for="AdvanceAmount" title="Approved − Retention; disbursimi real para tarifave">Advance Amount</label>
+                                <ejs-numerictextbox id="AdvanceAmount"
+                                                    value="@(Model?.AdvanceAmount ?? 0)"
+                                                    format="n2"
+                                                    decimals="2"
+                                                    min="0"
+                                                    step="0.01"
+                                                    showSpinButton="false"
+                                                    floatLabelType="Never" />
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label small text-muted mb-1" for="DiscountAmount" title="Kostoja e financimit / interesi i factoring-ut">Discount Amount</label>
+                                <ejs-numerictextbox id="DiscountAmount"
+                                                    value="@(Model?.DiscountAmount ?? 0)"
+                                                    format="n2"
+                                                    decimals="2"
+                                                    min="0"
+                                                    step="0.01"
+                                                    showSpinButton="false"
+                                                    floatLabelType="Never" />
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label small text-muted mb-1" for="CommissionAmount" title="Tarifa/komisioni i factoring-ut (nga pricelist, e editueshme)">Commission Amount</label>
+                                <ejs-numerictextbox id="CommissionAmount"
+                                                    value="@(Model?.CommissionAmount ?? 0)"
+                                                    format="n2"
+                                                    decimals="2"
+                                                    min="0"
+                                                    step="0.01"
+                                                    showSpinButton="false"
+                                                    floatLabelType="Never" />
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label small text-muted mb-1" for="NetDisbursementAmount" title="Advance − Discount − Commission">Net Disbursement</label>
+                                <ejs-numerictextbox id="NetDisbursementAmount"
+                                                    value="@(Model?.NetDisbursementAmount ?? 0)"
+                                                    format="n2"
+                                                    decimals="2"
+                                                    min="0"
+                                                    step="0.01"
+                                                    showSpinButton="false"
+                                                    floatLabelType="Never" />
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label small text-muted mb-1" for="DiscountRatePercent" title="Norma e interesit nga pricelist">Discount (%)</label>
+                                <ejs-numerictextbox id="DiscountRatePercent"
+                                                    value="@(Model?.DiscountRatePercent ?? 0)"
+                                                    format="n2"
+                                                    decimals="2"
+                                                    min="0"
+                                                    step="0.01"
+                                                    showSpinButton="false"
+                                                    floatLabelType="Never" />
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label small text-muted mb-1" for="CommissionPercent" title="Komisioni në % ndaj advance">Commission (%)</label>
+                                <ejs-numerictextbox id="CommissionPercent"
+                                                    value="@(Model?.CommissionPercent ?? 0)"
+                                                    format="n2"
+                                                    decimals="2"
+                                                    min="0"
+                                                    step="0.01"
+                                                    showSpinButton="false"
+                                                    floatLabelType="Never" />
+                            </div>
+                        </div>
+
+                        <div class="row g-2">
+                            <div class="col-12">
+                                <div class="small text-primary fw-semibold" data-invoice-tenor="summary"></div>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label small text-muted mb-1" for="ExternalInvoiceRef">External Ref</label>
+                                <input id="ExternalInvoiceRef" name="ExternalInvoiceRef" class="form-control form-control-sm" maxlength="100" value="@(Model?.ExternalInvoiceRef ?? string.Empty)" />
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label small text-muted mb-1" for="InvoiceCurrencyCode">Currency</label>
+                                <input id="InvoiceCurrencyCode" name="InvoiceCurrencyCode" class="form-control form-control-sm text-uppercase" maxlength="3" value="@(Model?.InvoiceCurrencyCode ?? "EUR")" />
+                            </div>
+                            <div class="col-md-7" data-invoice-path-panel>
+                                <label class="form-label small text-muted mb-1">Ngarko faturën</label>
+                                <input type="file"
+                                       id="InvoicePath_File"
+                                       class="form-control form-control-sm"
+                                       accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
+                                       data-file-field="InvoicePath"
+                                       data-transport-field="InvoicePathBase64"
+                                       data-original-file-name-field="InvoicePathOriginalFileName"
+                                       data-content-type-field="InvoicePathContentType" />
+                                <input type="hidden" id="InvoicePath" name="InvoicePath" value="@invoicePath" />
+                                <input type="hidden" id="InvoicePathBase64" name="InvoicePathBase64" value="" />
+                                <input type="hidden" id="InvoicePathOriginalFileName" name="InvoicePathOriginalFileName" value="" />
+                                <input type="hidden" id="InvoicePathContentType" name="InvoicePathContentType" value="" />
+                                @if (!isAdd && !string.IsNullOrWhiteSpace(invoicePath))
+                                {
+                                    <div class="d-flex align-items-center gap-2 flex-wrap mt-2" data-invoice-path-download>
+                                        <a href="@($"{downloadUrl}?path={Uri.EscapeDataString(invoicePath)}&formSessionId={Uri.EscapeDataString(formSessionId)}")"
+                                           target="_blank"
+                                           class="btn btn-sm btn-outline-primary">
+                                            <i class="bi bi-download"></i> Shkarko faturën
+                                        </a>
+                                        <span class="small text-muted text-truncate" style="max-width: 320px;">@invoicePath</span>
+                                    </div>
+                                }
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="ds-card mb-3 border">
+                    <div class="ds-card-h py-2">
+                        <span class="ds-card-title"><i class="bi bi-check2-circle me-1"></i>Disbursim bankar</span>
+                    </div>
+                    <div class="ds-card-b pt-0">
+                        <div class="row g-2">
+                            <div class="col-md-3">
+                                <label class="form-label small text-muted mb-1" for="BankCode">Bank Code</label>
+                                <select id="BankCode" name="BankCode" class="form-select form-select-sm">
+                                    <option value=""></option>
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label small text-muted mb-1" for="DisbursementAccountNumber">Disbursement Account</label>
+                                <input id="DisbursementAccountNumber" name="DisbursementAccountNumber" class="form-control form-control-sm" maxlength="20" value="@(Model?.DisbursementAccountNumber ?? string.Empty)" />
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="ds-card mb-3 border">
+                    <div class="ds-card-h py-2">
+                        <span class="ds-card-title"><i class="bi bi-flag me-1"></i>Status &amp; vendim</span>
+                    </div>
+                    <div class="ds-card-b pt-0">
+                        <div class="row g-2 mb-0">
+                    <div class="col-md-4">
+                        <label class="form-label small text-muted mb-1" for="FactoringInvoiceStatusCode">Invoice Status</label>
+                        <select id="FactoringInvoiceStatusCode" name="FactoringInvoiceStatusCode" class="form-select form-select-sm">
+                            <option value=""></option>
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label small text-muted mb-1" for="FactoringIDecisionReasonCode">Decision Reason</label>
+                        <select id="FactoringIDecisionReasonCode" name="FactoringIDecisionReasonCode" class="form-select form-select-sm">
+                            <option value=""></option>
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label small text-muted mb-1" for="FactoringIReasonNotes">Decision Notes</label>
+                        <input id="FactoringIReasonNotes" name="FactoringIReasonNotes" class="form-control form-control-sm" maxlength="1000" value="@(Model?.FactoringIReasonNotes ?? string.Empty)" />
+                    </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="d-flex justify-content-end gap-2 mt-3">
+            @if (isGridDialog)
+            {
+                <button type="button" class="btn btn-light" data-factoring-invoice-cancel>Cancel</button>
+            }
+            <button type="button" class="btn btn-primary" data-factoring-invoice-save>
+                <i class="bi bi-check2-square"></i>
+                @(isAdd ? "Create Invoice" : "Update Invoice")
+            </button>
+        </div>
+    </div>
+</form>
+
+<style>
+    .ds-factoring-invoice-form .factoring-invoice-section-title {
+        font-size: 0.95rem;
+        font-weight: 700;
+        margin-bottom: 0.75rem;
+    }
+
+    .ds-factoring-invoice-form .factoring-invoice-choice-row {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        border: 1px solid #e2e8f0;
+        border-radius: 0.75rem;
+        overflow: hidden;
+    }
+
+    .ds-factoring-invoice-form .factoring-invoice-choice {
+        border: 0;
+        background: #fff;
+        padding: 0.75rem 1rem;
+        text-align: left;
+        width: 100%;
+    }
+
+    .ds-factoring-invoice-form .factoring-invoice-choice + .factoring-invoice-choice {
+        border-left: 1px solid #e2e8f0;
+    }
+
+    .ds-factoring-invoice-form .factoring-invoice-choice.active {
+        background: #f8fafc;
+        box-shadow: inset 0 0 0 2px #6f42c1;
+    }
+
+    .ds-factoring-invoice-form .factoring-invoice-choice-title {
+        display: block;
+        font-size: 0.875rem;
+        font-weight: 700;
+    }
+
+    .ds-factoring-invoice-form .factoring-invoice-choice-desc {
+        display: block;
+        font-size: 0.75rem;
+        color: #64748b;
+        margin-top: 0.15rem;
+    }
+
+    .ds-factoring-invoice-form .factoring-invoice-party-panel.d-none,
+    .ds-factoring-invoice-form .factoring-invoice-agreement-panel.d-none {
+        display: none !important;
+    }
+
+    .ds-factoring-invoice-form .ds-card {
+        border: 1px solid #e3e8ef;
+        border-radius: 8px;
+        background: #fff;
+        box-shadow: 0 8px 18px rgba(16, 24, 40, .06);
+    }
+
+    .ds-factoring-invoice-form .ds-card-h {
+        padding: 12px 14px;
+        border-bottom: 1px solid #edf1f5;
+    }
+
+    .ds-factoring-invoice-form .ds-card-title {
+        font-weight: 700;
+    }
+
+    .ds-factoring-invoice-form .ds-card-b {
+        padding: 16px;
+    }
+
+    .ds-factoring-invoice-form .ds-card.border {
+        box-shadow: none;
+    }
+
+    .ds-factoring-invoice-form input[readonly].bg-light {
+        background-color: #f8fafc !important;
+    }
+</style>
+
+<script src="~/js/creditCaseFactoringInvoiceForm.js" asp-append-version="true"></script>
+<ejs-scripts></ejs-scripts>
+<script>
+    initCreditCaseFactoringInvoiceForm({
+        formDomId: @Html.Raw(JsonSerializer.Serialize(formDomId)),
+        isAdd: @Html.Raw(JsonSerializer.Serialize(isAdd)),
+        isGridDialog: @Html.Raw(JsonSerializer.Serialize(isGridDialog)),
+        gridName: @Html.Raw(JsonSerializer.Serialize(gridName)),
+        formSessionId: @Html.Raw(JsonSerializer.Serialize(formSessionId)),
+        downloadUrl: @Html.Raw(JsonSerializer.Serialize(downloadUrl)),
+        initialModel: @Html.Raw(initialModelJson),
+        counterpartySearchId: @Html.Raw(JsonSerializer.Serialize(counterpartySearchId)),
+        bankPartySearchUrl: @Html.Raw(JsonSerializer.Serialize(bankPartySearchUrl)),
+        counterpartyListUrl: @Html.Raw(JsonSerializer.Serialize(counterpartyListUrl)),
+        counterpartySelectFn: @Html.Raw(JsonSerializer.Serialize(counterpartySelectFn)),
+        creditCaseId: @Html.Raw(JsonSerializer.Serialize(Model?.CreditCaseId ?? 0))
+    });
+</script>

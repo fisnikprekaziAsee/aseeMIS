@@ -1,0 +1,28 @@
+﻿@page
+@model ConfirmEmailModel
+@{
+    ViewData["Title"] = "Confirm email";
+}
+
+<div class="container py-5">
+    <h1 class="mb-3">@ViewData["Title"]</h1>
+
+    @if (Model.IsSuccess)
+    {
+        <div class="alert alert-success" role="alert">
+            @Model.StatusMessage
+        </div>
+    }
+    else
+    {
+        <div class="alert alert-danger" role="alert">
+            @Model.StatusMessage
+        </div>
+    }
+
+    <div class="mt-3">
+        <a asp-area="Identity" asp-page="/Account/Login" class="btn btn-primary">
+            Go to Login
+        </a>
+    </div>
+</div>

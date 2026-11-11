@@ -1,0 +1,82 @@
+@model aseeMIS.Areas.Credit.ViewModels.CreditCaseAmortPlanPreviewViewModel
+
+@{
+    var version = Model.Version;
+    var rows = Model.Installments?.OrderBy(x => x.InstallmentNumber).ToList() ?? new();
+    var productName = string.IsNullOrWhiteSpace(Model.ProductName) ? Model.ProductCode : Model.ProductName;
+}
+
+@if (version != null && rows.Count > 0)
+{
+    <div class="ds-card">
+        <div class="ds-card-h d-flex align-items-center justify-content-between gap-3 loan-amort-collapsible-header"
+             data-bs-toggle="collapse" data-bs-target="#loanUpsertAmortScheduleCollapse"
+             aria-expanded="true" aria-controls="loanUpsertAmortScheduleCollapse" role="button">
+            <div class="d-flex align-items-center gap-2 flex-wrap">
+                <i class="bi bi-table"></i>
+                <span class="ds-card-title mb-0">Amortization Schedule</span>
+                <span class="loan-amort-card-meta">Case Number: @(Model.CaseNumber ?? "-") · Product: @(productName ?? "-")</span>
+            </div>
+            <i class="bi bi-chevron-down loan-amort-collapse-icon"></i>
+        </div>
+
+        <div id="loanUpsertAmortScheduleCollapse" class="collapse show">
+            <div class="ds-card-b">
+                <div class="row mb-3">
+                    <div class="col-md-4">
+                        <table class="loan-amort-summary-table"><tbody>
+                            <tr><td class="loan-amort-summary-label">Principal</td><td class="loan-amort-summary-value">@version.PrincipalAmount.ToString("N2")</td></tr>
+                            <tr><td class="loan-amort-summary-label">Disbursement Fee Amount</td><td class="loan-amort-summary-value">@((version.TotalDisbursementFeeAmount ?? 0m).ToString("N2"))</td></tr>
+                            <tr><td class="loan-amort-summary-label">Net Disbursement Amount</td><td class="loan-amort-summary-value">@((version.NetDisbursedAmount ?? 0m).ToString("N2"))</td></tr>
+                            <tr><td class="loan-amort-summary-label">Nominal Annual Interest Rate</td><td class="loan-amort-summary-value">@version.BaseInterestRate.ToString("N2")%</td></tr>
+                            <tr><td class="loan-amort-summary-label">Effective Annual Interest Rate</td><td class="loan-amort-summary-value">@(Model.ApprovedEir.HasValue ? $"{Model.ApprovedEir.Value:N2}%" : "-")</td></tr>
+                        </tbody></table>
+                    </div>
+                    <div class="col-md-4">
+                        <table class="loan-amort-summary-table"><tbody>
+                            <tr><td class="loan-amort-summary-label">Start Date</td><td class="loan-amort-summary-value">@version.EffectiveFromDate.ToString("dd-MM-yyyy")</td></tr>
+                            <tr><td class="loan-amort-summary-label">Maturity Date</td><td class="loan-amort-summary-value">@(version.MaturityDate?.ToString("dd-MM-yyyy") ?? version.EffectiveToDate?.ToString("dd-MM-yyyy") ?? "-")</td></tr>
+                            <tr><td class="loan-amort-summary-label">Installments</td><td class="loan-amort-summary-value">@rows.Count</td></tr>
+                            <tr><td class="loan-amort-summary-label">First Installment Date</td><td class="loan-amort-summary-value">@(version.FirstDueDate?.ToString("dd-MM-yyyy") ?? "-")</td></tr>
+                        </tbody></table>
+                    </div>
+                    <div class="col-md-4">
+                        <table class="loan-amort-summary-table"><tbody>
+                            <tr><td class="loan-amort-summary-label">Total Interest</td><td class="loan-amort-summary-value">@((version.TotalScheduledInterest ?? rows.Sum(x => x.ScheduledInterest)).ToString("N2"))</td></tr>
+                            <tr><td class="loan-amort-summary-label">Total Principal</td><td class="loan-amort-summary-value">@((version.TotalScheduledPrincipal ?? rows.Sum(x => x.ScheduledPrincipal)).ToString("N2"))</td></tr>
+                            <tr><td class="loan-amort-summary-label">Total Payment</td><td class="loan-amort-summary-value">@((version.TotalScheduledAmount ?? rows.Sum(x => x.ScheduledInstallmentAmount ?? 0m)).ToString("N2"))</td></tr>
+                        </tbody></table>
+                    </div>
+                </div>
+
+                <div class="table-responsive">
+                    <table class="table table-sm table-striped align-middle mb-0 loan-amort-preview-table">
+                        <thead class="loan-amort-preview-thead"><tr>
+                            <th class="loan-amort-col-num">#</th><th>From</th><th>To (Due)</th>
+                            <th class="loan-amort-col-days">Days</th><th class="text-end">Opening Balance</th>
+                            <th class="text-end">Interest</th><th class="text-end">Principal</th>
+                            <th class="text-end">Total</th><th class="text-end">Closing Balance</th><th>Notes</th>
+                        </tr></thead>
+                        <tbody>
+                        @foreach (var row in rows)
+                        {
+                            <tr>
+                                <td class="loan-amort-col-num">@row.InstallmentNumber</td>
+                                <td>@row.ScheduledFromDate.ToString("yyyy-MM-dd")</td>
+                                <td>@row.ScheduledToDate.ToString("yyyy-MM-dd")</td>
+                                <td class="loan-amort-col-days">@row.IntervalDays</td>
+                                <td class="text-end">@((row.OpeningPrincipalBalance ?? 0m).ToString("N2"))</td>
+                                <td class="text-end">@row.ScheduledInterest.ToString("N2")</td>
+                                <td class="text-end">@row.ScheduledPrincipal.ToString("N2")</td>
+                                <td class="text-end">@((row.ScheduledInstallmentAmount ?? row.ScheduledPrincipal + row.ScheduledInterest + row.ScheduledFee).ToString("N2"))</td>
+                                <td class="text-end">@((row.ClosingPrincipalBalance ?? row.RemainingPrincipal).ToString("N2"))</td>
+                                <td>@(row.InterestCalculationNotes ?? row.InstallmentStatusCode)</td>
+                            </tr>
+                        }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+}

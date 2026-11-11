@@ -1,0 +1,274 @@
+@model aseeMIS.Areas.DwReport.ViewModels.DwReportPageViewModel
+
+@{
+    ViewData["Title"] = "DW Reports";
+}
+
+<link rel="stylesheet" href="~/css/dw-shared.css" />
+<style>
+    .dw-status-card {
+        min-height: calc(100vh - 92px);
+        height: 100%;
+    }
+
+    .dw-status-body {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 24px;
+    }
+
+    .dw-status-empty {
+        text-align: center;
+        color: #94a3b8;
+    }
+
+    .dw-status-empty i {
+        font-size: 34px;
+        color: #cbd5e1;
+        margin-bottom: 10px;
+    }
+
+    .dw-status-empty-title {
+        font-size: 15px;
+        font-weight: 700;
+        color: #64748b;
+        margin-bottom: 4px;
+    }
+
+    .dw-status-empty-subtitle {
+        font-size: 13px;
+        color: #94a3b8;
+    }
+</style>
+
+<div class="container-fluid dw-page">
+    @Html.AntiForgeryToken()
+
+    <div class="row g-3 align-items-stretch">
+        <div class="col-lg-4 dw-left-panel">
+
+            <div class="dw-card dw-date-card">
+                <div class="dw-section-label">
+                    <i class="bi bi-calendar-date"></i>
+                    <span>Report Date</span>
+                </div>
+
+                <input type="date"
+                       id="reportDate"
+                       class="form-control dw-date-input" />
+
+                <div class="dw-date-help">
+                    Select a date to run reports for that day.
+                </div>
+            </div>
+
+            @foreach (var type in Model.ReportTypes.OrderBy(t => t.DwReportTypeDisplayOrder))
+            {
+                var reportsForType = Model.Reports
+                .Where(r => r.DwReportTypeId == type.DwReportTypeId)
+                .OrderBy(r => r.DwReportDisplayOrder)
+                .ToList();
+
+                <div class="dw-type-card">
+                    <div class="dw-type-header">
+                        @type.DwReportTypeName
+                    </div>
+
+                    <div class="dw-type-body">
+                        @if (reportsForType.Any())
+                        {
+                            @foreach (var report in reportsForType)
+                            {
+                                <div class="dw-report-row">
+                                    <div class="dw-report-left">
+                                        <div class="dw-report-icon-box">
+                                            @if (!string.IsNullOrWhiteSpace(report.DwReportIcon))
+                                            {
+                                                <i class="@report.DwReportIcon"></i>
+                                            }
+                                            else if (!string.IsNullOrWhiteSpace(report.DwReportIconName))
+                                            {
+                                                <i class="@report.DwReportIconName"></i>
+                                            }
+                                            else
+                                            {
+                                                <i class="bi bi-file-earmark-text"></i>
+                                            }
+                                        </div>
+
+                                        <div class="dw-report-text">
+                                            <div class="dw-report-name">
+                                                @report.DwReportName
+                                            </div>
+
+                                        
+                                        </div>
+                                    </div>
+
+                                    <button type="button"
+                                            class="dw-run-btn run-btn"
+                                            data-report-id="@report.DwReportId"
+                                            data-type-code="@type.DwReportTypeCode"
+                                            disabled>
+                                        <i class="bi bi-play-fill"></i>
+                                        Run
+                                    </button>
+                                </div>
+                            }
+                        }
+                        else
+                        {
+                            <div class="dw-empty-reports">
+                                No reports available for this type.
+                            </div>
+                        }
+                    </div>
+                </div>
+            }
+        </div>
+
+        <div class="col-lg-8 dw-right-panel">
+            <div class="dw-card dw-status-card">
+                <div class="dw-status-header">
+                    <div class="dw-status-title">
+                        <i class="bi bi-bar-chart-line"></i>
+                        <span>Job Status</span>
+                    </div>
+
+                    <div class="dw-status-count" id="jobCountText">
+                        0 jobs
+                    </div>
+                </div>
+
+                <div id="dwMsg" class="alert rounded-3 d-none m-3" role="alert"></div>
+
+                <div class="dw-status-body">
+                    <div class="dw-status-empty">
+                        <i class="bi bi-bar-chart"></i>
+                        <div class="dw-status-empty-title">No jobs executed yet</div>
+                        <div class="dw-status-empty-subtitle">Select a date and run a report</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+        const reportDateInput = document.getElementById("reportDate");
+        const runButtons = document.querySelectorAll(".run-btn");
+        const runUrl = '@Url.Action("RunReport", "DwReport", new { area = "DwReport" })';
+        const tokenInput = document.querySelector('input[name="__RequestVerificationToken"]');
+        const msgBox = document.getElementById("dwMsg");
+
+        function showMessage(element, ok, text) {
+            if (!element) return;
+
+            element.classList.remove("d-none", "alert-success", "alert-danger");
+            element.classList.add(ok ? "alert-success" : "alert-danger");
+            element.textContent = text || (ok ? "Done" : "Failed");
+        }
+
+        function clearMessage(element) {
+            if (!element) return;
+
+            element.classList.add("d-none");
+            element.classList.remove("alert-success", "alert-danger");
+            element.textContent = "";
+        }
+
+        function setButtonLoading(button, isLoading) {
+            if (!button) return;
+
+            if (isLoading) {
+                button.dataset.originalHtml = button.innerHTML;
+                button.disabled = true;
+                button.innerHTML = `<span class="spinner-border spinner-border-sm"></span> Running...`;
+            } else {
+                button.innerHTML = button.dataset.originalHtml || '<i class="bi bi-play-fill"></i> Run';
+                toggleRunButtons();
+            }
+        }
+
+        function toggleRunButtons() {
+            const hasDate = reportDateInput.value && reportDateInput.value.trim() !== "";
+
+            runButtons.forEach(function (btn) {
+                btn.disabled = !hasDate;
+            });
+        }
+
+        reportDateInput.addEventListener("change", function () {
+            clearMessage(msgBox);
+            toggleRunButtons();
+        });
+
+        toggleRunButtons();
+
+        async function runReport(button) {
+            const reportId = button.getAttribute("data-report-id");
+            const reportingDate = reportDateInput.value;
+
+            clearMessage(msgBox);
+
+            if (!reportId) {
+                showMessage(msgBox, false, "Report id is missing.");
+                return;
+            }
+
+            if (!reportingDate) {
+                showMessage(msgBox, false, "Please select a reporting date first.");
+                return;
+            }
+
+            try {
+                setButtonLoading(button, true);
+
+                const formData = new FormData();
+                formData.append("reportId", reportId);
+                formData.append("reportingDate", reportingDate);
+
+                const fetchOptions = {
+                    method: "POST",
+                    body: formData
+                };
+
+                if (tokenInput) {
+                    fetchOptions.headers = {
+                        "RequestVerificationToken": tokenInput.value
+                    };
+                }
+
+                const response = await fetch(runUrl, fetchOptions);
+
+                if (!response.ok) {
+                    const text = await response.text();
+                    console.error("Server response:", text);
+                    showMessage(msgBox, false, "Request failed with status " + response.status);
+                    return;
+                }
+
+                const result = await response.json();
+
+                if (result.ok) {
+                    showMessage(msgBox, true, result.message || "Report executed successfully.");
+                } else {
+                    showMessage(msgBox, false, result.message || "Error running report.");
+                }
+            } catch (error) {
+                console.error(error);
+                showMessage(msgBox, false, "Unexpected error occurred.");
+            } finally {
+                setButtonLoading(button, false);
+            }
+        }
+
+        runButtons.forEach(function (btn) {
+            btn.addEventListener("click", function () {
+                runReport(btn);
+            });
+        });
+    });
+</script>

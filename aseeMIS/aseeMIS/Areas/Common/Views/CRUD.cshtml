@@ -1,0 +1,50 @@
+@model aseeMIS.Areas.Common.DTOs.GridRequest
+
+
+@switch (Model.FormType)
+{
+    case dsMIS.Core.Enums.EnumFormType.TRANSLATOR:
+        <div id="DivTranslator">
+            @await Component.InvokeAsync("TranslatorWidget", new { gridName = Model.GridName })
+        </div>
+        @await Component.InvokeAsync("GridTranslatorWidget", Model)
+        break;
+
+    case dsMIS.Core.Enums.EnumFormType.TRANSLATOR_PAGED:
+        <div id="DivTranslator">
+            @await Component.InvokeAsync("TranslatorWidget", new { gridName = Model.GridName })
+        </div>
+        @await Component.InvokeAsync("GridTranslatorPagedWidget", Model)
+        break;
+
+    case dsMIS.Core.Enums.EnumFormType.CRUD_PAGED:
+        @await Component.InvokeAsync("GridCrudPagedWidget", Model)
+        break;
+
+    default:
+        @await Component.InvokeAsync("GridParentWidget", Model)
+        break;
+}
+
+@* Approval dialog used by ApproveForm toolbar flow *@
+<ejs-dialog id="ApprovalDialog" isModal="true" width="90%" height="80%" showCloseIcon="true" visible="false">
+    <e-content-template>
+        <div id="dialogContent"><!-- SDLT content injected dynamically --></div>
+    </e-content-template>
+</ejs-dialog>
+
+@* If this view is rendered as partial (Entity360 details), bring the helper once here *@
+@if (ViewBag.IsPartial == true)
+{
+    <script src="~/js/gridHelperGeneric.js" asp-append-version="true"></script>
+}
+
+<style>
+    .e-toolbar-item .e-tbar-btn-text {
+        display: none;
+    }
+
+    #Grid_Inline {
+        background-color: #86b7fe;
+    }
+</style>

@@ -1,0 +1,105 @@
+﻿/* === Toast container (compact size) === */
+.e-toast {
+    min-height: 90px !important;
+    padding: 10px 18px !important;
+    border-radius: 8px !important;
+    /*    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.15) !important;*/
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    justify-content: center !important;
+    text-align: left !important;
+}
+
+    /* === Toast message block === */
+.e-toast .e-toast-message {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: 100% !important;
+ }
+
+/* === Icon setup === */
+.toast-icon {
+    font-family: "bootstrap-icons" !important;
+    font-size: 1.7rem !important;
+    color: inherit;
+    margin-bottom: 15px !important;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* === Title === */
+.e-toast .e-toast-title {
+    border: none !important;
+    font-weight: 600 !important;
+    font-size: 1rem !important;
+    color: #000 !important;
+    margin: 0 !important;
+    line-height: 1.1 !important;
+    text-align: left !important;
+    width: 90% !important;
+    align-self: flex-start !important;
+    padding-left: 45px !important;
+    padding-bottom: 13px !important;
+}
+
+/* === Message text === */
+.e-toast-content {
+    color: #000 !important;
+    font-size: 0.9rem !important;
+    margin: 0 !important;
+    line-height: 1.25 !important;
+    text-align: left !important;
+    width: 90% !important;
+    align-self: flex-start !important;
+    padding-left: 45px !important;
+    padding-top: 0 !important;
+}
+
+/* === Icon colors === */
+.e-toast-success .toast-icon {
+    color: #198754 !important;
+}
+
+.e-toast-info .toast-icon {
+    color: #0dcaf0 !important;
+}
+
+.e-toast-warning .toast-icon {
+    color: #ffc107 !important;
+}
+
+.e-toast-danger .toast-icon {
+    color: #8b0000 !important;
+}
+
+/* === Remove all borders === */
+.e-toast .e-toast-title,
+.e-toast .e-toast-content {
+    border: none !important;
+}
+
+/* Position and style the close (X) button */
+.e-toast .e-toast-close-icon {
+    position: absolute !important;
+    top: 8px !important;
+    right: 10px !important;
+    font-size: 1.2rem !important;
+    color: #555 !important;
+    opacity: 0.8;
+    transition: color 0.2s ease;
+}
+
+    /* Hover effect for a better look */
+.e-toast .e-toast-close-icon:hover {
+        color: #000 !important;
+        opacity: 1;
+    }
+
+/* Optional – make sure it’s always visible */
+.e-toast .e-toast-container {
+    position: relative !important;
+}

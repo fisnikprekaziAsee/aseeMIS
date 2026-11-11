@@ -1,0 +1,714 @@
+@using dsEtlEngine.ViewModels
+@model List<EtlEngineFileImportLogGridViewModel>
+
+@{
+    ViewData["Title"] = "ETL Engine Import";
+}
+
+<link rel="stylesheet" href="~/css/dw-shared.css" />
+<style>
+    .etl-import-page { background: #f5f7fa; min-height: calc(100vh - 120px); }
+    .etl-toolbar-card { border: 0; box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+    .etl-panel { border: 0; box-shadow: 0 1px 3px rgba(0,0,0,.08); height: 100%; }
+    .etl-panel .card-header { font-weight: 600; background: #fff; border-bottom: 1px solid #e9ecef; }
+    .etl-file-row { border: 1px solid #e9ecef; border-radius: .5rem; padding: .75rem; margin-bottom: .75rem; background: #fff; }
+    .etl-file-row.is-disabled { opacity: .55; pointer-events: none; }
+    .etl-file-title { font-weight: 600; }
+    .etl-file-meta { font-size: .8125rem; color: #6c757d; }
+    .etl-status-text { font-weight: 600; }
+    .etl-status-text-completed { color: #198754; }
+    .etl-status-text-failed { color: #dc3545; }
+    .etl-status-text-running { color: #997404; }
+    .etl-status-text-default { color: #495057; }
+    #gridWrapper { overflow: hidden; }
+    #gridWrapper .e-grid { border-radius: .375rem; }
+    .files-pre-search { color: #6c757d; font-size: .9rem; padding: 1rem 0; text-align: center; }
+    .etl-steps-list { font-size: .875rem; }
+    .etl-steps-list li { margin-bottom: .35rem; }
+    #searchHeaderSummary { font-size: .875rem; font-weight: 500; }
+    .etl-confirm-overlay {
+        position: fixed;
+        inset: 0;
+        z-index: 2147483000;
+        background: rgba(15, 23, 42, .45);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 1rem;
+    }
+    .etl-confirm-box {
+        background: #fff;
+        border-radius: .5rem;
+        max-width: 440px;
+        width: 100%;
+        box-shadow: 0 12px 40px rgba(0, 0, 0, .25);
+        overflow: hidden;
+    }
+    .etl-confirm-header {
+        padding: .75rem 1rem;
+        font-weight: 600;
+        font-size: 1rem;
+        border-bottom: 1px solid #e9ecef;
+        background: #f8f9fa;
+    }
+    .etl-confirm-body {
+        padding: 1rem 1rem .5rem;
+        white-space: pre-line;
+        line-height: 1.45;
+        color: #212529;
+    }
+    .etl-confirm-actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: .5rem;
+        padding: .75rem 1rem 1rem;
+    }
+</style>
+
+<input type="hidden" id="formId" value="@ViewBag.FormId" />
+<input type="hidden" id="formSessionId" value="@ViewBag.FormSessionId" />
+<input type="hidden" id="jobWorkflowBaseHref" value="@ViewBag.JobWorkflowBaseHref" />
+<input type="hidden" id="jobWorkflowFormId" value="@ViewBag.JobWorkflowFormId" />
+<div class="etl-import-page py-3" id="etlImportPage">
+    @Html.AntiForgeryToken()
+    <div class="container-fluid">
+
+        <div class="card etl-toolbar-card mb-3">
+            <div class="card-header py-2 d-flex flex-wrap justify-content-between align-items-center gap-2 bg-white">
+                <button class="btn btn-link btn-sm text-decoration-none text-dark p-0 d-flex align-items-center gap-1"
+                        type="button"
+                        data-bs-toggle="collapse"
+                        data-bs-target="#searchCollapse"
+                        aria-expanded="true"
+                        aria-controls="searchCollapse"
+                        id="searchToggleBtn">
+                    <i class="bi bi-chevron-down" id="searchChevron"></i>
+                    <span>Reporting date &amp; steps</span>
+                </button>
+                <span id="searchHeaderSummary" class="text-primary d-none"></span>
+            </div>
+            <div class="collapse show" id="searchCollapse">
+                <div class="card-body py-3">
+                    <p class="small text-muted mb-2">
+                        Zgjidhni <strong>Reporting Date</strong>, klikoni <strong>Search</strong>, pastaj importoni skedarin.
+                        Butoni <strong>Import</strong> ose <strong>Reimport</strong> varet nga statusi në Import Log për atë datë.
+                    </p>
+                    <ol class="etl-steps-list mb-3">
+                        <li><strong>Import / Reimport</strong> — ngarko Excel në staging për reporting date</li>
+                        <li><strong>Validate ETL</strong> — verifiko të dhënat (Job Workflow → Next)</li>
+                        <li><strong>Load Master</strong> — ngarko në master (Job Workflow)</li>
+                        <li><strong>Validate Master &amp; Report</strong> — hapat e mbetur në Job Workflow</li>
+                    </ol>
+                    <div class="d-flex flex-wrap align-items-end gap-3">
+                        <div>
+                            <label for="reportDate" class="form-label mb-1 small text-muted">Reporting Date</label>
+                            <input type="date" id="reportDate" class="form-control form-control-sm" style="min-width: 11rem;" required />
+                        </div>
+                        <button type="button" id="btnSearch" class="btn btn-primary btn-sm px-3">
+                            <i class="bi bi-search" id="btnSearchIcon"></i>
+                            <span id="btnSearchLabel">Search</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="etlMsgImport" class="alert rounded-3 d-none mb-3 py-2" role="alert"></div>
+
+        <div class="row g-3 align-items-stretch">
+            <div class="col-12 col-xl-5">
+                <div class="card etl-panel h-100">
+                    <div class="card-header d-flex justify-content-between align-items-center py-2">
+                        <span><i class="bi bi-folder2-open me-1"></i> Available Files</span>
+                        <span class="badge text-bg-secondary" id="filesCountBadge">—</span>
+                    </div>
+                    <div class="card-body" id="filesPanel">
+                        <div id="filesPreSearch" class="files-pre-search">
+                            Select a reporting date and click <strong>Search</strong> to load files and import actions.
+                        </div>
+                        <div id="filesList" class="d-none"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-12 col-xl-7">
+                <div class="card etl-panel h-100">
+                    <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2 py-2">
+                        <span><i class="bi bi-journal-text me-1"></i> Import Log</span>
+                        <div class="d-flex align-items-center gap-2">
+                            <span class="small text-muted" id="jobCounter">0 entries</span>
+                            <button id="btnNext" type="button" class="btn btn-outline-primary btn-sm" @(string.IsNullOrEmpty(ViewBag.JobWorkflowBaseHref as string) ? "disabled" : null)>
+                                Next <i class="bi bi-chevron-right"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="card-body pt-2 pb-3">
+                        <div id="etlMsgGrid" class="alert rounded-3 d-none mb-2 py-2" role="alert"></div>
+                        <div id="gridWrapper">
+                            <ejs-grid id="FileImportGrid"
+                                      dataSource="Model"
+                                      width="100%"
+                                      height="420"
+                                      gridLines="Horizontal"
+                                      allowPaging="true"
+                                      allowSorting="true"
+                                      allowFiltering="true"
+                                      allowResizing="true"
+                                      allowSelection="true"
+                                      rowSelected="onImportLogRowSelected"
+                                      queryCellInfo="onGridQueryCellInfo"
+                                      allowExcelExport="true"
+                                      enableStickyHeader="true"
+                                      enableHover="true"
+                                      enableAltRow="true"
+                                      toolbarClick="toolbarClick"
+                                      toolbar="@(new List<string>() { "Search", "ExcelExport", "ColumnChooser" })">
+                                <e-grid-pagesettings pageSize="10" pageSizes="@(new string[] { "10", "20", "50" })"></e-grid-pagesettings>
+                                <e-grid-filtersettings type="Excel" mode="Immediate" ignoreAccent="true"></e-grid-filtersettings>
+                                <e-grid-selectionsettings type="Single" mode="Row"></e-grid-selectionsettings>
+                                <e-grid-sortsettings columns="@(new List<object> { new { field = "ImportDate", direction = "Descending" } })"></e-grid-sortsettings>
+                                <e-grid-columns>
+                                    <e-grid-column field="EtlEngineFileImportLogId" headerText="Import ID" width="95" textAlign="Right" isPrimaryKey="true"></e-grid-column>
+                                    <e-grid-column field="FileName" headerText="File Name" width="140" clipMode="EllipsisWithTooltip"></e-grid-column>
+                                    <e-grid-column field="ReportingDate" headerText="Reporting Date" width="120" type="date" format="yyyy-MM-dd" textAlign="Center"></e-grid-column>
+                                    <e-grid-column field="ImportDate" headerText="Import Date" width="145" type="datetime" format="yyyy-MM-dd HH:mm" textAlign="Center"></e-grid-column>
+                                    <e-grid-column field="RecordsCount" headerText="Records" width="95" type="number" format="N0" textAlign="Right"></e-grid-column>
+                                    <e-grid-column field="StatusCode" headerText="Status" width="110" textAlign="Center" freeze="Right"></e-grid-column>
+                                    <e-grid-column field="ErrorMessage" headerText="Error" width="180" clipMode="EllipsisWithTooltip" visible="false" showInColumnChooser="true"></e-grid-column>
+                                    <e-grid-column field="FileCode" headerText="File Code" width="110" visible="false" showInColumnChooser="true"></e-grid-column>
+                                    <e-grid-column field="CreatedBy" headerText="Created By" width="130" visible="false" showInColumnChooser="true"></e-grid-column>
+                                </e-grid-columns>
+                            </ejs-grid>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="etlConfirmOverlay" class="etl-confirm-overlay d-none" role="dialog" aria-modal="true" aria-labelledby="etlConfirmTitle">
+        <div class="etl-confirm-box">
+            <div class="etl-confirm-header" id="etlConfirmTitle">aseeMIS Pyet?</div>
+            <div class="etl-confirm-body" id="etlConfirmBody"></div>
+            <div class="etl-confirm-actions">
+                <button type="button" class="btn btn-outline-secondary btn-sm" id="etlConfirmCancel">Anulo</button>
+                <button type="button" class="btn btn-warning btn-sm" id="etlConfirmOk">Po, vazhdo</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    let fileImportGrid;
+    let loadRequestId = 0;
+    let hasSearched = false;
+    let selectedLoadedDate = "";
+    let selectedImportLogId = null;
+    let selectedJobId = null;
+    let selectedProcessRunId = null;
+
+    const formId = document.getElementById("formId")?.value || "";
+    const formSessionId = document.getElementById("formSessionId")?.value || "";
+    const jobWorkflowBaseHref = document.getElementById("jobWorkflowBaseHref")?.value || "";
+    const antiForgeryToken = document.querySelector('#etlImportPage input[name="__RequestVerificationToken"]')?.value
+        || document.querySelector('input[name="__RequestVerificationToken"]')?.value
+        || "";
+    const searchUrl = `@Url.Action("SearchWorkspace", "EtlEngine", new { area = "EtlEngine" })`;
+    const importUrl = `@Url.Action("Import", "EtlEngine", new { area = "EtlEngine", formId = ViewBag.FormId })`;
+    const reimportUrl = `@Url.Action("Reimport", "EtlEngine", new { area = "EtlEngine", formId = ViewBag.FormId })`;
+
+    /** Custom confirm — browser dialog title is always the host (e.g. localhost:7257). */
+    function aseeMisConfirm(message) {
+        return new Promise((resolve) => {
+            const overlay = document.getElementById("etlConfirmOverlay");
+            const body = document.getElementById("etlConfirmBody");
+            const btnOk = document.getElementById("etlConfirmOk");
+            const btnCancel = document.getElementById("etlConfirmCancel");
+            if (!overlay || !body || !btnOk || !btnCancel) {
+                resolve(window.confirm(message));
+                return;
+            }
+
+            body.textContent = message;
+
+            const finish = (result) => {
+                overlay.classList.add("d-none");
+                document.removeEventListener("keydown", onKey);
+                btnOk.onclick = null;
+                btnCancel.onclick = null;
+                resolve(result);
+            };
+
+            const onKey = (ev) => {
+                if (ev.key === "Escape") finish(false);
+            };
+
+            btnOk.onclick = () => finish(true);
+            btnCancel.onclick = () => finish(false);
+            document.addEventListener("keydown", onKey);
+            overlay.classList.remove("d-none");
+            btnOk.focus();
+        });
+    }
+
+    /** aseeMIS JSON uses PascalCase (PropertyNamingPolicy = null). */
+    function prop(obj, name) {
+        if (obj == null) return undefined;
+        const camel = name.charAt(0).toLowerCase() + name.slice(1);
+        return obj[name] ?? obj[camel];
+    }
+
+    function normalizeWorkspace(raw) {
+        const ws = raw || {};
+        return {
+            files: prop(ws, "Files") || [],
+            importLogs: prop(ws, "ImportLogs") || []
+        };
+    }
+
+    function fileField(f, name) {
+        return prop(f, name);
+    }
+
+    function apiOk(data) {
+        return !!(prop(data, "Ok") ?? data?.ok);
+    }
+
+    function toGridDate(value) {
+        if (value == null || value === "") return null;
+        if (value instanceof Date) return value;
+        if (typeof value === "object" && value.Year != null) {
+            const y = value.Year ?? value.year;
+            const m = value.Month ?? value.month;
+            const d = value.Day ?? value.day;
+            return new Date(y, m - 1, d);
+        }
+        const s = String(value);
+        const parsed = new Date(s.includes("T") ? s : `${s}T00:00:00`);
+        return Number.isNaN(parsed.getTime()) ? s : parsed;
+    }
+
+    function normalizeImportLogRows(rows) {
+        if (!Array.isArray(rows)) return [];
+        return rows.map(r => ({
+            EtlEngineFileImportLogId: prop(r, "EtlEngineFileImportLogId"),
+            EtlEngineFileId: prop(r, "EtlEngineFileId"),
+            FileCode: prop(r, "FileCode"),
+            FileName: prop(r, "FileName"),
+            FileType: prop(r, "FileType"),
+            ReportingDate: toGridDate(prop(r, "ReportingDate")),
+            ImportDate: toGridDate(prop(r, "ImportDate")),
+            RecordsCount: prop(r, "RecordsCount"),
+            StatusCode: prop(r, "StatusCode"),
+            HasPassed: prop(r, "HasPassed"),
+            ErrorMessage: prop(r, "ErrorMessage"),
+            CreatedBy: prop(r, "CreatedBy"),
+            CreatedAt: toGridDate(prop(r, "CreatedAt")),
+            EtlEngineJobId: prop(r, "EtlEngineJobId"),
+            EtlEngineProcessRunId: prop(r, "EtlEngineProcessRunId")
+        }));
+    }
+
+    function extractImportLogRows(data) {
+        const direct = prop(data, "rows") ?? prop(data, "Rows");
+        if (Array.isArray(direct)) return direct;
+        const ws = normalizeWorkspace(prop(data, "Workspace") ?? data.workspace);
+        return ws.importLogs;
+    }
+
+    function onGridQueryCellInfo(args) {
+        if (args.column?.field !== "StatusCode" || !args.cell) return;
+        const code = String(args.data?.StatusCode || "").toUpperCase();
+        let cls = "etl-status-text-default";
+        if (code === "COMPLETED") cls = "etl-status-text-completed";
+        else if (code === "FAILED") cls = "etl-status-text-failed";
+        else if (code === "RUNNING") cls = "etl-status-text-running";
+        args.cell.innerHTML = `<span class="etl-status-text ${cls}">${code || "—"}</span>`;
+    }
+
+    function onImportLogRowSelected(args) {
+        const row = args?.data;
+        if (!row) {
+            selectedImportLogId = null;
+            selectedJobId = null;
+            selectedProcessRunId = null;
+            updateNextButtonState();
+            return;
+        }
+        if (String(row.StatusCode || "").toUpperCase() === "COMPLETED") {
+            selectedImportLogId = row.EtlEngineFileImportLogId;
+            selectedJobId = row.EtlEngineJobId || null;
+            selectedProcessRunId = row.EtlEngineProcessRunId || null;
+        } else {
+            selectedImportLogId = null;
+            selectedJobId = null;
+            selectedProcessRunId = null;
+        }
+        updateNextButtonState();
+    }
+
+    function updateNextButtonState() {
+        const btnNext = document.getElementById("btnNext");
+        if (!btnNext) return;
+        btnNext.disabled = !(jobWorkflowBaseHref && hasSearched && selectedLoadedDate);
+    }
+
+    function buildJobWorkflowUrl() {
+        if (!jobWorkflowBaseHref) return "";
+        if (!selectedLoadedDate) return jobWorkflowBaseHref;
+        const separator = jobWorkflowBaseHref.includes("?") ? "&" : "?";
+        return `${jobWorkflowBaseHref}${separator}reportingDate=${encodeURIComponent(selectedLoadedDate)}`;
+    }
+
+    function toolbarClick(args) {
+        const grid = document.getElementById("FileImportGrid")?.ej2_instances?.[0];
+        if (!grid) return;
+        if ((args?.item?.id || "").toLowerCase().includes("excelexport")) grid.excelExport();
+    }
+
+    function escapeHtml(text) {
+        const d = document.createElement("div");
+        d.textContent = text ?? "";
+        return d.innerHTML;
+    }
+
+    function renderFiles(files, uploadSubmitHandler) {
+        const list = document.getElementById("filesList");
+        const pre = document.getElementById("filesPreSearch");
+        const badge = document.getElementById("filesCountBadge");
+        if (!list || !pre) return;
+
+        pre.classList.add("d-none");
+        list.classList.remove("d-none");
+
+        if (!Array.isArray(files) || files.length === 0) {
+            list.innerHTML = '<div class="files-pre-search">No active, approved files are configured.</div>';
+            if (badge) badge.textContent = "0";
+            return;
+        }
+
+        if (badge) badge.textContent = String(files.length);
+
+        list.innerHTML = files.map(f => {
+            const fileId = fileField(f, "EtlEngineFileId");
+            const fileCode = fileField(f, "FileCode");
+            const fileName = fileField(f, "FileName");
+            const fileType = fileField(f, "FileType");
+            const columnCount = fileField(f, "ColumnCount");
+            const stagingSchema = fileField(f, "StagingSchemaName");
+            const stagingTable = fileField(f, "StagingTableName");
+            const statusSummary = fileField(f, "StatusSummary");
+            const completedRecords = fileField(f, "CompletedRecordsCount") || 0;
+            const accept = fileType ? "." + String(fileType).toLowerCase() : "";
+            const staging = [stagingSchema, stagingTable].filter(Boolean).join(".");
+            const mode = String(fileField(f, "ActionMode") || "Import");
+            const isRunning = mode === "Running" || fileField(f, "IsBusy");
+            const isReimport = mode === "Reimport";
+            const btnClass = isReimport ? "btn btn-warning btn-sm" : "btn btn-primary btn-sm";
+            const btnIcon = isReimport ? "bi-arrow-repeat" : "bi-upload";
+            const btnLabel = isReimport ? "Reimport" : "Import";
+            const disabled = isRunning ? "disabled" : "";
+            const rowClass = isRunning ? "etl-file-row is-disabled" : "etl-file-row";
+
+            return `
+            <div class="${rowClass}" data-file-id="${fileId}" data-action-mode="${escapeHtml(mode)}"
+                 data-file-name="${escapeHtml(fileName)}" data-records="${completedRecords}">
+                <div class="etl-file-title">${escapeHtml(fileName)}</div>
+                <div class="etl-file-meta mb-1">${escapeHtml(fileCode)} · ${escapeHtml((fileType || "").toUpperCase())} · ${columnCount} columns</div>
+                <div class="etl-file-meta mb-2">${staging ? "Staging: " + escapeHtml(staging) : ""}</div>
+                <div class="etl-file-meta mb-2">${escapeHtml(statusSummary || "")}</div>
+                <form class="etl-upload-form" data-is-reimport="${isReimport ? "1" : "0"}">
+                    <input type="hidden" name="etlEngineFileId" value="${fileId}" />
+                    <input type="hidden" name="reportDate" class="import-report-date" value="${escapeHtml(selectedLoadedDate)}" />
+                    <div class="d-flex flex-wrap gap-2 align-items-center">
+                        <input type="file" name="file" class="form-control form-control-sm etl-file-input flex-grow-1" accept="${escapeHtml(accept)}" ${disabled} required />
+                        <button type="button" class="${btnClass} etl-action-btn" ${disabled} data-upload-url="${isReimport ? "reimport" : "import"}">
+                            <i class="bi ${btnIcon}"></i> ${btnLabel}
+                        </button>
+                    </div>
+                </form>
+            </div>`;
+        }).join("");
+
+        list.querySelectorAll(".etl-upload-form").forEach(form => {
+            form.addEventListener("submit", e => e.preventDefault());
+            const btn = form.querySelector(".etl-action-btn");
+            btn?.addEventListener("click", () => uploadSubmitHandler({ target: form, preventDefault: () => {} }));
+        });
+    }
+
+    function resetFilesPanel() {
+        document.getElementById("filesPreSearch")?.classList.remove("d-none");
+        const list = document.getElementById("filesList");
+        if (list) {
+            list.classList.add("d-none");
+            list.innerHTML = "";
+        }
+        document.getElementById("filesCountBadge").textContent = "—";
+    }
+
+    document.addEventListener("DOMContentLoaded", () => {
+        const els = {
+            reportDate: document.getElementById("reportDate"),
+            btnSearch: document.getElementById("btnSearch"),
+            btnSearchLabel: document.getElementById("btnSearchLabel"),
+            btnSearchIcon: document.getElementById("btnSearchIcon"),
+            searchCollapse: document.getElementById("searchCollapse"),
+            searchHeaderSummary: document.getElementById("searchHeaderSummary"),
+            searchChevron: document.getElementById("searchChevron"),
+            msgGrid: document.getElementById("etlMsgGrid"),
+            jobCounter: document.getElementById("jobCounter"),
+            btnNext: document.getElementById("btnNext"),
+            msgImport: document.getElementById("etlMsgImport")
+        };
+
+        let searchCollapseBs = null;
+
+        function setSearchUiAfterSearch(dateValue) {
+            if (els.searchHeaderSummary) {
+                els.searchHeaderSummary.textContent = `Reporting date: ${dateValue}`;
+                els.searchHeaderSummary.classList.remove("d-none");
+            }
+            if (els.btnSearchLabel) els.btnSearchLabel.textContent = "Search again";
+            if (els.btnSearchIcon) els.btnSearchIcon.className = "bi bi-arrow-clockwise";
+            if (searchCollapseBs && els.searchCollapse?.classList.contains("show")) {
+                searchCollapseBs.hide();
+            }
+        }
+
+        function resetSearchUiExpanded() {
+            if (els.searchHeaderSummary) {
+                els.searchHeaderSummary.textContent = "";
+                els.searchHeaderSummary.classList.add("d-none");
+            }
+            if (els.btnSearchLabel) els.btnSearchLabel.textContent = "Search";
+            if (els.btnSearchIcon) els.btnSearchIcon.className = "bi bi-search";
+            if (searchCollapseBs && !els.searchCollapse?.classList.contains("show")) {
+                searchCollapseBs.show();
+            }
+        }
+
+        const today = new Date().toISOString().split("T")[0];
+        if (els.reportDate && !els.reportDate.value) els.reportDate.value = today;
+        if (els.reportDate) els.reportDate.max = today;
+
+        fileImportGrid = document.getElementById("FileImportGrid")?.ej2_instances?.[0];
+        if (typeof bootstrap !== "undefined" && els.searchCollapse) {
+            searchCollapseBs = bootstrap.Collapse.getOrCreateInstance(els.searchCollapse, { toggle: false });
+            els.searchCollapse.addEventListener("show.bs.collapse", () => {
+                if (els.searchChevron) els.searchChevron.className = "bi bi-chevron-down";
+            });
+            els.searchCollapse.addEventListener("hide.bs.collapse", () => {
+                if (els.searchChevron) els.searchChevron.className = "bi bi-chevron-right";
+            });
+        }
+
+        function showMessage(element, ok, text) {
+            if (!element) return;
+            element.classList.remove("d-none", "alert-success", "alert-danger", "alert-info");
+            element.classList.add(ok ? "alert-success" : "alert-danger");
+            element.textContent = text || (ok ? "Done" : "Failed");
+        }
+
+        function clearMessage(element) {
+            if (!element) return;
+            element.classList.add("d-none");
+            element.classList.remove("alert-success", "alert-danger");
+            element.textContent = "";
+        }
+
+        function bindGridRows(rows) {
+            if (!fileImportGrid) return;
+            const safeRows = normalizeImportLogRows(rows);
+            if (fileImportGrid.pageSettings) {
+                fileImportGrid.pageSettings.currentPage = 1;
+            }
+            fileImportGrid.dataSource = safeRows;
+            fileImportGrid.dataBind();
+            fileImportGrid.refresh();
+            els.jobCounter.textContent = `${safeRows.length} ${safeRows.length === 1 ? "entry" : "entries"}`;
+            autoSelectCompletedImportRow(safeRows);
+        }
+
+        function autoSelectCompletedImportRow(rows) {
+            selectedImportLogId = null;
+            if (!fileImportGrid || !Array.isArray(rows)) {
+                updateNextButtonState();
+                return;
+            }
+            const completed = rows.find(r => String(r.StatusCode || "").toUpperCase() === "COMPLETED");
+            if (!completed) {
+                updateNextButtonState();
+                return;
+            }
+            selectedImportLogId = completed.EtlEngineFileImportLogId;
+            selectedJobId = completed.EtlEngineJobId || null;
+            selectedProcessRunId = completed.EtlEngineProcessRunId || null;
+            fileImportGrid.selectRow(rows.indexOf(completed));
+            updateNextButtonState();
+        }
+
+        async function getJson(url) {
+            const response = await fetch(url, {
+                headers: { "X-Requested-With": "XMLHttpRequest", "FormSessionId": formSessionId }
+            });
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            return await response.json();
+        }
+
+        async function runSearch(dateValue) {
+            const currentRequestId = ++loadRequestId;
+            bindGridRows([]);
+
+            const list = document.getElementById("filesList");
+            const pre = document.getElementById("filesPreSearch");
+            if (pre) pre.classList.add("d-none");
+            if (list) {
+                list.classList.remove("d-none");
+                list.innerHTML = '<div class="files-pre-search"><span class="spinner-border spinner-border-sm me-1"></span> Loading files…</div>';
+            }
+
+            const url = `${searchUrl}?reportDate=${encodeURIComponent(dateValue)}`;
+            const data = await getJson(url);
+
+            if (currentRequestId !== loadRequestId) return;
+
+            if (!apiOk(data)) {
+                showMessage(els.msgGrid, false, prop(data, "Message") || data?.message || "Search failed.");
+                return;
+            }
+
+            clearMessage(els.msgGrid);
+            const workspace = normalizeWorkspace(prop(data, "Workspace") ?? data.workspace);
+            renderFiles(workspace.files, onUploadFormSubmit);
+            bindGridRows(extractImportLogRows(data));
+            setSearchUiAfterSearch(dateValue);
+        }
+
+        async function postUpload(form, actionUrl) {
+            const formData = new FormData(form);
+            formData.set("reportDate", selectedLoadedDate);
+            if (antiForgeryToken) {
+                formData.set("__RequestVerificationToken", antiForgeryToken);
+            }
+
+            const headers = {
+                "X-Requested-With": "XMLHttpRequest",
+                "Accept": "application/json",
+                "FormSessionId": formSessionId
+            };
+
+            const response = await fetch(actionUrl, { method: "POST", body: formData, headers });
+            const raw = await response.text();
+            let data = null;
+            try {
+                data = raw ? JSON.parse(raw) : null;
+            } catch {
+                throw new Error(raw?.slice(0, 300) || `HTTP ${response.status}`);
+            }
+
+            if (data && typeof data === "object") {
+                const ok = apiOk(data);
+                if (!response.ok && !ok) {
+                    throw new Error(prop(data, "Message") || data?.message || `HTTP ${response.status}`);
+                }
+                return data;
+            }
+
+            throw new Error(`HTTP ${response.status}: unexpected response`);
+        }
+
+        async function onUploadFormSubmit(e) {
+            clearMessage(els.msgImport);
+
+            if (!hasSearched || !selectedLoadedDate) {
+                showMessage(els.msgImport, false, "Select a reporting date and click Search first.");
+                return;
+            }
+
+            const form = e.target;
+            const fileInput = form.querySelector('input[type="file"]');
+            if (!fileInput?.files?.length) {
+                showMessage(els.msgImport, false, "Please select a file.");
+                return;
+            }
+
+            const isReimport = form.dataset.isReimport === "1";
+            if (isReimport) {
+                const row = form.closest(".etl-file-row");
+                const records = Number(row?.dataset.records || 0).toLocaleString();
+                const name = row?.dataset.fileName || "file";
+                const ok = await aseeMisConfirm(
+                    `Reimport ${name}?\n\nReporting date: ${selectedLoadedDate}\nExisting records: ${records}\n\n`
+                    + "Staging records for this file and date will be replaced. Previous import logs remain in the log.");
+                if (!ok) return;
+                await executeUpload(form, reimportUrl);
+                return;
+            }
+
+            await executeUpload(form, importUrl);
+        }
+
+        async function executeUpload(form, actionUrl) {
+            const submitBtn = form.querySelector(".etl-action-btn");
+            const originalHtml = submitBtn?.innerHTML;
+            try {
+                if (submitBtn) {
+                    submitBtn.disabled = true;
+                    submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+                }
+                const data = await postUpload(form, actionUrl);
+                showMessage(els.msgImport, apiOk(data), prop(data, "Message") || data?.message || "Done");
+                if (apiOk(data)) await runSearch(selectedLoadedDate);
+            } catch (err) {
+                showMessage(els.msgImport, false, "Upload failed: " + (err?.message ?? err));
+            } finally {
+                if (submitBtn) {
+                    submitBtn.disabled = false;
+                    submitBtn.innerHTML = originalHtml;
+                }
+            }
+        }
+
+        els.btnSearch?.addEventListener("click", async () => {
+            clearMessage(els.msgGrid);
+            clearMessage(els.msgImport);
+            const dateValue = els.reportDate?.value || "";
+            if (!dateValue) {
+                showMessage(els.msgGrid, false, "Please select a reporting date.");
+                return;
+            }
+            hasSearched = true;
+            selectedLoadedDate = dateValue;
+            selectedImportLogId = null;
+            updateNextButtonState();
+            els.btnSearch.disabled = true;
+            try {
+                await runSearch(dateValue);
+            } catch (err) {
+                showMessage(els.msgGrid, false, "Search failed: " + (err?.message ?? err));
+            } finally {
+                els.btnSearch.disabled = false;
+            }
+        });
+
+        els.reportDate?.addEventListener("change", () => {
+            hasSearched = false;
+            selectedLoadedDate = "";
+            selectedImportLogId = null;
+            bindGridRows([]);
+            resetFilesPanel();
+            resetSearchUiExpanded();
+            clearMessage(els.msgGrid);
+            clearMessage(els.msgImport);
+            updateNextButtonState();
+        });
+
+        els.btnNext?.addEventListener("click", () => {
+            const url = buildJobWorkflowUrl();
+            if (url) window.location.href = url;
+        });
+
+        bindGridRows([]);
+    });
+</script>

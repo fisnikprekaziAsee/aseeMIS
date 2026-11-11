@@ -1,0 +1,28 @@
+@model aseeMIS.Areas.Common.ViewModels.Entity360PageViewModel
+
+@{
+    var source = ViewData["EntityDetailSource"] is dsMIS.Core.Enums.EnumEntityDetailHost host
+        ? host
+        : dsMIS.Core.Enums.EnumEntityDetailHost.Entity360;
+
+    var gridName = ViewData["EntityDetailGridName"] as string;
+    var action = ViewData["EntityDetailAction"] as string;
+    var isAdd = ViewData["EntityDetailIsAdd"] as bool? ?? string.IsNullOrWhiteSpace(Model.PrimaryKey);
+}
+
+@await Component.InvokeAsync("EntityDetailWidget",
+    new aseeMIS.Areas.Common.DTOs.EntityDetailRequest
+    {
+        ViewPath = Model.HeaderPath,
+        Model = Model.EntityModelData,
+        FormSessionId = Model.FormSessionId,
+        FormId = Model.FormId,
+        EntityPrimaryKeyValue = Model.PrimaryKey,
+        Area = Model.Area,
+        Source = source,
+        GridName = gridName,
+        GridEditorAction = action,
+        IsAdd = isAdd
+    })
+
+<ejs-scripts></ejs-scripts>

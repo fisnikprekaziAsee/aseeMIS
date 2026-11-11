@@ -1,0 +1,100 @@
+@model dsCredit.Core.ViewModels.CreditFrameworkViewModel
+
+@{
+    var frameworkFormSessionId = ViewBag.FormSessionId ?? "";
+    var frameworkId = Model?.FrameworkId ?? 0;
+}
+
+<input type="hidden"
+       id="chFrameworkExists"
+       value="@(frameworkId > 0 ? "true" : "false")" />
+
+@if (Model == null)
+{
+    <div id="chFrameworkContainer">
+        <div class="text-muted p-3">
+            <i class="bi bi-search me-2"></i>
+            Please select a client to load their Credit Framework.
+        </div>
+    </div>
+}
+else
+{
+    @await Html.PartialAsync("~/Areas/Credit/Views/Framework/_CreditFrameworkUpsert.cshtml", Model)
+
+    @if (frameworkId > 0)
+    {
+        <div id="chFwFrameworkDetailsAccordion" class="accordion mt-3">
+            <div class="accordion-item" id="chFwSectionFacilities">
+                <h2 class="accordion-header" id="chFwHeadingFacilities">
+                    <button class="accordion-button collapsed"
+                            type="button"
+                            data-bs-toggle="collapse"
+                            data-bs-target="#chFwCollapseFacilities"
+                            aria-expanded="false"
+                            aria-controls="chFwCollapseFacilities">
+                        <span class="cc-step">2</span>
+                        Framework Facilities
+                    </button>
+                </h2>
+                <div id="chFwCollapseFacilities"
+                     class="accordion-collapse collapse"
+                     data-bs-parent="#chFwFrameworkDetailsAccordion">
+                    <div class="accordion-body">
+                        @await Component.InvokeAsync(
+                            "GridDetailWidget",
+                            new aseeMIS.Areas.Common.DTOs.GridRequest
+                            {
+                                FormId = 322,
+                                FormSessionId = frameworkFormSessionId,
+                                ForeignAttributeName = "FrameworkId",
+                                PrimaryAttributeName = "FrameworkId",
+                                TargetId = frameworkId.ToString(),
+                                ContextFormType = dsMIS.Core.Enums.EnumContextFormType.CHILD,
+                                GridType = "CRUD",
+                                RemoteMode = false,
+                                GridName = $"GRID_{frameworkFormSessionId}_33"
+                            }
+                        )
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+}
+
+@if (ViewBag.RenderEjsScripts == true)
+{
+    <ejs-scripts></ejs-scripts>
+}
+
+<script>
+    window.chLoadFramework = window.chLoadFramework || function (bankPartyId) {
+        if (!bankPartyId) return;
+
+        const containerSelector = document.getElementById("ccFrameworkContainer")
+            ? "#ccFrameworkContainer"
+            : "#chFrameworkContainer";
+
+        $(containerSelector).html(`
+            <div class="text-muted p-3">
+                <i class="bi bi-arrow-repeat spin me-2"></i> Loading framework...
+            </div>`);
+
+        $.ajax({
+            url: "/Credit/CreditFramework/LoadFramework",
+            type: "GET",
+            data: { bankPartyId: bankPartyId },
+            success: function (html) {
+                $(containerSelector).html(html);
+                if (window.ds && ds.entity && ds.entity.init) ds.entity.init();
+                if (window.ej && ej.base) ej.base.enableRipple(true);
+            },
+            error: function () {
+                $(containerSelector).html(
+                    '<div class="text-danger p-3">Failed to load framework.</div>'
+                );
+            }
+        });
+    };
+</script>

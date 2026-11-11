@@ -1,0 +1,288 @@
+﻿<style>
+    .menu-layout {
+        display: flex;
+        gap: 1rem;
+    }
+
+    .tree-pane {
+        flex: 1 1 80%;
+        min-width: 0;
+    }
+
+    .cards-pane {
+        flex: 0 0 20%;
+        max-width: 420px;
+    }
+
+    /* Tree view area: 80% of viewport height with scroll */
+    .tree-scroll {
+        height: 80vh;
+        overflow: auto;
+        border: 1px solid #eee;
+        border-radius: 8px;
+        padding: .5rem;
+        background: #fff;
+    }
+
+    /* Right side list */
+    .cards-list {
+        display: flex;
+        flex-direction: column;
+        gap: .5rem;
+        max-height: 80vh;
+        overflow: auto;
+    }
+
+    .menu-pill {
+        display: flex;
+        align-items: center;
+        gap: .5rem;
+        padding: .6rem .75rem;
+        border: 1px solid #ddd;
+        border-radius: 12px;
+        background: #fff;
+        cursor: pointer;
+        transition: background .2s, box-shadow .2s, transform .05s, border-color .2s;
+    }
+
+        .menu-pill:hover {
+            background: #fafafa;
+            box-shadow: 0 1px 6px rgba(0,0,0,.08);
+            border-color: #ccc;
+        }
+
+        .menu-pill .icon {
+            font-size: 1.15rem;
+            line-height: 1;
+        }
+
+        .menu-pill .title {
+            font-weight: 600;
+            font-size: .95rem;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+    @@media (max-width: 992px) {
+        .menu-layout {
+            flex-direction: column;
+        }
+
+        .cards-pane {
+            flex-basis: auto;
+            max-width: none;
+        }
+
+        .cards-list {
+            max-height: none;
+        }
+    }
+</style>
+
+<div class="menu-layout">
+    <div class="tree-pane">
+        <div class="tree-scroll">
+            <div id="menuTree"></div>
+        </div>
+    </div>
+
+    <aside class="cards-pane">
+        <div id="topChips" class="cards-list"></div>
+    </aside>
+</div>
+
+<!-- EJ2 node template -->
+<script id="menuNodeTemplate" type="text/x-template">
+    <div class="tv-node d-flex align-items-center" data-desc="${desc}">
+      <i class="${icon} me-2" aria-hidden="true"></i>
+      <span>${name}</span>
+    </div>
+</script>
+
+@section Scripts {
+    <script>
+        // Comes from controller: ViewBag.TargetFormKey = FormId;
+        // Can be null, number, or string (e.g. "Administrimi i sistemit")
+        const rawTargetFormKey = @Html.Raw(Newtonsoft.Json.JsonConvert.SerializeObject(ViewBag.TargetFormKey) ); // FIXED
+
+        window.addEventListener('load', function () {
+          if (!window.ej || !ej.navigations) { console.error('EJ2 missing'); return; }
+
+          // 1) Load from localStorage
+          let src = [];
+          try { src = JSON.parse(localStorage.getItem('formHierarchy') || '[]'); } catch { src = []; }
+          if (!Array.isArray(src) || !src.length) return;
+
+          // 2) Normalize + defaults
+          const toNum = v => (v == null || v === '') ? null : Number(v);
+          const nodes = src.map(x => {
+            const id  = toNum(x.FormId ?? x.formId);
+            let pid   = toNum(x.FormParentId ?? x.formParentId);
+            if (pid === id) pid = null; // safety
+            const icon = (x.FormIcon ?? x.formIcon ?? '').toString().trim();
+            return {
+              id,
+              pid,
+              name: `${id} - ${(x.FormTitle ?? x.formTitle ?? '')}`,
+              formType: String(x.FormType ?? x.formType ?? ''),
+              icon: icon.length ? icon : 'bi bi-record2',
+              url:  (x.FormHref ?? x.formHref ?? '').toString(),
+              desc: (x.FormDescription ?? x.formDescription ?? '').toString(),
+              isFavorite: Boolean(x.IsFavorite ?? x.isFavorite ?? false)
+            };
+          });
+
+          // 3) Mark parents + maps
+          const parentIds = new Set(nodes.filter(n => n.pid != null && n.pid !== n.id).map(n => n.pid));
+          nodes.forEach(n => n.hasChild = parentIds.has(n.id));
+          const byId = new Map(nodes.map(n => [n.id, n]));
+          nodes.sort((a,b) => ((a.pid ?? -1) - (b.pid ?? -1)) || (a.id - b.id));
+
+          const root = nodes.find(n => n.pid == null);
+          const rootId = root ? root.id : null;
+
+          // 4) TreeView
+          const tree = new ej.navigations.TreeView({
+            fields: { dataSource: nodes, id: 'id', parentID: 'pid', text: 'name', hasChildren: 'hasChild' },
+            nodeTemplate: '#menuNodeTemplate',
+            expandOn: 'Click',
+            expandedNodes: nodes.filter(n => n.pid == null).map(n => String(n.id)),
+            nodeClicked: function (args) {
+              const li = args.node; if (!li) return;
+              const uid  = li.getAttribute('data-uid');
+              const data = (tree.getTreeData(uid) || [])[0];
+              if (!data) return;
+
+              const isParent = data.hasChild === true || data.hasChildren === true;
+              const url = (data.url || '').trim();
+              if (isParent || !url) return; // only leaves navigate
+
+              const href = new URL(url, li.baseURI).href;
+              if (args.event && (args.event.ctrlKey || args.event.metaKey)) window.open(href, '_blank');
+              else window.location.href = href;
+            }
+          }, '#menuTree');
+
+          // 5) Tooltip
+          new ej.popups.Tooltip({
+            target: '#menuTree .e-list-item',
+            position: 'RightTop',
+            beforeRender: function (e) {
+              const tv  = e.target.querySelector('.tv-node');
+              const txt = tv?.dataset?.desc || tv?.innerText || '';
+              this.content = txt;
+            }
+          }, '#menuTree');
+
+          // 6) Right side: first-level children under root (icon + title only)
+          const colors   = ['#0d9dda','#f6c000','#17c653','#a05ffc','#f8285a','#6c757d','#808000','#A0522D','#FF8C00'];
+          const topMenus = nodes.filter(n => rootId != null && n.pid === rootId && n.hasChild);
+
+          const chipsHost = document.getElementById('topChips');
+          chipsHost.innerHTML = topMenus.map((m,i) => `
+              <div class="menu-pill" data-id="${m.id}">
+                  <i class="${m.icon} icon" style="color:${colors[i % colors.length]}"></i>
+                  <span class="title">${m.name}</span>
+              </div>
+          `).join('');
+
+          // helper: find LI by our data id
+          function findLiByNodeId(targetId) {
+            const items = tree.element.querySelectorAll('li.e-list-item');
+            for (const li of items) {
+              const uid = li.getAttribute('data-uid');
+              const data = (tree.getTreeData(uid) || [])[0];
+              if (data && Number(data.id) === Number(targetId)) return li;
+            }
+            return null;
+          }
+
+          // CHIP CLICK -> expand ONLY ONE LEVEL at each step, DO NOT collapse others
+          chipsHost.addEventListener('click', function (e) {
+            const chip = e.target.closest('.menu-pill'); if (!chip) return;
+            const id = Number(chip.getAttribute('data-id'));
+
+            // build path up to root
+            const chain = [];
+            let cur = byId.get(id);
+            while (cur && cur.pid != null) {
+              chain.unshift(cur.pid);
+              cur = byId.get(cur.pid);
+            }
+
+            // expand each ancestor one level only
+            for (const pid of chain) {
+              const liParent = findLiByNodeId(pid);
+              if (liParent && typeof tree.expandAll === 'function') {
+                tree.expandAll([liParent], 1); // 1 level only, additive
+              }
+            }
+
+            // expand the node itself one level and select it
+            const liSelf = findLiByNodeId(id);
+            if (liSelf) {
+              if (typeof tree.expandAll === 'function') tree.expandAll([liSelf], 1); // 1 level only
+              tree.selectedNodes = [String(id)];
+              liSelf.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+          });
+
+          // 7) Auto-select node from query ?FormId=... (if present)
+          function selectNodeFromQuery() {
+              // If controller didn't pass FormId -> do nothing
+              if (rawTargetFormKey === null || rawTargetFormKey === undefined) return;
+
+              let key = String(rawTargetFormKey).trim();
+
+              // Guard against "null", "undefined", empty, etc.
+              if (!key || key.toLowerCase() === "null" || key.toLowerCase() === "undefined") return;
+
+              let targetNode = null;
+
+              // Try numeric first (e.g. ?FormId=1101)
+              const numKey = Number(key);
+              if (!isNaN(numKey)) {
+                  targetNode = nodes.find(n => n.id === numKey);
+              }
+
+              // Otherwise, match by title text inside "id - title"
+              if (!targetNode) {
+                  const lowerKey = key.toLowerCase();
+                  targetNode = nodes.find(n =>
+                      (n.name || '').toLowerCase().includes(lowerKey)
+                  );
+              }
+
+              if (!targetNode) return;
+
+              // Build parent chain up to root
+              const chain = [];
+              let cur = targetNode;
+              while (cur && cur.pid != null) {
+                  chain.unshift(cur.pid);
+                  cur = byId.get(cur.pid);
+              }
+
+              // Expand ancestors (do NOT collapse others)
+              for (const pid of chain) {
+                  const liParent = findLiByNodeId(pid);
+                  if (liParent && typeof tree.expandAll === 'function') {
+                      tree.expandAll([liParent], 1);
+                  }
+              }
+
+              // Expand + select the node itself
+              const liSelf = findLiByNodeId(targetNode.id);
+              if (liSelf) {
+                  if (typeof tree.expandAll === 'function') tree.expandAll([liSelf], 1);
+                  tree.selectedNodes = [String(targetNode.id)];
+                  liSelf.scrollIntoView({ behavior: 'smooth', block: 'center' });
+              }
+          }
+
+          // Call after everything is ready
+          selectNodeFromQuery();
+        });
+    </script>
+}

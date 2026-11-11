@@ -1,0 +1,55 @@
+@model aseeMIS.Areas.Common.ViewModels.Entity360PageViewModel
+
+@{
+    var formSessionId = Model.FormSessionId;
+    var productId = Model.PrimaryKey;    
+}
+
+<!-- ================= OPTION GROUPS ================= -->
+@await Component.InvokeAsync("GridDetailWidget",
+        new aseeMIS.Areas.Common.DTOs.GridRequest
+    {
+        FormId = 5310,                                      
+        FormSessionId = formSessionId,
+        ForeignAttributeName = "ProductId",
+        PrimaryAttributeName = "OptionGroupId",
+        TargetId = productId,
+            ContextFormType = dsMIS.Core.Enums.EnumContextFormType.CHILD,
+        GridType = "CRUD",
+        RemoteMode = false,
+        GridName = $"GRID_{formSessionId}_5310"
+    })
+
+
+<!-- ================= OPTIONS ================= -->
+@await Component.InvokeAsync("GridDetailWidget",
+        new aseeMIS.Areas.Common.DTOs.GridRequest
+    {
+        FormId = 5309,                                      
+        FormSessionId = formSessionId,
+        ForeignAttributeName = "OptionGroupId",
+        PrimaryAttributeName = "OptionId",
+        TargetId = productId,
+            ContextFormType = dsMIS.Core.Enums.EnumContextFormType.CHILD,
+        GridType = "CRUD",
+        RemoteMode = false,
+        GridName = $"GRID_{formSessionId}_5309"
+    })
+
+
+<!-- ================= CONFIGURATION RULES ================= -->
+@await Component.InvokeAsync("GridDetailWidget",
+        new aseeMIS.Areas.Common.DTOs.GridRequest
+    {
+        FormId = 5311,
+        FormSessionId = formSessionId,
+        ForeignAttributeName = "IfOptionId",
+        PrimaryAttributeName = "RuleId",
+        TargetId = productId,
+        ContextFormType = dsMIS.Core.Enums.EnumContextFormType.CHILD,
+        GridType = "CRUD",
+        RemoteMode = false,
+        GridName = $"GRID_{formSessionId}_5311"
+    })
+
+<ejs-scripts></ejs-scripts>

@@ -1,0 +1,197 @@
+@model IReadOnlyCollection<dsBankParty.Core.DTOs.BankPartyDto>
+
+@{
+    ViewData["Title"] = "Bank Parties";
+
+    var toolbarItems = new List<object>
+    {
+        new
+        {
+            id = "AddIndividualBankParty",
+            text = "",
+            prefixIcon = "bi bi-person-plus-fill",
+            tooltipText = "Add Individual"
+        },
+        new
+        {
+            id = "AddBusinessBankParty",
+            text = "",
+            prefixIcon = "bi bi-building-add",
+            tooltipText = "Add Business"
+        },
+        new
+        {
+            id = "EditBankParty",
+            text = "",
+            prefixIcon = "bi bi-pencil-square",
+            tooltipText = "Edit selected Bank Party",
+            disabled = true
+        },
+        "Search",
+        "ColumnChooser",
+        "ExcelExport",
+        new
+        {
+            template = @"
+                <select id='BankPartyGrid_RowHeightDDL'
+                        class='form-select form-select-sm toolbar-select'
+                        title='Row height'
+                        onchange=""onRowHeightChange(this, 'BankPartyGrid')"">
+                    <option value=''>Default</option>
+                    <option value='28'>Small</option>
+                    <option value='40'>Medium</option>
+                    <option value='56'>Large</option>
+                </select>",
+            id = "BankPartyGrid_RowHeightDDLItem",
+            align = "Right"
+        }
+    };
+}
+
+<div class="container-fluid px-0">
+    <ejs-grid id="BankPartyGrid"
+              TValue="@typeof(dsBankParty.Core.DTOs.BankPartyDto)"
+              dataSource="@Model"
+              toolbar="toolbarItems"
+              toolbarClick="onBankPartyToolbarClick"
+              rowSelected="onBankPartySelectionChanged"
+              rowDeselected="onBankPartySelectionChanged"
+              dataBound="onBankPartyDataBound"
+              allowPaging="true"
+              allowSorting="true"
+              allowFiltering="true"
+              allowGrouping="true"
+              allowReordering="true"
+              allowResizing="true"
+              allowExcelExport="true"
+              showColumnChooser="true"
+              gridLines="Both"
+              height="500">
+        <e-grid-editsettings allowAdding="false"
+                             allowEditing="false"
+                             allowDeleting="false">
+        </e-grid-editsettings>
+        <e-grid-pagesettings pageCount="10" pageSize="12" pageSizes="true"></e-grid-pagesettings>
+        <e-grid-filtersettings type="Excel"></e-grid-filtersettings>
+
+        <e-grid-columns>
+            <e-grid-column headerText="Type"
+                           template="#bankPartyTypeTemplate"
+                           textAlign="Center"
+                           allowFiltering="false"
+                           allowGrouping="false"
+                           width="65">
+            </e-grid-column>
+            <e-grid-column field="BankPartyId"
+                           headerText="Bank Party Id"
+                           isPrimaryKey="true"
+                           textAlign="Right"
+                           width="125">
+            </e-grid-column>
+            <e-grid-column field="PartyCode" headerText="Party Code" width="130"></e-grid-column>
+            <e-grid-column field="FullName" headerText="Full Name" width="230"></e-grid-column>
+            <e-grid-column field="IdentificationNumber" headerText="Identification Number" width="185"></e-grid-column>
+            <e-grid-column field="PhoneNumber" headerText="Phone Number" width="150"></e-grid-column>
+            <e-grid-column field="ContactEmail" headerText="Email" width="210"></e-grid-column>
+            <e-grid-column field="IsIndividual" headerText="Individual" type="boolean" displayAsCheckBox="true" textAlign="Center" width="105"></e-grid-column>
+            <e-grid-column field="IsResident" headerText="Resident" type="boolean" displayAsCheckBox="true" textAlign="Center" width="100"></e-grid-column>
+            <e-grid-column field="ContactCountryCode" headerText="Country" width="100"></e-grid-column>
+            <e-grid-column field="ContactMunicipalityName" headerText="Municipality" width="160"></e-grid-column>
+            <e-grid-column field="ContactAddress" headerText="Address" width="220"></e-grid-column>
+            <e-grid-column field="StatusCode" headerText="Status" width="155"></e-grid-column>
+            <e-grid-column field="IsActive"
+                           headerText="Active"
+                           type="boolean"
+                           displayAsCheckBox="true"
+                           textAlign="Center"
+                           width="90"
+                           freeze="Right">
+            </e-grid-column>
+            <e-grid-column field="IsApproved"
+                           headerText="Approved"
+                           type="boolean"
+                           displayAsCheckBox="true"
+                           textAlign="Center"
+                           width="105"
+                           freeze="Right">
+            </e-grid-column>
+        </e-grid-columns>
+    </ejs-grid>
+</div>
+
+<script id="bankPartyTypeTemplate" type="text/x-template">
+    ${if(IsIndividual)}
+        <span class="d-inline-flex align-items-center justify-content-center" title="Individual">
+            <i class="bi bi-person-fill text-success fs-5"></i>
+        </span>
+    ${else}
+        <span class="d-inline-flex align-items-center justify-content-center" title="Business">
+            <i class="bi bi-building-fill fs-5" style="color:#0d9dda !important;"></i>
+        </span>
+    ${/if}
+</script>
+
+<script>
+    function getBankPartyGrid() {
+        return document.getElementById("BankPartyGrid")?.ej2_instances?.[0];
+    }
+
+    function getSelectedBankParty() {
+        return getBankPartyGrid()?.getSelectedRecords?.()?.[0] ?? null;
+    }
+
+    function setBankPartyEditToolbarState() {
+        const grid = getBankPartyGrid();
+        if (!grid?.toolbarModule) return;
+
+        grid.toolbarModule.enableItems(
+            ["EditBankParty"],
+            Boolean(getSelectedBankParty()));
+    }
+
+    function onBankPartySelectionChanged() {
+        setBankPartyEditToolbarState();
+    }
+
+    function onBankPartyDataBound() {
+        setBankPartyEditToolbarState();
+    }
+
+    function openBankPartyEntity360(isIndividual, bankPartyId) {
+        const formId = isIndividual ? 13 : 14;
+        const url = new URL("/Common/Entity360/Index", window.location.origin);
+        url.searchParams.set("id", String(formId));
+
+        if (bankPartyId) {
+            url.searchParams.set("entityPrimaryKeyValue", String(bankPartyId));
+        }
+
+        window.location.href = url.toString();
+    }
+
+    function onBankPartyToolbarClick(args) {
+        if (args.item.id === "AddIndividualBankParty") {
+            openBankPartyEntity360(true, null);
+            return;
+        }
+
+        if (args.item.id === "AddBusinessBankParty") {
+            openBankPartyEntity360(false, null);
+            return;
+        }
+
+        if (args.item.id === "EditBankParty") {
+            const rowData = getSelectedBankParty();
+            if (rowData) {
+                openBankPartyEntity360(
+                    Boolean(rowData.IsIndividual),
+                    rowData.BankPartyId);
+            }
+            return;
+        }
+
+        if (args.item.id === "BankPartyGrid_excelexport") {
+            document.getElementById("BankPartyGrid").ej2_instances[0].excelExport();
+        }
+    }
+</script>

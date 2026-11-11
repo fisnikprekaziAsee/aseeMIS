@@ -1,0 +1,414 @@
+@model dsBankParty.Core.ViewModels.BankPartySignicatWebhookLogViewModel
+@using System.Text.Json
+@using aseeMIS.Areas.BankParty.Helpers
+
+@{
+    var request = ViewData["EntityDetailRequest"] as aseeMIS.Areas.Common.DTOs.EntityDetailRequest
+        ?? throw new InvalidOperationException("EntityDetailRequest is required.");
+
+    var formSessionId = request.FormSessionId;
+    var formId = request.FormId;
+    var isGridDialog = request.IsGridDialog;
+    var gridName = request.GridName ?? "";
+    var formDomId = "signicatWebhookLogForm_" + request.FormSessionId;
+    var downloadUrl = Url.Action("Download", "CRUD", new { area = "Common" }) ?? "/Common/CRUD/Download";
+    var isVideoConsolidated = SignicatWebhookPayloadParser.IsVideoConsolidated(Model?.EventType);
+    var isReadOnly = true;
+    var payloadView = SignicatWebhookPayloadParser.Parse(Model?.PayloadJson, Model?.EventType);
+    var payloadPath = Model?.PayloadFilePath;
+    var payloadFileName = FileNameFromStoragePath(payloadPath);
+    var formattedPayloadJson = FormatJson(Model?.PayloadJson);
+    var formattedOnsiteJson = FormatJson(Model?.OnsiteIdentityRequestJson);
+
+    static string DateTimeValue(DateTime? value) =>
+        value.HasValue ? value.Value.ToString("yyyy-MM-ddTHH:mm") : string.Empty;
+
+    static string FileNameFromStoragePath(string? path)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+            return string.Empty;
+
+        var normalized = path.Replace('\\', '/').TrimEnd('/');
+        var slash = normalized.LastIndexOf('/');
+        return slash >= 0 ? normalized[(slash + 1)..] : normalized;
+    }
+
+    static string FormatJson(string? json)
+    {
+        if (string.IsNullOrWhiteSpace(json))
+            return string.Empty;
+
+        try
+        {
+            using var doc = JsonDocument.Parse(json);
+            return JsonSerializer.Serialize(doc.RootElement, new JsonSerializerOptions
+            {
+                WriteIndented = true
+            });
+        }
+        catch (JsonException)
+        {
+            return json;
+        }
+    }
+}
+
+<form id="@formDomId" onsubmit="return false;" class="@(isReadOnly ? "ds-signicat-readonly" : null)">
+    <div class="form-container ds-signicat-webhook-form"
+         data-form-session-id="@formSessionId"
+         data-form-id="@formId"
+         data-primary-key="Id">
+
+        <input type="hidden" id="Id" name="Id" value="@(Model?.Id ?? 0)" />
+        <input type="hidden" id="BankPartyId" name="BankPartyId" value="@(Model?.BankPartyId ?? 0)" />
+        <input type="hidden" id="BankPartyName" name="BankPartyName" value="@(Model?.BankPartyName ?? string.Empty)" />
+        <input type="hidden" id="ReplicationStatus" name="ReplicationStatus" value="@(Model?.ReplicationStatus ?? 1)" />
+
+        <div class="ds-card">
+            <div class="ds-card-h d-flex align-items-center gap-2">
+                <i class="bi bi-journal-code"></i>
+                <span class="ds-card-title">Signicat Webhook Log</span>
+                <span class="badge text-bg-secondary ms-auto">Read only</span>
+            </div>
+            <div class="ds-card-b">
+                <label class="form-label fw-semibold">Client</label>
+                <div class="form-control bg-light">@(string.IsNullOrWhiteSpace(Model?.BankPartyName) ? "—" : Model.BankPartyName)</div>
+            </div>
+        </div>
+
+        <div class="ds-card mt-3">
+            <div class="ds-card-h d-flex align-items-center gap-2">
+                <i class="bi bi-broadcast"></i>
+                <span class="ds-card-title">Event</span>
+            </div>
+            <div class="ds-card-b">
+                <div class="row g-3">
+                    <div class="col-12 col-lg-4">
+                        <label class="form-label fw-semibold" for="EventType">Event Type</label>
+                        <input id="EventType" name="EventType" class="form-control" value="@(Model?.EventType ?? string.Empty)" @(isReadOnly ? "readonly" : null) />
+                    </div>
+                    <div class="col-12 col-lg-4">
+                        <label class="form-label fw-semibold" for="ProcessingStatus">Processing Status</label>
+                        <input id="ProcessingStatus" name="ProcessingStatus" class="form-control" value="@(Model?.ProcessingStatus ?? string.Empty)" @(isReadOnly ? "readonly" : null) />
+                    </div>
+                    <div class="col-12 col-lg-4">
+                        <label class="form-label fw-semibold" for="EventId">Event Id</label>
+                        <input id="EventId" name="EventId" class="form-control" value="@(Model?.EventId ?? string.Empty)" @(isReadOnly ? "readonly" : null) />
+                    </div>
+                    <div class="col-12 col-lg-6">
+                        <label class="form-label fw-semibold" for="ReferenceId">Reference Id</label>
+                        <input id="ReferenceId" name="ReferenceId" class="form-control" value="@(Model?.ReferenceId ?? string.Empty)" @(isReadOnly ? "readonly" : null) />
+                    </div>
+                    <div class="col-12 col-lg-6">
+                        <label class="form-label fw-semibold">Payload File</label>
+                        <input type="hidden" id="PayloadFilePath" name="PayloadFilePath" value="@(payloadPath ?? string.Empty)" />
+                        @if (!string.IsNullOrWhiteSpace(payloadPath))
+                        {
+                            <div class="d-flex align-items-center gap-2 flex-wrap">
+                                <a href="@($"{downloadUrl}?path={Uri.EscapeDataString(payloadPath)}&fileName={Uri.EscapeDataString(payloadFileName)}&formSessionId={Uri.EscapeDataString(formSessionId)}")"
+                                   target="_blank"
+                                   class="btn btn-sm btn-outline-primary">
+                                    <i class="bi bi-download"></i>
+                                    Download
+                                </a>
+                                <span class="small text-muted text-truncate" style="max-width: 280px;" title="@payloadPath">@payloadFileName</span>
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="form-control bg-light text-muted">No payload file</div>
+                        }
+                    </div>
+                    <div class="col-12 col-lg-6">
+                        <label class="form-label fw-semibold" for="ReceivedAt">Received At</label>
+                        <input id="ReceivedAt" name="ReceivedAt" class="form-control" type="datetime-local" value="@DateTimeValue(Model?.ReceivedAt)" @(isReadOnly ? "readonly" : null) />
+                    </div>
+                    <div class="col-12 col-lg-6">
+                        <label class="form-label fw-semibold" for="ProcessedAt">Processed At</label>
+                        <input id="ProcessedAt" name="ProcessedAt" class="form-control" type="datetime-local" value="@DateTimeValue(Model?.ProcessedAt)" @(isReadOnly ? "readonly" : null) />
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label fw-semibold" for="ErrorMessage">Error Message</label>
+                        <textarea id="ErrorMessage" name="ErrorMessage" class="form-control" rows="2" @(isReadOnly ? "readonly" : null)>@(Model?.ErrorMessage ?? string.Empty)</textarea>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        @if (isVideoConsolidated && payloadView.HasReadableSummary)
+        {
+            <div class="ds-signicat-accordion">
+            @if (payloadView.SubjectFields.Count > 0)
+            {
+                <details class="ds-card mt-3">
+                    <summary class="ds-card-h d-flex align-items-center gap-2">
+                        <i class="bi bi-person-vcard"></i>
+                        <span class="ds-card-title">Subject</span>
+                    </summary>
+                    <div class="ds-card-b">
+                        <div class="row g-3">
+                            @foreach (var field in payloadView.SubjectFields)
+                            {
+                                <div class="col-12 col-md-6">
+                                    <label class="form-label fw-semibold">@field.Label</label>
+                                    <div class="form-control bg-light">@field.Value</div>
+                                </div>
+                            }
+                        </div>
+                    </div>
+                </details>
+            }
+
+            @if (payloadView.DocumentFields.Count > 0)
+            {
+                <details class="ds-card mt-3">
+                    <summary class="ds-card-h d-flex align-items-center gap-2">
+                        <i class="bi bi-file-earmark-text"></i>
+                        <span class="ds-card-title">Document</span>
+                    </summary>
+                    <div class="ds-card-b">
+                        <div class="row g-3">
+                            @foreach (var field in payloadView.DocumentFields)
+                            {
+                                <div class="col-12 col-md-6">
+                                    <label class="form-label fw-semibold">@field.Label</label>
+                                    <div class="form-control bg-light">@field.Value</div>
+                                </div>
+                            }
+                        </div>
+                    </div>
+                </details>
+            }
+
+            @if (payloadView.SecurityChecks.Count > 0)
+            {
+                <details class="ds-card mt-3" open>
+                    <summary class="ds-card-h d-flex align-items-center gap-2">
+                        <i class="bi bi-shield-check"></i>
+                        <span class="ds-card-title">Security Checks</span>
+                    </summary>
+                    <div class="ds-card-b">
+                        <div class="row g-2">
+                            @foreach (var check in payloadView.SecurityChecks)
+                            {
+                                var passed = check.IsValid == true;
+                                var failed = check.IsValid == false;
+                                var itemClass = passed ? "is-passed" : failed ? "is-failed" : "is-unknown";
+                                var iconClass = passed ? "bi-check-circle-fill" : failed ? "bi-x-circle-fill" : "bi-question-circle-fill";
+                                <div class="col-12">
+                                    <div class="ds-check-item @itemClass">
+                                        <span class="ds-check-label">@check.Label</span>
+                                        <span class="ds-check-result">
+                                            <i class="bi @iconClass"></i>
+                                            <span>@(passed ? "Passed" : failed ? "Failed" : check.Value)</span>
+                                        </span>
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                    </div>
+                </details>
+            }
+            </div>
+        }
+
+        @if (payloadView.ProcessFields.Count > 0)
+        {
+            <details class="ds-card mt-3">
+                <summary class="ds-card-h d-flex align-items-center gap-2">
+                    <i class="bi bi-camera-video"></i>
+                    <span class="ds-card-title">Process</span>
+                </summary>
+                <div class="ds-card-b">
+                    <div class="row g-3">
+                        @foreach (var field in payloadView.ProcessFields)
+                        {
+                            <div class="col-12 col-md-6">
+                                <label class="form-label fw-semibold">@field.Label</label>
+                                <div class="form-control bg-light">@field.Value</div>
+                            </div>
+                        }
+                    </div>
+                </div>
+            </details>
+        }
+
+        <details class="ds-card mt-3">
+            <summary class="ds-card-h d-flex align-items-center gap-2">
+                <i class="bi bi-code-slash"></i>
+                <span class="ds-card-title">Payload JSON</span>
+            </summary>
+            <div class="ds-card-b">
+                <textarea id="PayloadJson" name="PayloadJson" hidden>@(Model?.PayloadJson ?? string.Empty)</textarea>
+                @if (!string.IsNullOrWhiteSpace(formattedPayloadJson))
+                {
+                    <pre class="ds-json-preview">@formattedPayloadJson</pre>
+                }
+                else
+                {
+                    <div class="form-control bg-light text-muted">No payload JSON</div>
+                }
+            </div>
+        </details>
+
+        <details class="ds-card mt-3">
+            <summary class="ds-card-h d-flex align-items-center gap-2">
+                <i class="bi bi-braces"></i>
+                <span class="ds-card-title">Onsite Identity Request JSON</span>
+            </summary>
+            <div class="ds-card-b">
+                <textarea id="OnsiteIdentityRequestJson" name="OnsiteIdentityRequestJson" hidden>@(Model?.OnsiteIdentityRequestJson ?? string.Empty)</textarea>
+                @if (!string.IsNullOrWhiteSpace(formattedOnsiteJson))
+                {
+                    <pre class="ds-json-preview">@formattedOnsiteJson</pre>
+                }
+                else
+                {
+                    <div class="form-control bg-light text-muted">No identity request JSON</div>
+                }
+            </div>
+        </details>
+
+        @if (isGridDialog)
+        {
+            <div class="d-flex justify-content-end gap-2 mt-3">
+                <button type="button" class="btn btn-light" onclick="closeGridPartialDialogEditor('@gridName')">Close</button>
+            </div>
+        }
+    </div>
+</form>
+
+<script>
+    (function () {
+        const form = document.getElementById(@Html.Raw(System.Text.Json.JsonSerializer.Serialize(formDomId)));
+        if (!form) return;
+
+        form.querySelectorAll(".ds-signicat-accordion details").forEach(function (panel) {
+            panel.addEventListener("toggle", function () {
+                if (!panel.open) return;
+                form.querySelectorAll(".ds-signicat-accordion details").forEach(function (other) {
+                    if (other !== panel) other.open = false;
+                });
+            });
+        });
+    })();
+</script>
+
+<style>
+    .ds-signicat-webhook-form .ds-card {
+        border: 1px solid #e3e8ef;
+        border-radius: 8px;
+        background: #fff;
+        box-shadow: 0 8px 18px rgba(16, 24, 40, .06);
+    }
+
+    .ds-signicat-webhook-form .ds-card-h {
+        padding: 12px 14px;
+        border-bottom: 1px solid #edf1f5;
+    }
+
+    .ds-signicat-webhook-form details.ds-card > summary.ds-card-h {
+        list-style: none;
+        cursor: pointer;
+        border-bottom: 0;
+    }
+
+    .ds-signicat-webhook-form details.ds-card[open] > summary.ds-card-h {
+        border-bottom: 1px solid #edf1f5;
+    }
+
+    .ds-signicat-webhook-form details.ds-card > summary.ds-card-h::-webkit-details-marker {
+        display: none;
+    }
+
+    .ds-signicat-webhook-form details.ds-card > summary.ds-card-h::after {
+        content: "\F282";
+        font-family: "bootstrap-icons";
+        margin-left: auto;
+        color: #64748b;
+    }
+
+    .ds-signicat-webhook-form details.ds-card[open] > summary.ds-card-h::after {
+        content: "\F286";
+    }
+
+    .ds-signicat-webhook-form .ds-card-title {
+        font-weight: 700;
+    }
+
+    .ds-signicat-webhook-form .ds-card-b {
+        padding: 16px;
+    }
+
+    .ds-signicat-webhook-form .ds-check-item {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        width: 100%;
+        padding: 12px 16px;
+        border: 1px solid #edf1f5;
+        border-radius: 8px;
+        background: #f8fafc;
+        font-weight: 600;
+    }
+
+    .ds-signicat-webhook-form .ds-check-label {
+        font-size: 14px;
+    }
+
+    .ds-signicat-webhook-form .ds-check-result {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        min-width: 110px;
+        justify-content: flex-end;
+    }
+
+    .ds-signicat-webhook-form .ds-check-result i {
+        font-size: 20px;
+        line-height: 1;
+    }
+
+    .ds-signicat-webhook-form .ds-check-item.is-passed {
+        background: #f0fdf4;
+        border-color: #bbf7d0;
+    }
+
+    .ds-signicat-webhook-form .ds-check-item.is-passed .ds-check-result {
+        color: #15803d;
+    }
+
+    .ds-signicat-webhook-form .ds-check-item.is-failed {
+        background: #fef2f2;
+        border-color: #fecaca;
+    }
+
+    .ds-signicat-webhook-form .ds-check-item.is-failed .ds-check-result {
+        color: #b91c1c;
+    }
+
+    .ds-signicat-webhook-form .ds-check-item.is-unknown .ds-check-result {
+        color: #64748b;
+    }
+
+    .ds-signicat-webhook-form .ds-json-preview {
+        margin: 0;
+        padding: 12px 14px;
+        border: 1px solid #e3e8ef;
+        border-radius: 8px;
+        background: #0f172a;
+        color: #e2e8f0;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-size: 12px;
+        line-height: 1.5;
+        max-height: 420px;
+        overflow: auto;
+        white-space: pre-wrap;
+        word-break: break-word;
+    }
+
+    .ds-signicat-readonly .form-control[readonly] {
+        background-color: #f8fafc;
+    }
+</style>

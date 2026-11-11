@@ -1,0 +1,262 @@
+﻿@{
+    ViewData["Title"] = "Report Export";
+}
+
+<link rel="stylesheet" href="~/css/dw-shared.css" />
+<style>
+    .dw-card {
+        border: 1px solid #dbe3ef;
+        overflow: hidden;
+    }
+</style>
+
+<input type="hidden" id="formId" value="@ViewBag.FormId" />
+<input type="hidden" id="formSessionId" value="@ViewBag.FormSessionId" />
+
+<div class="dw-page">
+    <div class="dw-card mb-3">
+        <div class="dw-card-body">
+            <div class="nav nav-pills" id="reportTypeTabs" role="tablist" aria-label="Report type selector">
+                <button class="nav-link" type="button" data-report-type="IRR">IRR</button>
+                <button class="nav-link" type="button" data-report-type="SBR">SBR</button>
+                <button class="nav-link active" type="button" data-report-type="FSDK">FSDK</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-3">
+        <div class="col-lg-5">
+            <div class="dw-card mb-3">
+                <div class="dw-card-header" id="dateCardHeader">
+                    <i class="bi bi-calendar-date"></i>
+                    Export Date
+                </div>
+                <div class="dw-card-body">
+                    <div class="dw-date-row">
+                        <input id="reportDate" type="date" class="form-control" />
+                        <button id="btnLoad" class="btn btn-primary dw-search-btn">
+                            <i class="bi bi-search me-1"></i> Search
+                        </button>
+                    </div>
+
+                    <div id="alertBox" class="alert alert-warning d-none dw-alert"></div>
+                </div>
+            </div>
+
+            <div class="dw-card">
+                <div class="dw-card-header" id="fileCardHeader">
+                    <i class="bi bi-file-earmark-arrow-down"></i>
+                    Available File
+                </div>
+                <div class="dw-card-body">
+                    <div id="listBox" class="d-none">
+                        <div class="dw-file-box">
+                            <div class="dw-file-left">
+                                <div class="dw-file-icon">
+                                    <i class="bi bi-file-earmark-excel"></i>
+                                </div>
+
+                                <div>
+                                    <div class="dw-file-name" id="displayName"></div>
+                                    <div class="dw-file-meta">
+                                        Download name: <span id="downloadName"></span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <a id="downloadBtn" class="btn btn-success" href="#">
+                                <i class="bi bi-download me-1"></i> Download
+                            </a>
+                        </div>
+                    </div>
+
+                    <div id="emptyBox" class="text-muted small">
+                        Search by date to show the export file.
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-7">
+            <div class="dw-card h-100">
+                <div class="dw-card-header" style="display:flex; align-items:center; justify-content:space-between;">
+                    <div style="display:flex; align-items:center; gap:8px;">
+                        <i class="bi bi-info-circle"></i>
+                        Export Info
+                    </div>
+                    <div class="vw-nav-group">
+                        <button id="btnPrev"
+                                type="button"
+                                class="e-btn nav-syncfusion-btn nav-prev">
+                            <span class="e-btn-icon e-icons e-chevron-left"></span>
+                            <span>Previous</span>
+                        </button>
+                    </div>
+                </div>
+                <div class="dw-card-body">
+                    <div id="rightInfoBox" class="text-muted">
+                        Select a report date on the left, click <strong>Search</strong>, then download the generated file.
+                    </div>
+                    <div id="rightMessageBox" class="alert alert-info d-none mt-3"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        const formId = document.getElementById("formId")?.value || "";
+        const formSessionId = document.getElementById("formSessionId")?.value || "";
+
+        const reportDate = document.getElementById("reportDate");
+        const btnLoad = document.getElementById("btnLoad");
+
+        const alertBox = document.getElementById("alertBox");
+        const listBox = document.getElementById("listBox");
+        const emptyBox = document.getElementById("emptyBox");
+
+        const displayName = document.getElementById("displayName");
+        const downloadName = document.getElementById("downloadName");
+        const downloadBtn = document.getElementById("downloadBtn");
+        const reportTypeTabs = document.getElementById("reportTypeTabs");
+        const dateCardHeader = document.getElementById("dateCardHeader");
+        const fileCardHeader = document.getElementById("fileCardHeader");
+        const rightInfoBox = document.getElementById("rightInfoBox");
+
+        const rightMessageBox = document.getElementById("rightMessageBox");
+        let activeReportType = "FSDK";
+
+                document.getElementById("btnPrev")?.addEventListener("click", function () {
+            window.location.href = "/DwJob/DwJob/Index/9904";
+        });
+
+
+        function showRightMessage(msg, type = "info") {
+            if (!rightMessageBox) return;
+            rightMessageBox.textContent = msg;
+            rightMessageBox.className = `alert alert-${type} mt-3`;
+            rightMessageBox.classList.remove("d-none");
+        }
+
+        function clearRightMessage() {
+            if (!rightMessageBox) return;
+            rightMessageBox.classList.add("d-none");
+            rightMessageBox.textContent = "";
+        }
+
+        function showError(msg) {
+            alertBox.textContent = msg;
+            alertBox.classList.remove("d-none");
+            listBox.classList.add("d-none");
+            emptyBox.classList.remove("d-none");
+            showRightMessage(msg, "warning");
+        }
+
+        function clearError() {
+            alertBox.classList.add("d-none");
+            alertBox.textContent = "";
+            clearRightMessage();
+        }
+
+        function updateReportTypeUI(reportType) {
+            activeReportType = reportType;
+
+            const typeLabel = reportType.toUpperCase();
+            dateCardHeader.innerHTML = `<i class="bi bi-calendar-date"></i> ${typeLabel} Export Date`;
+            fileCardHeader.innerHTML = `<i class="bi bi-file-earmark-arrow-down"></i> Available ${typeLabel} File`;
+            emptyBox.textContent = `Search by date to show the ${typeLabel} export file.`;
+            rightInfoBox.innerHTML = `Select a ${typeLabel} report date on the left, click <strong>Search</strong>, then download the generated file.`;
+
+            reportDate.value = "";
+            displayName.textContent = "";
+            downloadName.textContent = "";
+            listBox.classList.add("d-none");
+            emptyBox.classList.remove("d-none");
+            clearError();
+        }
+
+        reportTypeTabs?.addEventListener("click", (e) => {
+            const target = e.target.closest("[data-report-type]");
+            if (!target) return;
+
+            const selectedType = target.getAttribute("data-report-type");
+            if (!selectedType || selectedType === activeReportType) return;
+
+            reportTypeTabs.querySelectorAll(".nav-link").forEach((btn) => {
+                btn.classList.remove("active");
+            });
+            target.classList.add("active");
+
+            updateReportTypeUI(selectedType);
+        });
+
+        btnLoad.addEventListener("click", async () => {
+            const date = reportDate.value;
+
+            if (!date) {
+                showError("Please select a date first.");
+                return;
+            }
+
+            clearError();
+
+            const url = `@Url.Action("ListFile", "Export", new { area = "ExportDocument" })?formId=${encodeURIComponent(formId)}&date=${encodeURIComponent(date)}&reportType=${encodeURIComponent(activeReportType)}`;
+
+            const res = await fetch(url, {
+                headers: { "FormSessionId": formSessionId }
+            });
+
+            const data = await res.json();
+
+            if (!data.ok) {
+                showError(data.message || "No file available.");
+                return;
+            }
+
+            displayName.textContent = data.displayName;
+            downloadName.textContent = data.downloadName;
+
+            listBox.classList.remove("d-none");
+            emptyBox.classList.add("d-none");
+
+            showRightMessage(
+                `${activeReportType} file loaded successfully. You can download "${data.downloadName}".`,
+                "success"
+            );
+        });
+
+        downloadBtn.addEventListener("click", async (e) => {
+            e.preventDefault();
+
+            const date = reportDate.value;
+            if (!date) {
+                showError("Please select a date first.");
+                return;
+            }
+
+            const dlUrl = `@Url.Action("Download", "Export", new { area = "ExportDocument" })?formId=${encodeURIComponent(formId)}&date=${encodeURIComponent(date)}&reportType=${encodeURIComponent(activeReportType)}`;
+
+            const res = await fetch(dlUrl, {
+                headers: { "FormSessionId": formSessionId }
+            });
+
+            if (!res.ok) {
+                showError("Download failed.");
+                return;
+            }
+
+            const blob = await res.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = downloadName.textContent;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            window.URL.revokeObjectURL(url);
+        });
+
+        updateReportTypeUI(activeReportType);
+    </script>
+}

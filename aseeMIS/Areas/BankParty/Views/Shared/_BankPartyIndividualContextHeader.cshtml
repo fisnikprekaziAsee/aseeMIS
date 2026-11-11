@@ -1,0 +1,291 @@
+@model dsBankParty.Core.DTOs.BankPartyIndividualContextHeaderDto
+
+@{
+    string FullName()
+    {
+        if (!string.IsNullOrWhiteSpace(Model?.FullName)) return Model!.FullName!;
+        var f = (Model?.FirstName ?? "").Trim(); var l = (Model?.LastName ?? "").Trim();
+        return string.Join(" ", new[] { f, l }.Where(s => !string.IsNullOrWhiteSpace(s)));
+    }
+    string Initials()
+    {
+        var f = (Model?.FirstName ?? "").Trim(); var l = (Model?.LastName ?? "").Trim();
+        var fi = string.IsNullOrEmpty(f) ? "" : f[0].ToString().ToUpper();
+        var li = string.IsNullOrEmpty(l) ? "" : l[0].ToString().ToUpper();
+        var r = fi + li; return string.IsNullOrEmpty(r) ? "?" : r;
+    }
+}
+
+<style>
+    .iph-avatar {
+        width: 100px;
+        height: 100px;
+        border-radius: 50%;
+        object-fit: cover;
+        border: 1.5px solid #e2e8f0;
+        flex-shrink: 0;
+        margin-bottom: .75rem;
+    }
+
+    .iph-avatar-fallback {
+        width: 64px;
+        height: 64px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: #eff6ff;
+        color: #00a1e0;
+        font-weight: 800;
+        font-size: 1.15rem;
+        border: 1.5px solid #dbeafe;
+        flex-shrink: 0;
+        margin-bottom: .75rem;
+    }
+
+    .iph-name {
+        font-size: 1rem;
+        font-weight: 700;
+        color: #0f172a;
+        margin: 0 0 .3rem 0;
+        line-height: 1.25;
+    }
+
+    .iph-meta {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: .35rem;
+    }
+
+    .iph-party-code {
+        font-size: .8rem;
+        color: #94a3b8;
+    }
+
+    .iph-chip {
+        font-size: .7rem;
+        font-weight: 600;
+        letter-spacing: .02em;
+        border-radius: 999px;
+        padding: .15rem .6rem;
+        border: 1px solid transparent;
+        line-height: 1.6;
+    }
+
+    .iph-chip-success {
+        background: #ecfdf5;
+        border-color: #bbf7d0;
+        color: #047857;
+    }
+
+    .iph-chip-info {
+        background: #eff6ff;
+        border-color: #bfdbfe;
+        color: #1d4ed8;
+    }
+
+    .iph-chip-warning {
+        background: #fffbeb;
+        border-color: #fde68a;
+        color: #92400e;
+    }
+
+    .iph-chip-danger {
+        background: #fef2f2;
+        border-color: #fecaca;
+        color: #b91c1c;
+    }
+
+    .iph-grid {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 0;
+        padding-top: .875rem;
+    }
+
+    .iph-col {
+        padding-right: 1.25rem;
+    }
+
+    .iph-col + .iph-col {
+        padding-left: 1.25rem;
+        padding-right: 1.25rem;
+    }
+
+    .iph-col:last-child {
+        padding-right: 0;
+    }
+
+    .iph-col-title {
+        font-size: .7rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: .06em;
+        color: #94a3b8;
+        margin: 0 0 .6rem 0;
+    }
+
+    .iph-row {
+        display: flex;
+        align-items: flex-start;
+        gap: .5rem;
+        margin-bottom: .45rem;
+        font-size: .8375rem;
+        color: #374151;
+        line-height: 1.4;
+    }
+
+    .iph-row i {
+        font-size: .875rem;
+        color: #93c5fd;
+        margin-top: .05rem;
+        flex-shrink: 0;
+    }
+
+    .iph-row-val {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .iph-row-label {
+        color: #94a3b8;
+        font-size: .775rem;
+        margin-bottom: .05rem;
+    }
+
+    .iph-sig {
+        width: 140px;
+        height: 80px;
+        object-fit: contain;
+        border: 1px solid #e2e8f0;
+        background: #fafafa;
+        border-radius: 8px;
+        padding: 6px;
+    }
+
+    .iph-profile {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+    }
+
+    .iph-profile-info {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+    }
+
+    @@media (max-width: 640px) {
+        .iph-grid { grid-template-columns: 1fr; }
+        .iph-col + .iph-col { border-left: none; padding-left: 0; border-top: 1px solid #f1f5f9; padding-top: .75rem; margin-top: .75rem; }
+    }
+</style>
+
+<div class="iph-grid">
+
+    <!-- Col 1: Avatar + name + chips -->
+    <div class="iph-col">
+        <div class="iph-profile">
+            @if (!string.IsNullOrWhiteSpace(Model?.ProfileImagePath))
+            {
+                <img src="@Url.Action("Preview", "CRUD", new { area = "Common", path = Model.ProfileImagePath })"
+                     alt="Profile photo" class="iph-avatar" />
+            }
+            else
+            {
+                <div class="iph-avatar-fallback">@Initials()</div>
+            }
+
+            <div class="iph-profile-info">
+                <h4 class="iph-name">@FullName()</h4>
+
+                <div class="iph-meta">
+                    @if (!string.IsNullOrWhiteSpace(Model?.PartyCode))
+                    {
+                        <span class="iph-party-code">@Model!.PartyCode</span>
+                    }
+                    @if (!string.IsNullOrWhiteSpace(Model?.ResidencyStatus))
+                    {
+                        <span class="iph-chip iph-chip-success">@Model!.ResidencyStatus</span>
+                    }
+                    @if (!string.IsNullOrWhiteSpace(Model?.ContactMunicipalityName))
+                    {
+                        <span class="iph-chip iph-chip-info">
+                            <i class="bi bi-geo-alt-fill me-1" style="font-size:.65rem;"></i>
+                            @Model!.ContactMunicipalityName
+                        </span>
+                    }
+                    @if (Model?.IsPEP == true)
+                    {
+                        <span class="iph-chip iph-chip-warning" title="Politically Exposed Person">PEP</span>
+                    }
+                    @if (Model?.IsFATCA == true)
+                    {
+                        <span class="iph-chip iph-chip-danger" title="Foreign Account Tax Compliance Act">FATCA</span>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Col 2: Contact -->
+    <div class="iph-col">
+        <p class="iph-col-title">Contact</p>
+        <div class="iph-row">
+            <i class="bi bi-envelope i"></i>
+            <span class="iph-row-val">@Model?.ContactEmail</span>
+        </div>
+        <div class="iph-row">
+            <i class="bi bi-telephone"></i>
+            <span class="iph-row-val">@Model?.PhoneNumber</span>
+        </div>
+        <div class="iph-row">
+            <i class="bi bi-geo-alt"></i>
+            <span class="iph-row-val">@Model?.ContactAddress</span>
+        </div>
+    </div>
+
+    <!-- Col 3: Dates -->
+    <div class="iph-col">
+        <p class="iph-col-title">Dates</p>
+        <div class="iph-row">
+            <i class="bi bi-calendar-check"></i>
+            <div>
+                <div class="iph-row-label">Next revision</div>
+                <div class="iph-row-val">@Model?.RevisionDateNext</div>
+            </div>
+        </div>
+        <div class="iph-row">
+            <i class="bi bi-exclamation-triangle" style="color:#fbbf24;"></i>
+            <div>
+                <div class="iph-row-label">Passport expires</div>
+                <div class="iph-row-val" style="color:#92400e;">2026-12-25</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Col 4: Signature -->
+    <div class="iph-col" style="padding-right:0;">
+        <p class="iph-col-title">Signature</p>
+        @if (!string.IsNullOrWhiteSpace(Model?.SignatureImagePath))
+        {
+            <img src="@Url.Action("Preview", "CRUD", new { area = "Common", path = Model.SignatureImagePath })"
+                 alt="Signature" class="iph-sig"
+                 onerror="this.style.display='none'; var fallback = this.parentElement.querySelector('.iph-sig-fallback'); if (fallback) fallback.classList.remove('d-none');" />
+            <div class="iph-sig-fallback d-none d-flex align-items-center justify-content-center border rounded text-muted small"
+                 style="width:92px;height:34px;">
+                No signature
+            </div>
+        }
+        else
+        {
+            <div class="iph-sig-fallback d-flex align-items-center justify-content-center border rounded text-muted small"
+                 style="width:92px;height:34px;">
+                No signature
+            </div>
+        }
+    </div>
+
+</div>

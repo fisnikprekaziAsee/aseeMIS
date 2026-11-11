@@ -1,0 +1,27 @@
+﻿<div id="GridOrder1">
+    <!-- Content for GridOrder1 will be loaded here -->
+</div>
+
+<div id="GridOrder2">
+    <!-- Content for GridOrder2 will be loaded here -->
+</div>
+
+<script>
+    document.addEventListener("DOMContentLoaded", () => {
+        // Load content into GridOrder1
+        var ajax = new ej.base.Ajax('@Url.Action("AppSettingDetail", "/AppMng/AppSetting")', 'GET', true);
+        ajax.send().then();
+        ajax.onSuccess = function (data) {
+            $("#GridOrder1").html(data);
+            eval(document.getElementById('GridOrder1').querySelector('script').innerHTML);
+        }
+
+        // // Load content into GridOrder2
+        // var ajax2 = new ej.base.Ajax('@Url.Action("V2Detail", "C2")', 'GET', true);
+        // ajax2.send().then();
+        // ajax2.onSuccess = function (data) {
+        //     $("#GridOrder2").html(data);
+        //     eval(document.getElementById('GridOrder2').querySelector('script').innerHTML);
+        // }
+    });
+</script>

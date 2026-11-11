@@ -1,0 +1,120 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+	<PropertyGroup>
+		<TargetFramework>net10.0</TargetFramework>
+
+		<!-- Hosting: shared hosting friendly -->
+		<AspNetCoreHostingModel>OutOfProcess</AspNetCoreHostingModel>
+
+		<!-- General -->
+		<AssemblyName>aseeMIS</AssemblyName>
+		<Nullable>enable</Nullable>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<IsPackable>false</IsPackable>
+
+		<!-- Publish/hosting stability -->
+		<GenerateRuntimeConfigurationFiles>true</GenerateRuntimeConfigurationFiles>
+
+		<!-- IMPORTANT for cultures, decimal separators, dates (banking apps) -->
+		<InvariantGlobalization>false</InvariantGlobalization>
+
+		<!-- Optional: reduce noisy warnings (remove if you want strict) -->
+		<NoWarn>$(NoWarn);1591</NoWarn>
+		<UserSecretsId>157747b8-9245-4d2e-9764-ced7e900ce61</UserSecretsId>
+	</PropertyGroup>
+
+	<ItemGroup>
+	  <Compile Remove="Areas\BankParty\Data\**" />
+	  <Compile Remove="Areas\BankParty\Models\**" />
+	  <Content Remove="Areas\BankParty\Data\**" />
+	  <Content Remove="Areas\BankParty\Models\**" />
+	  <EmbeddedResource Remove="Areas\BankParty\Data\**" />
+	  <EmbeddedResource Remove="Areas\BankParty\Models\**" />
+	  <None Remove="Areas\BankParty\Data\**" />
+	  <None Remove="Areas\BankParty\Models\**" />
+	</ItemGroup>
+
+	<ItemGroup>
+	  <Content Remove="wwwroot\docs\DocumentTemplate\AplikacioniKrediBiznesi.docx" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<PackageReference Include="Azure.Storage.Blobs" Version="12.29.1" />
+		<PackageReference Include="DocumentFormat.OpenXml" Version="3.5.1" />
+		<PackageReference Include="Google.Protobuf" Version="3.34.0" />
+		<PackageReference Include="Grpc.AspNetCore" Version="2.76.0" />
+		<PackageReference Include="Grpc.Tools" Version="2.78.0">
+			<PrivateAssets>all</PrivateAssets>
+			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+		</PackageReference>
+		<PackageReference Include="Microsoft.AspNetCore.Identity.UI" Version="10.0.5" />
+		<PackageReference Include="Microsoft.AspNetCore.JsonPatch" Version="10.0.5" />
+
+		<PackageReference Include="Swashbuckle.AspNetCore" Version="6.6.2" />
+		<PackageReference Include="Microsoft.OpenApi" Version="1.6.14" />
+
+		<PackageReference Include="Microsoft.AspNetCore.Grpc.Swagger" Version="0.8.0" />
+		
+		
+		<PackageReference Include="Microsoft.VisualStudio.Web.CodeGeneration.Design" Version="10.0.2" />
+		<PackageReference Include="Syncfusion.DocIO.Net.Core" Version="34.1.32" />
+		<PackageReference Include="Syncfusion.DocIORenderer.Net.Core" Version="34.1.32" />
+		<PackageReference Include="Syncfusion.EJ2.AspNet.Core" Version="34.1.32" />
+		<PackageReference Include="Syncfusion.EJ2.Spreadsheet.AspNet.Core" Version="34.1.32" />
+		<PackageReference Include="Syncfusion.EJ2.WordEditor.AspNet.Core" Version="34.1.32" />
+		<PackageReference Include="Syncfusion.XlsIO.Net.Core" Version="34.1.32" />
+		<PackageReference Include="Tesseract" Version="5.2.0" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<ProjectReference Include="..\dsAppMng.Core\dsAppMng.Core.csproj" />
+		<ProjectReference Include="..\dsAspNet.Core\dsAspNet.Core.csproj" />
+		<ProjectReference Include="..\dsBankParty.Core\dsBankParty.Core.csproj" />
+		<ProjectReference Include="..\dsCredinsEtl.Core\dsCredinsEtl.Core.csproj" />
+		<ProjectReference Include="..\dsCredit.Core\dsCredit.Core.csproj" />
+		<ProjectReference Include="..\dsCreditDef.Core\dsCreditDef.Core.csproj" />
+		<ProjectReference Include="..\dsCreditEngine\dsCreditEngine.csproj" />
+		<ProjectReference Include="..\dsCreditGL.Core\dsCreditGL.Core.csproj" />
+		<ProjectReference Include="..\dsCreditPriceList.Core\dsCreditPriceList.Core.csproj" />
+		<ProjectReference Include="..\dsCreditProduct.Core\dsCreditProduct.Core.csproj" />
+		<ProjectReference Include="..\dsCrmDef.Core\dsCrmDef.Core.csproj" />
+		<ProjectReference Include="..\dsDef.Core\dsDef.Core.csproj" />
+		<ProjectReference Include="..\dsDim.Core\dsDim.Core.csproj" />
+		<ProjectReference Include="..\dsEtlEngine\dsEtlEngine.csproj" />
+		<ProjectReference Include="..\dsDwJob.Core\dsDwJob.Core.csproj" />
+		<ProjectReference Include="..\dsDwReport.Core\dsDwReport.Core.csproj" />
+		<ProjectReference Include="..\dsEtl.Core\dsEtl.Core.csproj" />
+		<ProjectReference Include="..\dsIdentity.Core\dsIdentity.Core.csproj" />
+		<ProjectReference Include="..\dsMIS.Core\dsMIS.Core.csproj" />
+		<ProjectReference Include="..\dsMIS.Application\dsMIS.Application.csproj" />
+		<ProjectReference Include="..\dsProduct.Core\dsProduct.Core.csproj" />
+		<ProjectReference Include="..\dsWfe.Core\dsWfe.Core.csproj" />
+		<ProjectReference Include="..\dsLoanEngine.Core\dsLoanEngine.Core.csproj" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<Service Include="{508349b6-6b84-4df5-91f0-309beebad82d}" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<Folder Include="Areas\Calendars\Data\" />
+		<Folder Include="Areas\Calendars\Models\" />
+		<Folder Include="Areas\Common\Models\" />
+		<Folder Include="Areas\CreditDef\Data\" />
+		<Folder Include="Areas\CreditDef\Models\" />
+		<Folder Include="Areas\CreditDef\Views\" />
+		<Folder Include="Areas\CreditPriceList\Data\" />
+		<Folder Include="Areas\CreditPriceList\Models\" />
+		<Folder Include="Areas\CreditPriceList\Views\" />
+		<Folder Include="Areas\Credit\Data\" />
+		<Folder Include="Areas\Credit\Models\" />
+		<Folder Include="Areas\Credit\Views\Loan\" />
+		<Folder Include="FS\" />
+		<Folder Include="Properties\PublishProfiles\" />
+	</ItemGroup>
+
+	<ItemGroup>
+	  <None Include="wwwroot\docs\DocumentTemplate\AplikacioniKrediBiznesi.docx" />
+	  <None Include="wwwroot\docs\DocumentTemplate\FormulariKrediLegal.docx" />
+	</ItemGroup>
+
+</Project>

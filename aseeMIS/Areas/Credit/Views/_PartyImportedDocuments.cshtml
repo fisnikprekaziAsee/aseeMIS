@@ -1,0 +1,18 @@
+@model aseeMIS.Areas.Credit.ViewModels.PartyImportedDocumentsViewModel
+@using dsMIS.Core.Enums
+@using aseeMIS.Areas.Common.DTOs
+
+@await Component.InvokeAsync(
+    "GridDetailWidget",
+    new GridRequest
+    {
+        FormId = 102,
+        FormSessionId = Model.FormSessionId,
+        ForeignAttributeName = "BankPartyId",
+        PrimaryAttributeName = "BankPartyId",
+        TargetId = Model.BankPartyId.ToString(),
+        ContextFormType = EnumContextFormType.CHILD,
+        GridType = "CRUD",
+        RemoteMode = false,
+        GridName = $"GRID_CREDIT_HUB_IMPORTED_DOCUMENTS_{Model.BankPartyId}"
+    })

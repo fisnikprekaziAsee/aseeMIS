@@ -1,0 +1,28 @@
+﻿@using Syncfusion.EJ2.DocumentEditor
+
+@{
+    Layout = "_Layout";
+}
+
+<div class="control-section">
+    <div class="row">
+        <div class="col-lg-12">
+            <ejs-documenteditorcontainer id="documenteditor"
+                                         height="600px"
+                                         enableToolbar="true"
+                                         isReadOnly="true">
+            </ejs-documenteditorcontainer>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        document.addEventListener("DOMContentLoaded", function () {
+            var container = document.getElementById("documenteditor").ej2_instances[0];
+
+            container.documentEditor.open(@Html.Raw(Json.Serialize(ViewBag.Sfdt)));
+            container.documentEditor.documentName = "@ViewBag.DocumentName";
+        });
+    </script>
+}

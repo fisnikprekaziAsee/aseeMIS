@@ -1,0 +1,703 @@
+﻿@model IEnumerable<dsDocEng.Core.ViewModels.DocEngTemplateDataSourceViewModel>
+@{
+    ViewData["Title"] = "Data Source Configuration";
+    Layout = "_Layout";
+    var datasourcetype = ViewBag.DataSourceType;
+}
+
+
+<ejs-message id="dataSourceMessage" visible="false" severity="Success" cssClass="e-content-center" showCloseIcon="true"></ejs-message>
+
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title">Configure Data Source</h3>
+                </div>
+                <div class="card-body">
+                    <form id="dataSourceForm">
+                        <div class="form-group">
+                            <label for="selectedDataSourceType" class="form-label fw-bold">Data Source Type (Filter):</label>
+                            <select name="selectedDataSourceType" id="selectedDataSourceType" class="form-select"
+                                    asp-items="@(new SelectList(ViewBag.datasourcetype, "ConstantKey", "ConstantValue", ViewBag.SelectedDataSourceType))">
+                                <option value="">-- Select All --</option> @* Option to select all/no filter *@
+                            </select>
+                        </div>
+@*                         <div class="form-group">
+                            <label for="procedureName">Procedure Name</label>
+                            <div class="input-group">
+                                <input type="text" id="procedureName" class="form-control"
+                                       placeholder="Enter procedure name" required>
+                                <button type="button" class="btn btn-info" id="loadParametersBtn">Load Parameters</button>
+                            </div>
+                        </div>
+
+                        <div class="input-group mb-2">
+                            <select id="procedureDropdown" class="form-select" style="max-width: 300px;">
+                                <option value="">-- Select Procedure --</option>
+                            </select>
+                        </div> *@
+                        <div class="form-group">
+                            <label for="procedureName">Procedure Name</label>
+
+                            <!-- Manual input -->
+                            <div class="input-group mb-2" id="manualProcContainer">
+                                <input type="text" id="procedureName" class="form-control"
+                                       placeholder="Enter procedure name" required>
+                            </div>
+
+                            <!-- Dropdown (hidden by default) -->
+                            <div class="input-group mb-2" id="dropdownProcContainer" style="display: none;">
+                                <select id="procedureDropdown" class="form-select">
+                                    <option value="">-- Select Procedure --</option>
+                                </select>
+                            </div>
+
+                            <!-- Toggle between manual/dropdown -->
+                            <button type="button" class="btn btn-outline-secondary btn-sm mb-2" id="toggleProcInput">
+                                 Switch to Dropdown
+                            </button>
+
+                            <!-- Load Parameters -->
+                            <button type="button" class="btn btn-info" id="loadParametersBtn">Load Parameters</button>
+                        </div>
+
+
+                        <div class="form-group">
+                            <label>Input Parameters</label>
+                            <div id="parametersContainer">
+
+                            </div>
+                            <button type="button" class="btn btn-secondary btn-sm mt-2" id="addParameter">
+                                <i class="fas fa-plus"></i> Add Parameter
+                            </button>
+                        </div>
+
+                  
+
+                        <div class="form-group">
+                            <label for="notes">Notes</label>
+                            <textarea id="notes" class="form-control" rows="2"></textarea>
+                        </div>
+
+                        <div class="form-group">
+                            <div class="custom-control custom-switch">
+                                <input type="checkbox" class="custom-control-input" id="isActive" checked>
+                                <label class="custom-control-label" for="isActive">Active</label>
+                            </div>
+                        </div>
+
+                        <div class="form-group mt-2">
+                            <button type="submit" class="btn btn-primary me-2">
+                                <i class="fas fa-save"></i> Save Configuration
+                            </button>
+                            <button type="button" class="btn btn-success" id="testExecuteBtn">
+                                <i class="fas fa-play"></i> Test & Execute
+                            </button>
+                        </div>
+
+                    </form>
+
+
+                    <div class="card mt-4" id="testResultCard" style="display: none;">
+                        <div class="card-header">
+                            <h5 class="card-title">Stored Procedure Result</h5>
+                        </div>
+                        <div class="card-body">
+                            <ejs-grid id="testResultGrid" allowPaging="true" allowSorting="true" height="400px">
+                                <e-grid-columns>
+                                    <!-- Will be dynamically created -->
+                                </e-grid-columns>
+                            </ejs-grid>
+                        </div>
+                    </div>
+
+                    <input type="hidden" id="formId" name="formId" value="@ViewBag.FormId" />
+
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        $(document).ready(function () {
+            // Initial disable state
+            $('#procedureName, #loadParametersBtn, #testExecuteBtn, #addParameter').prop('disabled', true);
+            $('#parametersContainer').find('input, select, button').prop('disabled', true);
+
+            // Enable/disable fields based on DataSourceType selection
+            $('#selectedDataSourceType').change(function () {
+                const selected = $(this).val();
+                const enable = selected !== "";
+
+                $('#procedureName, #loadParametersBtn, #testExecuteBtn, #addParameter')
+                    .prop('disabled', !enable);
+                $('#parametersContainer').find('input, select, button')
+                    .prop('disabled', !enable);
+            });
+
+            function addParameterRow(paramName = '', paramType = 'string', defaultValue = '', allowRemove = true) {
+                let uiType = 'string';
+                if (paramType.includes('int') || paramType.includes('decimal') || paramType.includes('numeric') || paramType.includes('float')) {
+                    uiType = 'number';
+                } else if (paramType.includes('date') || paramType.includes('time')) {
+                    uiType = 'date';
+                } else if (paramType.includes('bit')) {
+                    uiType = 'boolean';
+                }
+
+                const removeButtonHtml = allowRemove ? `
+                    <div class="col-md-1">
+                        <button type="button" class="btn btn-danger btn-sm remove-param">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>` : '';
+
+                const newRow = `
+                    <div class="parameter-row mb-2">
+                        <div class="row g-2">
+                            <div class="col-md-4">
+                                <input type="text" class="form-control" placeholder="Parameter Name" value="${paramName}" ${paramName ? 'readonly' : ''}>
+                            </div>
+                            <div class="col-md-4">
+                                <select class="form-control">
+                                    <option value="string" ${uiType === 'string' ? 'selected' : ''}>String</option>
+                                    <option value="number" ${uiType === 'number' ? 'selected' : ''}>Number</option>
+                                    <option value="date" ${uiType === 'date' ? 'selected' : ''}>Date</option>
+                                    <option value="boolean" ${uiType === 'boolean' ? 'selected' : ''}>Boolean</option>
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <input type="text" class="form-control" placeholder="Default Value" value="${defaultValue}">
+                            </div>
+                            ${removeButtonHtml}
+                        </div>
+                    </div>`;
+                $('#parametersContainer').append(newRow);
+            }
+
+            // Load procedures into dropdown
+            $.ajax({
+                url: '@Url.Action("GetAllStoredProcedures", "DocDataSource", new { area = "DocEng" })',
+                type: 'GET',
+                success: function (response) {
+                    if (response.success) {
+                        response.procedures.forEach(function (proc) {
+                            $('#procedureDropdown').append(`<option value="${proc}">${proc}</option>`);
+                        });
+                    }
+                }
+            });
+
+            $('#procedureDropdown').change(function () {
+                $('#procedureName').val($(this).val());
+            });
+
+            $(document).on('click', '.remove-param', function () {
+                $(this).closest('.parameter-row').remove();
+            });
+
+            $('#addParameter').click(function () {
+                addParameterRow();
+            });
+
+            $('#loadParametersBtn').click(function () {
+                const procedureName = $('#procedureName').val().trim();
+
+                if (!procedureName) {
+                    showErrorMessage("dataSourceMessage", "Procedure Name is required.");
+                    setTimeout(() => hideMessages("dataSourceMessage"), 4000);
+                    return;
+                }
+
+                $.ajax({
+                    url: '@Url.Action("GetStoredProcedureParameters", "DocDataSource", new { area = "DocEng" })',
+                    type: 'GET',
+                    data: { procedureName },
+                    success: function (response) {
+                        $('#parametersContainer').empty();
+                        if (response.success && response.parameters.length > 0) {
+                            response.parameters.forEach(param => {
+                                addParameterRow(param.ParameterName, param.DataType, param.DefaultValue || '', false);
+                            });
+                        } else {
+                            showErrorMessage("dataSourceMessage", "No parameters found.");
+                        }
+                    },
+                    error: function (xhr) {
+                        const msg = xhr.responseJSON?.message || xhr.statusText;
+                        showErrorMessage("dataSourceMessage", "Error loading parameters: " + msg);
+                        setTimeout(() => hideMessages("dataSourceMessage"), 5000);
+                    }
+                });
+            });
+
+            $('#testExecuteBtn').click(function () {
+                const procedureName = $('#procedureName').val().trim();
+                if (!procedureName) return;
+
+                const parameters = $('.parameter-row').map(function () {
+                    const paramName = $(this).find('input').eq(0).val();
+                    const defaultVal = $(this).find('input').eq(1).val();
+                    const dataType = $(this).find('select').val();
+                    return {
+                        ProcedureName: procedureName,
+                        ParameterName: paramName,
+                        DataType: dataType,
+                        DefaultValue: defaultVal,
+                        InputValue: defaultVal,
+                        HasDefaultValue: defaultVal !== ''
+                    };
+                }).get();
+
+                $.ajax({
+                    url: '@Url.Action("ExecuteStoredProcedure", "DocDataSource", new { area = "DocEng" })',
+                    type: 'POST',
+                    contentType: 'application/json',
+                    data: JSON.stringify(parameters),
+                    beforeSend: function (xhr) {
+                        xhr.setRequestHeader("RequestVerificationToken", $('input[name="__RequestVerificationToken"]').val());
+                    },
+                    success: function (response) {
+                        if (!response.success || !response.data || response.data.length === 0) {
+                            showErrorMessage("dataSourceMessage", "No data returned.");
+                            setTimeout(() => hideMessages("dataSourceMessage"), 4000);
+                            return;
+                        }
+
+                        const flatData = response.data.map(flattenRow);
+                        const columns = Object.keys(flatData[0]).map(key => ({
+                            field: key,
+                            headerText: key,
+                            width: 120
+                        }));
+
+                        const gridContainer = document.getElementById("testResultGrid");
+                        const existingGrid = gridContainer.ej2_instances?.[0];
+                        if (existingGrid) existingGrid.destroy();
+                        gridContainer.innerHTML = "";
+
+                        new ej.grids.Grid({
+                            dataSource: flatData,
+                            columns: columns,
+                            allowPaging: true,
+                            allowSorting: true,
+                            height: 400
+                        }).appendTo('#testResultGrid');
+
+                        $('#testResultCard').show();
+                    },
+                    error: function (xhr) {
+                        const msg = xhr.responseJSON?.message || xhr.statusText;
+                        showErrorMessage("dataSourceMessage", "Execution error: " + msg);
+                        setTimeout(() => hideMessages("dataSourceMessage"), 5000);
+                    }
+                });
+            });
+
+            $('#toggleProcInput').click(function () {
+                const isManual = $('#manualProcContainer').is(':visible');
+                $('#manualProcContainer').toggle(!isManual);
+                $('#dropdownProcContainer').toggle(isManual);
+                $(this).text(isManual ? '🔄 Switch to Dropdown' : '✏️ Switch to Manual');
+            });
+
+            function flattenRow(row) {
+                const flatRow = {};
+                for (const key in row) {
+                    if (row.hasOwnProperty(key)) {
+                        const value = row[key];
+                        flatRow[key] = typeof value === 'object' && value !== null ? JSON.stringify(value) : value;
+                    }
+                }
+                return flatRow;
+            }
+
+            function showSuccessMessage(msgId, message) {
+                const msg = document.getElementById(msgId).ej2_instances[0];
+                msg.severity = 'Success';
+                msg.content = message;
+                msg.visible = true;
+            }
+
+            function showErrorMessage(msgId, message) {
+                const msg = document.getElementById(msgId).ej2_instances[0];
+                msg.severity = 'Error';
+                msg.content = message;
+                msg.visible = true;
+            }
+
+            function hideMessages(msgId) {
+                document.getElementById(msgId).ej2_instances[0].visible = false;
+            }
+
+            $('#dataSourceForm').submit(function (e) {
+                e.preventDefault();
+                const procedureName = $('#procedureName').val().trim();
+                if (!procedureName) {
+                    showErrorMessage("dataSourceMessage", "Procedure Name is required.");
+                    return;
+                }
+
+                const parameters = $('.parameter-row').map(function () {
+                    return {
+                        Name: $(this).find('input[placeholder="Parameter Name"]').val(),
+                        ProcedureName: procedureName,
+                        Type: $(this).find('select').val(),
+                        DefaultValue: $(this).find('input[placeholder="Default Value"]').val().trim()
+                    };
+                }).get();
+
+                const formData = {
+                    DataSourceName: procedureName,
+                    DataSourceType: $('#selectedDataSourceType').val(),
+                    InputParameters: JSON.stringify(parameters),
+                    Notes: $('#notes').val(),
+                    IsApproved: false,
+                    FormId: $('#formId').val()
+                };
+
+                $.ajax({
+                    url: '@Url.Action("SaveDataSource", "DocDataSource", new { area = "DocEng" })',
+                    type: 'POST',
+                    contentType: 'application/json',
+                    data: JSON.stringify(formData),
+                    success: function (response) {
+                        showSuccessMessage("dataSourceMessage", response.message || "Saved.");
+                        setTimeout(() => hideMessages("dataSourceMessage"), 4000);
+                    },
+                    error: function (xhr) {
+                        const msg = xhr.responseJSON?.message || xhr.statusText;
+                        showErrorMessage("dataSourceMessage", "Save failed: " + msg);
+                        setTimeout(() => hideMessages("dataSourceMessage"), 5000);
+                    }
+                });
+            });
+        });
+    </script>
+}
+
+
+
+@* @section Scripts {
+    <script>
+        $(document).ready(function () {
+
+            // Initial disable state
+            $('#procedureName, #loadParametersBtn, #testExecuteBtn, #addParameter').prop('disabled', true);
+            $('#parametersContainer').find('input, select, button').prop('disabled', true);
+
+            // Enable/disable fields based on DataSourceType selection
+            $('#selectedDataSourceType').change(function () {
+                const selected = $(this).val();
+                const enable = selected !== "";
+
+                $('#procedureName').prop('disabled', !enable);
+                $('#loadParametersBtn').prop('disabled', !enable);
+                $('#testExecuteBtn').prop('disabled', !enable);
+                $('#addParameter').prop('disabled', !enable);
+                $('#parametersContainer').find('input, select, button').prop('disabled', !enable);
+            });
+
+        function addParameterRow(paramName = '', paramType = 'string', defaultValue = '', allowRemove = true) {
+            let uiType = 'string';
+            if (paramType.includes('int') || paramType.includes('decimal') || paramType.includes('numeric') || paramType.includes('float')) {
+                uiType = 'number';
+            } else if (paramType.includes('date') || paramType.includes('time')) {
+                uiType = 'date';
+            } else if (paramType.includes('bit')) {
+                uiType = 'boolean';
+            }
+
+            const removeButtonHtml = allowRemove ? `
+                <div class="col-md-1">
+                    <button type="button" class="btn btn-danger btn-sm remove-param">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+            ` : '';
+
+            var newRow = `
+                <div class="parameter-row mb-2">
+                    <div class="row g-2">
+                        <div class="col-md-4">
+                            <input type="text" class="form-control" placeholder="Parameter Name" value="${paramName}" ${paramName ? 'readonly' : ''}>
+                        </div>
+                        <div class="col-md-4">
+                            <select class="form-control">
+                                <option value="string" ${uiType === 'string' ? 'selected' : ''}>String</option>
+                                <option value="number" ${uiType === 'number' ? 'selected' : ''}>Number</option>
+                                <option value="date" ${uiType === 'date' ? 'selected' : ''}>Date</option>
+                                <option value="boolean" ${uiType === 'boolean' ? 'selected' : ''}>Boolean</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <input type="text" class="form-control" placeholder="Default Value" value="${defaultValue}">
+                        </div>
+                        ${removeButtonHtml}
+                    </div>
+                </div>
+            `;
+            $('#parametersContainer').append(newRow);
+        }
+
+
+                // Load procedures on page load
+        $.ajax({
+            url: '@Url.Action("GetAllStoredProcedures", "DocDataSource", new { area = "DocEng" })',
+            type: 'GET',
+            success: function (response) {
+                if (response.success) {
+                    response.procedures.forEach(function (proc) {
+                        $('#procedureDropdown').append(`<option value="${proc}">${proc}</option>`);
+                    });
+                }
+            },
+            error: function () {
+                 console.log("Failed to load stored procedures.");
+            }
+        });
+
+        // When dropdown changes, auto-fill the text input
+        $('#procedureDropdown').change(function () {
+            $('#procedureName').val($(this).val());
+        });
+
+
+
+            $(document).on('click', '.remove-param', function () {
+                $(this).closest('.parameter-row').remove();
+            });
+
+            $('#addParameter').click(function () {
+                addParameterRow();
+            });
+
+            $('#loadParametersBtn').click(function () {
+                var procedureName = $('#procedureName').val().trim();
+
+                if (procedureName) {
+                    $.ajax({
+                        url: '@Url.Action("GetStoredProcedureParameters", "DocDataSource", new { area = "DocEng" })',
+                        type: 'GET',
+                        data: { procedureName: procedureName },
+                        success: function (response) {
+                            if (response.success) {
+                                $('#parametersContainer').empty();
+                                if (response.parameters && response.parameters.length > 0) {
+                                    response.parameters.forEach(function (param) {
+                                     addParameterRow(param.ParameterName, param.DataType, param.DefaultValue || '', false);
+                                            });
+                                     console.log('Parameters loaded successfully!');
+                                } else {
+                                     console.log('No parameters found for this procedure.');
+                                }
+                            } else {
+                                console.log(response.message || 'Failed to load parameters.');
+                            }
+                        },
+                              error: function (xhr) {
+            const msg = xhr.responseJSON?.message || xhr.statusText;
+            showErrorMessage("dataSourceMessage", "Error loading parameters: " + msg);
+            setTimeout(() => hideMessages("dataSourceMessage"), 5000);
+        }
+
+                    });
+                } else {
+                         showErrorMessage("dataSourceMessage", "Procedure Name is required.");
+        setTimeout(() => hideMessages("dataSourceMessage"), 4000);
+
+                }
+            });
+
+            $('#testExecuteBtn').click(function () {
+                const procedureName = $('#procedureName').val().trim();
+                if (!procedureName) {
+                error: function (xhr) {
+                    const msg = xhr.responseJSON?.message || xhr.statusText;
+                    showErrorMessage("dataSourceMessage", "Execution error: " + msg);
+                    setTimeout(() => hideMessages("dataSourceMessage"), 5000);
+                }
+                            return;
+                }
+
+                var parameters = $('.parameter-row').map(function () {
+                    var inputs = $(this).find('input');
+                    var paramName = inputs.eq(0).val();
+                    var defaultVal = inputs.eq(1).val();
+                    var dataType = $(this).find('select').val();
+
+                    return {
+                        ProcedureName: procedureName,
+                        ParameterName: paramName,
+                        DataType: dataType,
+                        DefaultValue: defaultVal,
+                        InputValue: defaultVal,
+                        HasDefaultValue: defaultVal !== null && defaultVal !== ''
+                    };
+                }).get();
+
+                $.ajax({
+                    url: '@Url.Action("ExecuteStoredProcedure", "DocDataSource", new { area = "DocEng" })',
+                    type: 'POST',
+                    contentType: 'application/json',
+                    data: JSON.stringify(parameters),
+                    dataType: 'json',
+                    traditional: true,
+                    beforeSend: function (xhr) {
+                        xhr.setRequestHeader("RequestVerificationToken", $('input[name="__RequestVerificationToken"]').val());
+                    },
+                    success: function (response) {
+                        if (!response.success) {
+                       //     alert(response.message || "Execution failed.");
+                         showErrorMessage("dataSourceMessage", "Execution failed");
+                            return;
+                        }
+
+                        const data = response.data;
+                        if (!data || data.length === 0) {
+                                   showErrorMessage("dataSourceMessage", "No data returned.");
+        setTimeout(() => hideMessages("dataSourceMessage"), 4000);
+
+                            return;
+                        }
+
+                        const flatData = data.map(flattenRow);
+                        const existingGrid = document.getElementById("testResultGrid").ej2_instances?.[0];
+                        if (existingGrid) {
+                            existingGrid.destroy();
+                        }
+                        document.getElementById("testResultGrid").innerHTML = "";
+
+                        const columns = Object.keys(flatData[0]).map(key => ({
+                            field: key,
+                            headerText: key,
+                            width: 120
+                        }));
+
+                        new ej.grids.Grid({
+                            dataSource: flatData,
+                            columns: columns,
+                            allowPaging: true,
+                            allowSorting: true,
+                            height: 400
+                        }).appendTo('#testResultGrid');
+
+                        $('#testResultCard').show();
+                    },
+                    error: function (xhr) {
+                        alert("Execution error: " + (xhr.responseJSON?.message || xhr.statusText));
+                    }
+                });
+            });
+
+                    // Toggle between manual and dropdown input modes
+        let isManualProc = true;
+
+        $('#toggleProcInput').click(function () {
+            isManualProc = !isManualProc;
+
+            if (isManualProc) {
+                $('#manualProcContainer').show();
+                $('#dropdownProcContainer').hide();
+                $('#toggleProcInput').text('🔄 Switch to Dropdown');
+            } else {
+                $('#manualProcContainer').hide();
+                $('#dropdownProcContainer').show();
+                $('#toggleProcInput').text('✏️ Switch to Manual');
+                $('#procedureDropdown').val($('#procedureName').val()); // sync dropdown to current
+            }
+        });
+
+        // Keep manual input in sync when dropdown changes
+        $('#procedureDropdown').change(function () {
+            $('#procedureName').val($(this).val());
+        });
+
+
+                function showSuccessMessage(msgId, message) {
+            const msg = document.getElementById(msgId).ej2_instances[0];
+            msg.severity = 'Success';
+            msg.content = message;
+            msg.visible = true;
+        }
+
+        function showErrorMessage(msgId, message) {
+            const msg = document.getElementById(msgId).ej2_instances[0];
+            msg.severity = 'Error';
+            msg.content = message;
+            msg.visible = true;
+        }
+
+        function hideMessages(msgId) {
+            document.getElementById(msgId).ej2_instances[0].visible = false;
+        }
+
+
+            function flattenRow(row) {
+                const flatRow = {};
+                for (const key in row) {
+                    if (row.hasOwnProperty(key)) {
+                        const value = row[key];
+                        flatRow[key] = typeof value === 'object' && value !== null
+                            ? JSON.stringify(value)
+                            : value;
+                    }
+                }
+                return flatRow;
+            }
+
+            $('#dataSourceForm').submit(function (e) {
+                e.preventDefault();
+                const procedureName = $('#procedureName').val().trim();
+                if (!procedureName) {
+                    alert("Procedure Name is required.");
+                    return;
+                }
+
+                var parameters = $('.parameter-row').map(function () {
+                    var inputs = $(this).find('input[type="text"]');
+                    var select = $(this).find('select');
+                    return {
+                        Name: $(this).find('input[placeholder="Parameter Name"]').val(),
+                        ProcedureName: procedureName,
+                        Type: select.val(),
+                        DefaultValue: $(this).find('input[placeholder="Default Value"]').val().trim()
+                    };
+                }).get();
+
+                var formData = {
+                    DataSourceName: procedureName,
+                    DataSourceType: $('#selectedDataSourceType').val(),
+                    InputParameters: JSON.stringify(parameters),
+                    Notes: $('#notes').val(),
+                    IsApproved: false,
+                    FormId: $('#formId').val()
+                };
+
+                $.ajax({
+                    url: '@Url.Action("SaveDataSource", "DocDataSource", new { area = "DocEng" })',
+                    type: 'POST',
+                    contentType: 'application/json',
+                    data: JSON.stringify(formData),
+                          success: function (response) {
+            showSuccessMessage("dataSourceMessage", response.message || "Saved.");
+            setTimeout(() => hideMessages("dataSourceMessage"), 4000);
+        },
+        error: function (xhr) {
+            const msg = xhr.responseJSON?.message || xhr.responseText || xhr.statusText;
+            showErrorMessage("dataSourceMessage", "Save failed: " + msg);
+            setTimeout(() => hideMessages("dataSourceMessage"), 5000);
+        }
+
+                });
+            });
+        });
+    </script>
+}
+
+ *@
+

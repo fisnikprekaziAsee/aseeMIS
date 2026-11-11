@@ -1,0 +1,327 @@
+﻿@model dsReport.Core.ViewModels.ReportExcelMappingViewModel
+
+@using Syncfusion.EJ2.Inputs
+@using Syncfusion.EJ2.Buttons
+@{
+    var formSessionId = ViewBag.FormSessionId;
+}
+
+<div id="reportExcelMappingForm" class="card mt-3">
+    <div class="card-body p-2">
+
+        <div class="row g-1">
+
+            <!-- ================= ROW 1 ================= -->
+            <div class="mb-2">
+                <ejs-dropdownlist ejs-for="ReportSheetId" id="sheetDropdown" dataSource="@(ViewBag.ExcelSheets)" placeholder="Select Sheet" floatLabelType="Always">
+                    <e-dropdownlist-fields value="ReportSheetId" text="ReportSheetName"></e-dropdownlist-fields>
+                </ejs-dropdownlist>
+            </div>
+
+            <div class="col-3">
+                <ejs-numerictextbox ejs-for="ReportDataSourceId"
+                                    placeholder="Source"
+                                    floatLabelType="Always">
+                </ejs-numerictextbox>
+            </div>
+
+            <div class="col-1">
+                <ejs-textbox ejs-for="ExcelCell"
+                             placeholder="Excel Cell"
+                             floatLabelType="Always">
+                </ejs-textbox>
+            </div>
+
+            <div class="col-2">
+                <ejs-textbox ejs-for="DataFieldName"
+                             placeholder="Field Name"
+                             floatLabelType="Always">
+                </ejs-textbox>
+            </div>
+
+            <div class="col-2">
+                <ejs-numerictextbox ejs-for="ColumnOrder"
+                                    placeholder="Order"
+                                    floatLabelType="Always"
+                                    min="1"
+                                    showSpinButton="false">
+                </ejs-numerictextbox>
+            </div>
+
+            <div class="col-2">
+                <ejs-numerictextbox ejs-for="MaxRows"
+                                    placeholder="Max Rows"
+                                    floatLabelType="Always"
+                                    min="1"
+                                    showSpinButton="false">
+                </ejs-numerictextbox>
+            </div>
+
+            <!-- ================= ROW 2 ================= -->
+            <div class="col-2">
+                <ejs-checkbox ejs-for="IsColumn"
+                              label="Col">
+                </ejs-checkbox>
+            </div>
+
+            <div class="col-2">
+                <ejs-checkbox ejs-for="IsFormula"
+                              label="Formula">
+                </ejs-checkbox>
+            </div>
+
+            <div class="col-2">
+                <ejs-checkbox ejs-for="IsReportParameter"
+                              label="Param">
+                </ejs-checkbox>
+            </div>
+
+            <div class="col-3">
+                <ejs-textbox ejs-for="FormulaText"
+                             id="formulaContainer"
+                             cssClass="d-none"
+                             placeholder="Formula Text"
+                             floatLabelType="Always">
+                </ejs-textbox>
+            </div>
+
+            <div class="col-3">
+                <ejs-textbox ejs-for="ParameterName"
+                             id="parameterContainer"
+                             cssClass="d-none"
+                             placeholder="Parameter Name"
+                             floatLabelType="Always">
+                </ejs-textbox>
+            </div>
+
+            <div class="col-4">
+                <ejs-textbox ejs-for="WhereCondition"
+                             placeholder="Where Condition"
+                             floatLabelType="Always"
+                             multiline="true">
+                </ejs-textbox>
+            </div>
+
+            <div class="col-3">
+                <ejs-textbox ejs-for="JsonConfig"
+                             placeholder="JSON"
+                             floatLabelType="Always"
+                             multiline="true">
+                </ejs-textbox>
+            </div>
+
+        </div>
+
+        <div class="d-flex justify-content-end mt-2">
+            <button type="button"
+                    class="btn btn-sm btn-primary"
+                    onclick="saveExcelMapping()">
+                <i class="bi bi-save">Save Changes</i>
+            </button>
+        </div>
+
+    </div>
+</div>
+
+<div class="grid-wrapper">
+    <div id="mappingResultGrid"></div>
+</div>
+
+<script>
+    // ===============================
+    // GLOBAL STATE (SAFE FOR RELOAD)
+    // ===============================
+    window.formSessionId = '@formSessionId';
+
+    if (typeof window.gridInstance === "undefined") {
+        window.gridInstance = null;
+    }
+
+    document.addEventListener("report:cell-selected", function (e) {
+
+        const cell = e.detail?.cell;
+        if (!cell) return;
+
+        // ✅ Correct way
+        const input = document.getElementById("ExcelCell");
+        if (!input) {
+            console.warn("ExcelCell input not found");
+            return;
+        }
+
+        const textbox = input.ej2_instances?.[0];
+        if (!textbox) {
+            console.warn("ExcelCell EJ2 instance not found");
+            return;
+        }
+
+        textbox.value = cell;
+        textbox.dataBind();
+    });
+
+    // ===============================
+    // SAVE MAPPING
+    // ===============================
+    window.saveExcelMapping = function () {
+
+        const model = {};
+
+        document.querySelectorAll('[ejs-for]').forEach(el => {
+            if (!el.id) return;
+
+            const ej = el.ej2_instances?.[0];
+            let value = null;
+
+            if (ej) {
+                if (ej.value !== undefined) value = ej.value;
+                else if (ej.checked !== undefined) value = ej.checked;
+            } else {
+                value = el.value;
+            }
+
+            model[el.id] = value;
+        });
+
+        console.log("ReportExcelMapping payload:", model);
+
+        if (!model.ExcelCell) {
+            notify?.warning?.("Please select an Excel cell");
+            return;
+        }
+
+        if (!model.ReportDataSourceId) {
+            notify?.warning?.("Please select a Universe");
+            return;
+        }
+
+        if (!model.DataFieldName && !model.IsFormula && !model.IsReportParameter) {
+            notify?.warning?.("Mapping must define a field, formula, or parameter");
+            return;
+        }
+
+        const endpoint = model.ReportExcelMappingId
+            ? "/Common/CRUD/Update"
+            : "/Common/CRUD/Add";
+
+        const ajax = new ej.base.Ajax({
+            url: endpoint,
+            type: "POST",
+            data: JSON.stringify(model),
+            contentType: "application/json",
+            beforeSend: function (xhr) {
+                if (window.formSessionId) {
+                    xhr.httpRequest.setRequestHeader("FormSessionId", window.formSessionId);
+                }
+            }
+        });
+
+        ajax.send()
+            .then(resp => {
+                let result = {};
+                try { result = JSON.parse(resp); } catch { }
+
+                if (!result || result.success !== true) {
+                    notify?.error?.(result?.message || "Save failed");
+                    return;
+                }
+
+                notify?.success?.("Mapping saved successfully");
+
+                // optional later:
+                // reload grid
+                // highlight excel cell
+            })
+            .catch(err => {
+                console.error("Save error:", err);
+                notify?.error?.("Unexpected error occurred");
+            });
+    };
+
+    // ===============================
+    // SHEET CHANGED
+    // ===============================
+    window.onSheetChanged = function (args) {
+
+        const sheetId = args?.value;
+
+        if (!sheetId) {
+            window.renderMappingGrid([]);
+            return;
+        }
+
+        window.loadMappingsForSheet(sheetId);
+    };
+
+    // ===============================
+    // LOAD MAPPINGS
+    // ===============================
+    window.loadMappingsForSheet = function (sheetId) {
+
+        fetch(`/Report/ReportMapping/GetMappingsBySheet?reportSheetId=${sheetId}`)
+            .then(res => {
+                if (!res.ok)
+                    throw new Error("Failed to load mappings");
+                return res.json();
+            })
+            .then(data => {
+                window.renderMappingGrid(data);
+            })
+            .catch(err => {
+                console.error(err);
+                window.renderMappingGrid([]);
+            });
+    };
+
+    // ===============================
+    // RENDER GRID
+    // ===============================
+    window.renderMappingGrid = function (data) {
+
+        const host = document.getElementById("mappingResultGrid");
+
+        if (!host) return;
+
+        if (window.gridInstance) {
+            window.gridInstance.destroy();
+            window.gridInstance = null;
+            host.innerHTML = "";
+        }
+
+        if (!data || data.length === 0) {
+            host.innerHTML = "<div class='text-muted'>No data returned.</div>";
+            return;
+        }
+
+        const columns = Object.keys(data[0]).map(key => ({
+            field: key,
+            headerText: key,
+            clipMode: "Ellipsis"
+        }));
+
+        window.gridInstance = new ej.grids.Grid({
+            dataSource: data,
+            columns: columns,
+
+            allowResizing: true,
+            height: "100%",
+            width: "100%",
+            enableHover: false,
+
+            allowSelection: true,
+            selectionSettings: {
+                type: "Multiple",
+                mode: "Cell"
+            },
+
+            allowKeyboard: true,
+
+            dataBound: function () {
+                this.autoFitColumns();
+            }
+        });
+
+        window.gridInstance.appendTo(host);
+    };
+</script>
+
+<ejs-scripts></ejs-scripts>

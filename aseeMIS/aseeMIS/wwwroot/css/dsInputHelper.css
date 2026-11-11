@@ -1,0 +1,112 @@
+.ds-copy-btn {
+    cursor: pointer !important;
+    color: #0d9dda !important;
+    transition: color 0.15s ease, background-color 0.15s ease;
+}
+
+.ds-copy-btn:hover,
+.ds-copy-btn:focus {
+    color: #0878a8 !important;
+    background-color: rgba(13, 157, 218, 0.08) !important;
+    outline: none;
+}
+
+.ds-email-domain-wrapper {
+    display: flex !important;
+    align-items: center !important;
+    color: #6c757d !important;
+    font-size: 0.875rem !important;
+    white-space: nowrap !important;
+}
+
+.ds-email-domain {
+    opacity: 0.8;
+}
+
+.ds-input-invalid,
+.ds-input-invalid:focus {
+    border-color: #dc3545 !important;
+}
+
+.ds-phone-prefix-editable {
+    min-width: 78px !important;
+    cursor: text !important;
+}
+
+.ds-phone-prefix-editable .ds-prefix-input {
+    width: 46px !important;
+    border: 0 !important;
+    background: transparent !important;
+    color: inherit !important;
+    font-size: 13px !important;
+    line-height: 1 !important;
+    padding: 0 !important;
+    text-align: left !important;
+}
+
+.ds-phone-prefix-editable .ds-prefix-input:focus {
+    outline: none !important;
+    box-shadow: none !important;
+}
+
+/*
+ * Syncfusion EJ2 v34 renders TextBox prepend/append templates with the icon
+ * container's intrinsic height. Keep templated inputs aligned with ordinary
+ * dsMIS controls while preserving the separator between icon and value.
+ */
+.e-input-group.e-control-wrapper:has(.e-input-group-icon),
+.e-input-group:has(.e-input-group-icon),
+.e-float-input.e-control-wrapper:has(.e-input-group-icon),
+.e-float-input:has(.e-input-group-icon) {
+    min-height: 32px !important;
+    height: 32px !important;
+    max-height: 32px !important;
+    box-sizing: border-box !important;
+}
+
+.e-input-group.e-control-wrapper .e-input-group-icon,
+.e-input-group .e-input-group-icon,
+.e-float-input.e-control-wrapper .e-input-group-icon,
+.e-float-input .e-input-group-icon {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    height: 30px !important;
+    min-height: 30px !important;
+    max-height: 30px !important;
+    line-height: 30px !important;
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
+    box-sizing: border-box !important;
+}
+
+.e-input-group.e-control-wrapper:has(.e-input-group-icon) input.e-input,
+.e-input-group:has(.e-input-group-icon) input.e-input,
+.e-float-input.e-control-wrapper:has(.e-input-group-icon) input.e-input,
+.e-float-input:has(.e-input-group-icon) input.e-input {
+    height: 30px !important;
+    min-height: 30px !important;
+    max-height: 30px !important;
+    padding-left: 6px !important;
+    padding-inline-start: 6px !important;
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
+    margin-left: 0 !important;
+    margin-inline-start: 0 !important;
+    text-indent: 0 !important;
+    box-sizing: border-box !important;
+}
+
+.e-input-group.e-control-wrapper .e-input-separator,
+.e-input-group .e-input-separator,
+.e-float-input.e-control-wrapper .e-input-separator,
+.e-float-input .e-input-separator {
+    align-self: stretch !important;
+    flex: 0 0 1px !important;
+    width: 1px !important;
+    min-width: 1px !important;
+    margin: 5px 0 !important;
+    padding: 0 !important;
+    border: 0 !important;
+    border-left: 1px solid var(--ds-blue-border) !important;
+}

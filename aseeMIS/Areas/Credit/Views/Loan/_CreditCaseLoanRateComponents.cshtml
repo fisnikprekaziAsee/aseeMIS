@@ -1,0 +1,36 @@
+@model aseeMIS.Areas.Credit.ViewModels.CreditCaseLoanChildGridTabViewModel
+
+<div class="ds-card">
+    <div class="ds-card-h d-flex align-items-center gap-2">
+        <i class="bi bi-percent"></i>
+        <span class="ds-card-title">@Model.Title</span>
+    </div>
+
+    <div class="ds-card-b">
+        <div class="text-muted small mb-3">@Model.Description</div>
+
+        @if (!Model.CreditCaseId.HasValue || Model.CreditCaseId.Value <= 0)
+        {
+            <div class="alert alert-info mb-0">@Model.SaveFirstMessage</div>
+        }
+        else
+        {
+            @await Component.InvokeAsync(
+                "GridDetailWidget",
+                new aseeMIS.Areas.Common.DTOs.GridRequest
+                {
+                    FormId = Model.FormId,
+                    FormSessionId = Model.FormSessionId,
+                    ForeignAttributeName = Model.ForeignAttributeName,
+                    PrimaryAttributeName = Model.PrimaryAttributeName,
+                    TargetId = Model.CreditCaseId.Value.ToString(),
+                    ContextFormType = dsMIS.Core.Enums.EnumContextFormType.CHILD,
+                    GridType = "CRUD",
+                    RemoteMode = false,
+                    GridName = $"GRID_{Model.FormSessionId}_{Model.FormId}_{Model.CreditCaseId.Value}"
+                })
+        }
+    </div>
+</div>
+
+<ejs-scripts></ejs-scripts>

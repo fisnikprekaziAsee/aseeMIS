@@ -1,0 +1,90 @@
+﻿@using Syncfusion.EJ2.Spreadsheet
+
+<div class="control-section">
+    <div class="row">
+        <div class="col-lg-12">
+
+            <ejs-spreadsheet id="reportSpreadsheet"
+                             allowOpen="true"
+                             openUrl="/Report/ReportSpreadsheet/Open"
+                             created="onSpreadsheetCreated">
+            </ejs-spreadsheet>
+        </div>
+    </div>
+</div>
+
+<script>
+        function onSpreadsheetCreated() {
+
+        console.log("Spreadsheet created event fired");
+
+        const ss = ej.base.getComponent(
+            document.getElementById('reportSpreadsheet'),
+            'spreadsheet'
+        );
+
+        console.log("📌 Spreadsheet instance:", ss);
+
+        if (!ss) {
+            console.error("❌ Spreadsheet instance not found");
+            return;
+        }
+
+        // ===============================
+        // 🔥 CELL SELECTION → MAPPING FORM
+        // ===============================
+        ss.cellSelected = function () {
+
+            const sheet = ss.getActiveSheet();
+            const cell = sheet?.activeCell;
+
+            if (!cell) return;
+
+            console.log("📌 Excel cell selected:", cell);
+
+            // Bridge to Report Designer
+            if (window.ReportDesigner) {
+                window.ReportDesigner.setSelectedCell(cell);
+            }
+        };
+
+        // ===============================
+        // LOAD TEMPLATE FILE
+        // ===============================
+        setTimeout(async () => {
+
+            try {
+                const url = '/Report/ReportSpreadsheet/TemplateFile?ts=' + Date.now();
+
+                const res = await fetch(url, { cache: "no-store" });
+
+                if (!res.ok) {
+                    console.error("❌ Fetch failed");
+                    return;
+                }
+
+                const blob = await res.blob();
+
+                if (!blob || blob.size === 0) {
+                    console.error("❌ Blob is empty");
+                    return;
+                }
+
+                const file = new File(
+                    [blob],
+                    'Template.xlsx',
+                    { type: blob.type }
+                );
+
+                ss.open({
+                    file: file,
+                    openType: 'xlsx'
+                });
+
+            } catch (err) {
+                console.error("🔥 Exception while opening spreadsheet:", err);
+            }
+
+        }, 0);
+    }
+</script>

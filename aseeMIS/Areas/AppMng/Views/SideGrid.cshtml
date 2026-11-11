@@ -1,0 +1,23 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <title>Parent View V</title>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script>
+        $(document).ready(function () {
+            $("#partial-v1").load("/AppMng/AppSetting/AppSettingDetail");
+            //$("#partial-v2").load("/AppMng/AppLanguage/AppLanguage");
+        });
+    </script>
+</head>
+<body>
+    <h1>Parent View V</h1>
+
+    <h2>Partial View V1</h2>
+    <div id="partial-v1"></div>
+
+    <h2>Partial View V2</h2>
+    <div id="partial-v2"></div>
+</body>
+</html>

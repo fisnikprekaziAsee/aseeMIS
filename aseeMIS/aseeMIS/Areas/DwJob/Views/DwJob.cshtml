@@ -1,0 +1,517 @@
+@model aseeMIS.Areas.DwJob.ViewModels.DwJobPageViewModel
+
+@{
+    ViewData["Title"] = "DW Reports";
+}
+<link rel="stylesheet" href="~/css/dw-shared.css" />
+<style>
+    .dw-jobs-header {
+        gap: 8px;
+    }
+
+    .dw-jobs-header i {
+        color: #38bdf8;
+    }
+</style>
+
+<div class="container-fluid dw-page">
+    @Html.AntiForgeryToken()
+
+
+    <input type="hidden" id="formId" value="@ViewBag.FormId" />
+    <input type="hidden" id="formSessionId" value="@ViewBag.FormSessionId" />
+
+    <div class="row g-3 align-items-stretch">
+        <div class="col-lg-4 dw-left-panel">
+
+            <div class="dw-card dw-date-card">
+                <div class="dw-section-label">
+                    <i class="bi bi-calendar-date"></i>
+                    <span>Report Date</span>
+                </div>
+
+                <div class="d-flex gap-2">
+                    <input type="date"
+                           id="reportDate"
+                           class="form-control dw-date-input" />
+
+                    <button type="button" class="dw-run-btn" id="searchDateBtn">
+                        <i class="bi bi-search"></i>
+                        Search
+                    </button>
+                </div>
+
+                <div id="validationCheckMsg" class="dw-file-check-msg" style="display:none;"></div>
+
+                <div class="dw-date-help">
+                    Select a date and click Search to check validations.
+                </div>
+            </div>
+
+            <div class="dw-jobs-card dw-type-card">
+                <div class="dw-jobs-header dw-type-header">
+                    <i class="bi bi-gear-wide-connected"></i>
+                    <span>Jobs</span>
+                </div>
+
+                <div class="dw-jobs-body dw-type-body">
+                    @if (Model.Jobs != null && Model.Jobs.Any())
+                    {
+                        @foreach (var job in Model.Jobs.OrderBy(r => r.DwJobName))
+                        {
+                            <div class="dw-report-row">
+                                <div class="dw-report-left">
+                                    <div class="dw-report-icon-box">
+                                        @if (!string.IsNullOrWhiteSpace(job.DwJobIcon))
+                                        {
+                                            <i class="@job.DwJobIcon"></i>
+                                        }
+                                        else
+                                        {
+                                            <i class="bi bi-file-earmark-text"></i>
+                                        }
+                                    </div>
+
+                                    <div class="dw-report-text">
+                                        <div class="dw-report-name">
+                                            @job.DwJobName
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="dw-rerun-box dw-revalidate-box"
+                                     id="rerunBox_@job.DwJobId"
+                                     style="display:none;">
+                                    <label>
+                                        <input type="checkbox"
+                                               class="rerun-check"
+                                               id="rerunCheck_@job.DwJobId"
+                                               data-job-id="@job.DwJobId" />
+                                        Re-run?
+                                    </label>
+                                </div>
+
+                                <button type="button"
+                                        class="dw-run-btn run-btn"
+                                        data-job-id="@job.DwJobId"
+                                        disabled>
+                                    <i class="bi bi-play-fill"></i>
+                                    Run
+                                </button>
+                            </div>
+                        }
+                    }
+                    else
+                    {
+                        <div class="dw-empty-reports">
+                            No jobs available.
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-8 dw-right-panel">
+            <div class="dw-card dw-status-card">
+                <div class="dw-status-header">
+                    <div class="dw-status-title">
+                        <i class="bi bi-bar-chart-line"></i>
+                        <span>Job Status</span>
+                    </div>
+
+                    <div class="top-log-actions">
+
+                        <div class="dw-status-count" id="jobCountText">
+                            0 jobs
+                        </div>
+
+
+
+
+                        <div class="vw-nav-group">
+                            <button id="btnPrev"
+                                    type="button"
+                                    class="e-btn nav-syncfusion-btn nav-prev">
+                                <span class="e-btn-icon e-icons e-chevron-left"></span>
+                                <span>Previous</span>
+                            </button>
+                            <button id="btnNext"
+                                    type="button"
+                                    class="e-btn nav-syncfusion-btn nav-next">
+                                <span>Next</span>
+                                <span class="e-btn-icon e-icons e-chevron-right"></span>
+                            </button>
+                        </div>
+                    </div>
+
+                </div>
+
+                <div id="dwMsg" class="alert rounded-3 d-none m-3" role="alert"></div>
+
+                <div class="dw-status-body">
+                    <div class="dw-grid-wrap">
+                        <ejs-grid id="JobLogGrid"
+                                  dataSource="Model.JobLogs"
+                                  width="100%"
+                                  height="600"
+                                  gridLines="Both"
+                                  allowPaging="true"
+                                  allowSorting="true"
+                                  allowFiltering="true"
+                                  allowResizing="true"
+                                  allowReordering="true"
+                                  allowSelection="true"
+                                  allowTextWrap="true"
+                                  allowExcelExport="true"
+                                  allowPdfExport="true"
+                                  showColumnChooser="true"
+                                  showColumnMenu="true"
+                                  enableStickyHeader="true"
+                                  enableHover="true"
+                                  enableAltRow="true"
+                                  toolbar="@(new List<string>() { "Search", "ExcelExport", "ColumnChooser" })"
+                                  toolbarClick="onJobGridToolbarClick"
+                                  dataBound="onJobGridDataBound">
+
+                            <e-grid-pagesettings pageSize="10" pageSizes="true"></e-grid-pagesettings>
+
+                            <e-grid-filtersettings type="Excel" mode="Immediate"></e-grid-filtersettings>
+
+                            <e-grid-sortsettings columns="@(new List<object>
+                                                                                                                                                                                {
+                                                                                                                                                                                 new { field = "ExecutionDate", direction = "Descending" }
+                                                                                                                                                                                })">
+                            </e-grid-sortsettings>
+
+                            <e-grid-columns>
+                                <e-grid-column field="DwJobLogId"
+                                               headerText="ID"
+                                               width="90"
+                                               textAlign="Right"
+                                               isPrimaryKey="true">
+                                </e-grid-column>
+
+                                <e-grid-column field="DwJobId"
+                                               headerText="Job ID"
+                                               width="100"
+                                               textAlign="Right">
+                                </e-grid-column>
+
+                                <e-grid-column field="DwJobName"
+                                               headerText="Job Name"
+                                               width="200">
+                                </e-grid-column>
+
+                                <e-grid-column field="ReportingDate"
+                                               headerText="Report Date"
+                                               type="date"
+                                               format="yyyy-MM-dd"
+                                               width="140"
+                                               textAlign="Center">
+                                </e-grid-column>
+
+                                <e-grid-column field="ExecutionDate"
+                                               headerText="Execution Time"
+                                               type="datetime"
+                                               format="yyyy-MM-dd HH:mm"
+                                               width="180"
+                                               textAlign="Center">
+                                </e-grid-column>
+
+                                <e-grid-column field="IsExecuted"
+                                               headerText="Executed"
+                                               displayAsCheckBox="true"
+                                               type="boolean"
+                                               width="110"
+                                               textAlign="Center">
+                                </e-grid-column>
+
+                                <e-grid-column field="ErrorMessage"
+                                               headerText="Error"
+                                               width="300">
+                                </e-grid-column>
+                            </e-grid-columns>
+                        </ejs-grid>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    var formId = document.getElementById("formId")?.value || "";
+    var formSessionId = document.getElementById("formSessionId")?.value || "";
+
+    function onJobGridDataBound() {
+        const grid = document.getElementById("JobLogGrid")?.ej2_instances?.[0];
+        const counter = document.getElementById("jobCountText");
+        if (!grid || !counter) return;
+
+        const count = Array.isArray(grid.dataSource) ? grid.dataSource.length
+            : Array.isArray(grid.currentViewData) ? grid.currentViewData.length : 0;
+        counter.textContent = count + " jobs";
+    }
+
+    function onJobGridToolbarClick(args) {
+        const grid = document.getElementById("JobLogGrid")?.ej2_instances?.[0];
+        if (!grid) return;
+        const id = (args.item.id || "").toLowerCase();
+        if (id.includes("excelexport")) grid.excelExport();
+        if (id.includes("pdfexport")) grid.pdfExport();
+    }
+
+    document.addEventListener("DOMContentLoaded", function () {
+        const dateInput = document.getElementById("reportDate");
+        const searchBtn = document.getElementById("searchDateBtn");
+        const runButtons = document.querySelectorAll(".run-btn");
+        const runUrl = '@Url.Action("RunReport", "DwJob", new { area = "DwJob" })';
+        const logsUrl = '@Url.Action("GetValidationJobLogs", "DwJob", new { area = "DwJob" })';
+        const tokenInput = document.querySelector('input[name="__RequestVerificationToken"]');
+        const msgBox = document.getElementById("dwMsg");
+        const valMsg = document.getElementById("validationCheckMsg");
+
+        let validationPassed = false;
+        let rerunMap = {};
+        let searchDone = false;
+
+
+
+        document.getElementById("btnNext")?.addEventListener("click", function () {
+            window.location.href = "/ExportDocument/Export/Index/9905";
+        });
+
+            document.getElementById("btnPrev")?.addEventListener("click", function () {
+        window.location.href = "/DwEtlValidation/DwEtlJobValidation/Index/9903";
+    });
+
+        function showMsg(el, ok, text) {
+            if (!el) return;
+            el.classList.remove("d-none", "alert-success", "alert-danger");
+            el.classList.add(ok ? "alert-success" : "alert-danger");
+            el.textContent = text;
+        }
+
+        function clearMsg(el) {
+            if (!el) return;
+            el.classList.add("d-none");
+            el.classList.remove("alert-success", "alert-danger");
+            el.textContent = "";
+        }
+
+        function showValMsg(type, text) {
+            if (!valMsg) return;
+            valMsg.style.display = "block";
+            if (type === "ok") valMsg.className = "dw-file-check-msg msg-ok";
+            else if (type === "warn") valMsg.className = "dw-file-check-msg msg-warn";
+            else valMsg.className = "dw-file-check-msg msg-fail";
+            valMsg.textContent = text;
+        }
+
+        function hideValMsg() { if (valMsg) valMsg.style.display = "none"; }
+
+        function hasJobRun(jobId) {
+            return rerunMap[String(jobId)] === true || rerunMap[jobId] === true;
+        }
+
+        function toggleRunButtons() {
+            if (!searchDone) {
+                runButtons.forEach(btn => btn.disabled = true);
+                return;
+            }
+
+            runButtons.forEach(btn => {
+                const jobId = btn.getAttribute("data-job-id");
+                const rerunCheck = document.getElementById(`rerunCheck_${jobId}`);
+
+                if (hasJobRun(jobId)) {
+                    btn.disabled = !(rerunCheck && rerunCheck.checked);
+                } else {
+                    btn.disabled = !validationPassed;
+                }
+            });
+        }
+
+        function updateRerunUI() {
+            runButtons.forEach(btn => {
+                const jobId = btn.getAttribute("data-job-id");
+                const rerunBox = document.getElementById(`rerunBox_${jobId}`);
+                const rerunCheck = document.getElementById(`rerunCheck_${jobId}`);
+
+                if (hasJobRun(jobId)) {
+                    if (rerunBox) rerunBox.style.display = "block";
+                    if (rerunCheck) rerunCheck.checked = false;
+                } else {
+                    if (rerunBox) rerunBox.style.display = "none";
+                    if (rerunCheck) rerunCheck.checked = false;
+                }
+            });
+
+            toggleRunButtons();
+        }
+
+        function clearGrid() {
+            const grid = document.getElementById("JobLogGrid")?.ej2_instances?.[0];
+            if (!grid) return;
+            grid.dataSource = [];
+            grid.refresh();
+            onJobGridDataBound();
+        }
+
+        function setToday() {
+            const d = new Date();
+            dateInput.value = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+        }
+
+        document.addEventListener("change", function (e) {
+            if (e.target.classList.contains("rerun-check")) {
+                toggleRunButtons();
+            }
+        });
+
+        dateInput.addEventListener("change", function () {
+            validationPassed = false;
+            rerunMap = {};
+            searchDone = false;
+            updateRerunUI();
+            hideValMsg();
+            clearMsg(msgBox);
+            clearGrid();
+        });
+
+        searchBtn.addEventListener("click", async function () {
+            const date = dateInput.value;
+            if (!date) { showValMsg("fail", "Please select a date first."); return; }
+
+            hideValMsg();
+            clearMsg(msgBox);
+            validationPassed = false;
+            rerunMap = {};
+            searchDone = false;
+            updateRerunUI();
+
+            searchBtn.disabled = true;
+            searchBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Searching...';
+
+            try {
+                await loadData(date);
+                searchDone = true;
+
+                const anyRun = Object.values(rerunMap).some(x => x === true);
+
+                if (validationPassed && anyRun) {
+                    showValMsg("ok", "Validation passed. Some jobs already ran. Check Re-run to run them again.");
+                } else if (validationPassed) {
+                    showValMsg("ok", "Validation passed. You can run jobs.");
+                } else if (anyRun) {
+                    showValMsg("warn", "Validation not passed, but some jobs already ran. Check Re-run to run them again.");
+                } else {
+                    showValMsg("fail", "No passed validation for this date. Run validations first.");
+                }
+
+                updateRerunUI();
+            } catch (err) {
+                console.error("Search failed", err);
+                showValMsg("fail", "Failed to check validation status.");
+            } finally {
+                searchBtn.disabled = false;
+                searchBtn.innerHTML = '<i class="bi bi-search"></i> Search';
+            }
+        });
+
+        async function loadData(date) {
+            const grid = document.getElementById("JobLogGrid")?.ej2_instances?.[0];
+            if (!grid || !date) return;
+
+            try {
+                const url = logsUrl
+                    + "?formId=" + encodeURIComponent(formId)
+                    + "&reportingDate=" + encodeURIComponent(date);
+
+                const res = await fetch(url, {
+                    headers: { "FormSessionId": formSessionId }
+                });
+
+                if (res.ok) {
+                    const data = await res.json();
+                    validationPassed = data.passed || data.Passed || false;
+                    rerunMap = data.rerunMap || data.RerunMap || {};
+                    grid.dataSource = data.logs || data.Logs || [];
+                } else {
+                    grid.dataSource = [];
+                }
+                grid.refresh();
+                onJobGridDataBound();
+            } catch {
+                grid.dataSource = [];
+                grid.refresh();
+                onJobGridDataBound();
+                showMsg(msgBox, false, "Failed to load data.");
+            }
+        }
+
+        async function runReport(btn) {
+            const jobId = btn.getAttribute("data-job-id");
+            const date = dateInput.value;
+
+            clearMsg(msgBox);
+            if (!jobId) { showMsg(msgBox, false, "Job id is missing."); return; }
+            if (!date) { showMsg(msgBox, false, "Please select a date first."); return; }
+
+            const rerunCheck = document.getElementById(`rerunCheck_${jobId}`);
+
+            if (!hasJobRun(jobId) && !validationPassed) {
+                showValMsg("fail", "No passed validation. Run validations first.");
+                return;
+            }
+
+            if (hasJobRun(jobId) && !(rerunCheck && rerunCheck.checked)) {
+                showValMsg("warn", "This job already ran. Check Re-run to run again.");
+                return;
+            }
+
+            btn.dataset.originalHtml = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Running...';
+
+            try {
+                const formData = new FormData();
+                formData.append("reportId", jobId);
+                formData.append("reportingDate", date);
+
+                const actionUrl = runUrl + (runUrl.includes("?") ? "&" : "?") + "formId=" + encodeURIComponent(formId);
+
+                const headers = { "FormSessionId": formSessionId };
+                if (tokenInput) {
+                    headers["RequestVerificationToken"] = tokenInput.value;
+                }
+
+                const res = await fetch(actionUrl, {
+                    method: "POST",
+                    body: formData,
+                    headers: headers
+                });
+
+                if (!res.ok) { showMsg(msgBox, false, "Request failed with status " + res.status); return; }
+
+                const result = await res.json();
+                showMsg(msgBox, result.ok || result.Ok, result.message || result.Message || (result.ok ? "Job executed." : "Error running job."));
+
+                await loadData(date);
+                updateRerunUI();
+            } catch (err) {
+                console.error(err);
+                showMsg(msgBox, false, "Unexpected error occurred.");
+            } finally {
+                btn.innerHTML = btn.dataset.originalHtml || '<i class="bi bi-play-fill"></i> Run';
+                toggleRunButtons();
+            }
+        }
+
+        runButtons.forEach(btn => btn.addEventListener("click", () => runReport(btn)));
+
+        setToday();
+        updateRerunUI();
+        onJobGridDataBound();
+    });
+</script>

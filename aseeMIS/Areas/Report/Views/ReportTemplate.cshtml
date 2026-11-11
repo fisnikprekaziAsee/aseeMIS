@@ -1,0 +1,201 @@
+﻿@using Syncfusion.EJ2.Spreadsheet
+
+@{
+    ViewData["Title"] = "Report Spreadsheet";
+    // For now hardcoded – later pass via route or ViewModel
+    var reportId = 1;
+}
+
+<div style="margin-bottom:10px">
+    <button class="btn btn-primary" onclick="openReport()">📂 Open Report</button>
+    <button class="btn btn-success" onclick="saveTemplate()">💾 Save</button>
+</div>
+
+<ejs-spreadsheet id="spreadsheet"
+                 allowSave="true"
+                 select="onCellSelected"
+                 height="100vh"
+                 enableVirtualization="true">
+</ejs-spreadsheet>
+
+<script>
+    // -----------------------------
+    // Runtime state
+    // -----------------------------
+    let sheetQueue = [];              
+    let hydratedSheets = new Set();   
+    let isBackgroundLoading = false;
+
+    const reportId = @reportId;
+
+    // -----------------------------
+    // Syncfusion Spreadsheet helper
+    // -----------------------------
+    function getSpreadsheet() {
+        const el = document.getElementById("spreadsheet");
+        if (!el || !el.ej2_instances || el.ej2_instances.length === 0)
+            return null;
+
+        return el.ej2_instances[0];
+    }
+
+    function onCellSelected(args) {
+
+        if (!args || !args.range) return;
+
+        // Normalize range (F8:F8 → F8)
+        const cell = args.range.split(':')[0];
+
+        document.dispatchEvent(
+            new CustomEvent("report:cell-selected", {
+                detail: {
+                    cell: cell
+                }
+            })
+        );
+    }
+
+    // -----------------------------
+    // OPEN REPORT (shell + first sheet)
+    // -----------------------------
+    async function openReport() {
+
+        const spreadsheet = getSpreadsheet();
+        if (!spreadsheet) {
+            console.warn("Spreadsheet not ready yet");
+            return;
+        }
+
+        // 1️⃣ Load workbook shell JSON
+        const workbookRes = await fetch(
+            `/Report/ReportTemplate/LoadWorkbook?reportId=${reportId}`
+        );
+
+        if (!workbookRes.ok)
+            throw new Error('Failed to load workbook shell');
+
+        const workbookJson = await workbookRes.text();
+
+        // 2️⃣ Open spreadsheet shell
+        spreadsheet.open({ file: workbookJson });
+
+        // 3️⃣ Load ordered sheet metadata
+        const sheetsRes = await fetch(
+            `/Report/ReportTemplate/GetSheets?reportId=${reportId}`
+        );
+
+        if (!sheetsRes.ok)
+            throw new Error('Failed to load sheet list');
+
+        sheetQueue = await sheetsRes.json();
+
+        if (!sheetQueue || sheetQueue.length === 0)
+            return;
+
+        // 4️⃣ Hydrate first sheet immediately
+        await hydrateSheet(sheetQueue[0].reportSheetId);
+
+        // 5️⃣ Start background hydration
+        startBackgroundHydration();
+    }
+
+    // -----------------------------
+    // LOAD SINGLE SHEET
+    // -----------------------------
+    async function hydrateSheet(reportSheetId) {
+
+        const spreadsheet = getSpreadsheet();
+        if (!spreadsheet)
+            return;
+
+        if (hydratedSheets.has(reportSheetId))
+            return;
+
+        const res = await fetch(
+            `/Report/ReportTemplate/LoadSheet?reportSheetId=${reportSheetId}`
+        );
+
+        if (!res.ok)
+            throw new Error(`Failed to load sheet ${reportSheetId}`);
+
+        const sheetJson = await res.json();
+
+        // Inject sheet data
+        spreadsheet.insertSheet([sheetJson]);
+
+        hydratedSheets.add(reportSheetId);
+    }
+
+    // -----------------------------
+    // BACKGROUND HYDRATION (SEQUENTIAL)
+    // -----------------------------
+    async function startBackgroundHydration() {
+
+        if (isBackgroundLoading)
+            return;
+
+        isBackgroundLoading = true;
+
+        for (const sheet of sheetQueue) {
+            if (!hydratedSheets.has(sheet.reportSheetId)) {
+                await hydrateSheet(sheet.reportSheetId);
+            }
+        }
+
+        isBackgroundLoading = false;
+    }
+
+    // -----------------------------
+    // TAB CLICK PRIORITY LOAD
+    // -----------------------------
+    document.addEventListener('click', async function () {
+
+        const spreadsheet = getSpreadsheet();
+        if (!spreadsheet)
+            return;
+
+        const index = spreadsheet.activeSheetIndex;
+        const sheetMeta = sheetQueue[index];
+
+        if (!sheetMeta)
+            return;
+
+        if (!hydratedSheets.has(sheetMeta.reportSheetId)) {
+            await hydrateSheet(sheetMeta.reportSheetId);
+        }
+    });
+
+    // -----------------------------
+    // SAVE
+    // -----------------------------
+    async function saveTemplate() {
+
+        const spreadsheet = getSpreadsheet();
+        if (!spreadsheet) {
+            alert("Spreadsheet not ready yet");
+            return;
+        }
+
+        const json = await spreadsheet.saveAsJson();
+
+        await fetch(
+            `/Report/ReportTemplate/SaveJson?reportId=${reportId}`,
+            {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(json)
+            }
+        );
+
+        alert('Template saved');
+    }
+
+    // -----------------------------
+    // Auto-open when partial loads
+    // -----------------------------
+    // Delay slightly to ensure EJ2 instance exists
+    setTimeout(openReport, 0);
+</script>
+
+@* <ejs-scripts></ejs-scripts>
+ *@

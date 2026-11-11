@@ -1,0 +1,254 @@
+﻿@using Syncfusion.EJ2.RichTextEditor
+@using Syncfusion.EJ2.Notifications
+
+<h3>Form Help Pages</h3>
+
+<div class="row mt-3">
+
+    <div class="col-md-4">
+        <label>Form</label>
+        <ejs-dropdownlist id="formDropdown"
+                          dataSource="@ViewBag.Forms"
+                          placeholder="Select Form">
+            <e-dropdownlist-fields text="FormTitle" value="FormId" />
+        </ejs-dropdownlist>
+    </div>
+
+    <div class="col-md-4">
+        <label>Source Language</label>
+        <ejs-dropdownlist id="sourceDropdown"
+                          dataSource="@ViewBag.Languages"
+                          placeholder="Source Language">
+            <e-dropdownlist-fields text="LanguageName" value="LanguageCode" />
+        </ejs-dropdownlist>
+    </div>
+
+    <div class="col-md-4">
+        <label>Target Language</label>
+        <ejs-dropdownlist id="targetDropdown"
+                          dataSource="@ViewBag.Languages"
+                          placeholder="Target Language">
+            <e-dropdownlist-fields text="LanguageName" value="LanguageCode" />
+        </ejs-dropdownlist>
+    </div>
+
+</div>
+
+<div class="row mt-3">
+    <div class="col-12 d-flex justify-content-end">
+        <button class="btn btn-primary" onclick="loadEditors()">
+            Load
+        </button>
+    </div>
+</div>
+
+
+<hr />
+
+<div class="row mt-3">
+    <div class="col-md-6">
+        <h5>Source</h5>
+        <div id="sourceEditor"></div>
+    </div>
+
+    <div class="col-md-6">
+        <h5>Target</h5>
+        <div id="targetEditor"></div>
+    </div>
+</div>
+
+
+<div class="row mt-3">
+    <div class="col-12 d-flex justify-content-end">
+        <button id="saveBtn" class="btn btn-primary" onclick="saveEditors()" disabled>
+            Save
+        </button>
+    </div>
+</div>
+
+
+@section Scripts {
+    <script>
+        let sourceEditor;
+        let targetEditor;
+
+         function toastSuccess(msg) {
+            const t = document.getElementById("toast").ej2_instances[0];
+            t.show({ title: "Success", content: msg, cssClass: "e-toast-success" });
+        }
+
+        function toastError(msg) {
+            const t = document.getElementById("toast").ej2_instances[0];
+            t.show({ title: "Error", content: msg, cssClass: "e-toast-danger" });
+        }
+
+        function toastWarn(msg) {
+            const t = document.getElementById("toast").ej2_instances[0];
+            t.show({ title: "Warning", content: msg, cssClass: "e-toast-warning" });
+        }
+
+        async function loadEditors() {
+             document.getElementById("saveBtn").disabled = true;
+            // 🔹 Get Syncfusion dropdown values
+            const formId = document.getElementById("formDropdown").ej2_instances[0].value;
+            const sourceLang = document.getElementById("sourceDropdown").ej2_instances[0].value;
+            const targetLang = document.getElementById("targetDropdown").ej2_instances[0].value;
+
+            if (!formId || !sourceLang || !targetLang) {
+                alert("Please select Form, Source Language and Target Language");
+                return;
+            }
+
+            // 🔹 Call backend (same as your code)
+            const res = await fetch(
+                `/AppMng/AppFormHelpPage/LoadEditors` +
+                `?formId=${encodeURIComponent(formId)}` +
+                `&sourceLang=${encodeURIComponent(sourceLang)}` +
+                `&targetLang=${encodeURIComponent(targetLang)}`
+            );
+
+        if (!res.ok) {
+                  const text = await res.text();
+                  console.error("LoadEditors failed:", res.status, text);
+                  toastError(`Load failed (${res.status})`);
+                  return;
+              }
+
+              const data = await res.json();
+
+
+            if (sourceEditor) sourceEditor.destroy();
+            if (targetEditor) targetEditor.destroy();
+
+
+            sourceEditor = new ej.richtexteditor.RichTextEditor({
+                height: '300px',
+                value: data.sourceText,
+                enableHtmlEncode: false,
+                toolbarSettings: {
+                    items: [
+                        'Bold', 'Italic', 'Underline', 'StrikeThrough', '|',
+                        'Formats', 'Alignments', 'OrderedList', 'UnorderedList', '|',
+                        'CreateLink', 'Image', '|',
+                        'Undo', 'Redo'
+                    ]
+                }
+            });
+            sourceEditor.appendTo('#sourceEditor');
+
+        
+            targetEditor = new ej.richtexteditor.RichTextEditor({
+                height: '300px',
+                value: data.targetText,
+                enableHtmlEncode: false,
+                toolbarSettings: {
+                    items: [
+                        'Bold', 'Italic', 'Underline', 'StrikeThrough', '|',
+                        'Formats', 'Alignments', 'OrderedList', 'UnorderedList', '|',
+                        'CreateLink', 'Image', '|',
+                        'Undo', 'Redo'
+                    ]
+                }
+            });
+            targetEditor.appendTo('#targetEditor');
+
+              document.getElementById("saveBtn").disabled = false;
+
+        }
+
+
+         async function saveEditors() {
+            console.log("▶ saveEditors() CALLED");
+
+            try {
+                const formDropdown = document.getElementById("formDropdown");
+                const sourceDropdown = document.getElementById("sourceDropdown");
+                const targetDropdown = document.getElementById("targetDropdown");
+
+                console.log("formDropdown:", formDropdown);
+                console.log("sourceDropdown:", sourceDropdown);
+                console.log("targetDropdown:", targetDropdown);
+
+                const formId = formDropdown?.ej2_instances?.[0]?.value;
+                const sourceLang = sourceDropdown?.ej2_instances?.[0]?.value;
+                const targetLang = targetDropdown?.ej2_instances?.[0]?.value;
+
+                console.log("formId:", formId);
+                console.log("sourceLang:", sourceLang);
+                console.log("targetLang:", targetLang);
+
+                if (!formId || !sourceLang || !targetLang) {
+                    console.warn("❌ Missing dropdown values");
+                    alert("Please select Form, Source Language and Target Language");
+                    return;
+                }
+
+                console.log("sourceEditor:", sourceEditor);
+                console.log("targetEditor:", targetEditor);
+
+                if (!sourceEditor || !targetEditor) {
+                    console.warn("❌ Editors not loaded");
+                    alert("Please click Load first.");
+                    return;
+                }
+
+                const sourceHtml = sourceEditor.value;
+                const targetHtml = targetEditor.value;
+
+                console.log("sourceHtml:", sourceHtml);
+                console.log("targetHtml:", targetHtml);
+
+                const payload = [
+                    {
+                        formId: formId,
+                        languageCode: sourceLang,
+                        htmlContent: sourceHtml
+                    },
+                    {
+                        formId: formId,
+                        languageCode: targetLang,
+                        htmlContent: targetHtml
+                    }
+                ];
+
+                console.log("📦 Payload being sent:", payload);
+                console.log("📦 Payload JSON:", JSON.stringify(payload));
+
+                const response = await fetch("/AppMng/AppFormHelpPage/SaveEditors", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "FormSessionId": "@ViewBag.FormSessionId"
+                    },
+                    body: JSON.stringify(payload)
+                });
+
+                console.log("⬅ Response status:", response.status);
+                console.log("⬅ Response ok:", response.ok);
+
+                const responseText = await response.text();
+                console.log("⬅ Response raw text:", responseText);
+
+                if (!response.ok) {
+                    console.error("❌ SaveEditors FAILED");
+                    alert(`Save failed: ${response.status}`);
+                    return;
+                }
+
+                let responseJson = null;
+                try {
+                    responseJson = JSON.parse(responseText);
+                } catch {
+                    console.warn("Response is not JSON");
+                }
+
+                console.log("✅ Parsed response:", responseJson);
+                toastSuccess("Loaded successfully");
+
+
+            } catch (err) {
+                console.error("🔥 saveEditors CRASHED:", err);
+            }
+        }
+    </script>
+}

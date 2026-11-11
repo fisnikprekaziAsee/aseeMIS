@@ -1,0 +1,81 @@
+@model dsReport.Core.ViewModels.ReportUniverseViewModel
+
+@{
+    var request = ViewData["EntityDetailRequest"] as aseeMIS.Areas.Common.DTOs.EntityDetailRequest
+        ?? throw new InvalidOperationException("EntityDetailRequest is required.");
+    var formSessionId = request.FormSessionId;
+    var formId = request.FormId;
+    var isAdd = request.IsAdd;
+
+    var commandTypes = ViewData["FK_SQLCommandType"] as IEnumerable<object>;
+}
+
+<div class="form-container" data-form-session-id="@formSessionId" data-form-id="@formId">
+
+
+    <div class="row g-3">
+
+        <!-- ===== ROW 1 (three fields) ===== -->
+        <div class="col-md-3">
+            <ejs-numerictextbox ejs-for="UniverseId" id="UniverseId"
+                                placeholder="Universe Id"
+                                floatLabelType="Always"
+                                readonly="true">
+            </ejs-numerictextbox>
+        </div>
+
+        <div class="col-md-6">
+            <ejs-textbox ejs-for="UniverseName" id="UniverseName"
+                         placeholder="Universe Name"
+                         floatLabelType="Always">
+            </ejs-textbox>
+        </div>
+
+        <div class="col-md-3">
+            <ejs-dropdownlist ejs-for="SQLCommandType" id="SQLCommandType"
+                              dataSource="@(commandTypes)"
+                              placeholder="SQL Command Type"
+                              floatLabelType="Always">
+                <e-dropdownlist-fields text="ConstantValue" value="ConstantKey"></e-dropdownlist-fields>
+            </ejs-dropdownlist>
+        </div>
+
+        <!-- ===== ROW 2 (side-by-side text areas, 50% + 50%) ===== -->
+        <div class="col-md-6">
+            <ejs-textarea ejs-for="SQLCommandText" id="SQLCommandText"
+                          width="100%"
+                          rows="6"
+                          placeholder="SQL Command Text"
+                          floatLabelType="Always">
+            </ejs-textarea>
+        </div>
+
+        <div class="col-md-6">
+            <ejs-textarea ejs-for="Description" id="Description"
+                          width="100%"
+                          rows="6"
+                          placeholder="Description"
+                          floatLabelType="Always">
+            </ejs-textarea>
+        </div>
+
+        <!-- ===== ROW 3 (checkbox at bottom) ===== -->
+        <div class="col-md-4 d-flex align-items-center">
+            <ejs-checkbox ejs-for="IsActive" id="IsActive" label="Is Active"></ejs-checkbox>
+        </div>
+
+    </div>
+
+    <div class="text-end mt-4">
+        <button type="button" class="btn btn-success" onclick="saveForm()">
+            <i class="bi bi-save me-1"></i> @(isAdd ? "Create Universe" : "Save Changes")
+        </button>
+    </div>
+
+</div>
+
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+        formLocalizationDataBound("ReportUniverse");
+    });
+</script>

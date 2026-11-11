@@ -1,0 +1,126 @@
+@model aseeMIS.Areas.Common.ViewModels.SearchAutocompleteOptions
+@using Syncfusion.EJ2.Inputs
+
+<ejs-autocomplete id="@Model.Id"
+                  floatLabelType="@Enum.Parse<FloatLabelType>(Model.FloatLabelType)"
+                  allowFiltering="true"
+                  placeholder="@Model.Placeholder"
+                  debounceDelay="@Model.DebounceDelay"
+                  minLength="@Model.MinLength"
+                  suggestionCount="@Model.SuggestionCount"
+                  filtering="@Model.FilteringFn">
+    <e-autocomplete-fields value="@Model.ValueField" text="@Model.TextField"></e-autocomplete-fields>
+</ejs-autocomplete>
+
+<script>
+    (function () {
+        var id         = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.Id));
+        var searchUrl  = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.SearchUrl));
+        var placeholder = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.Placeholder));
+        var minLength  = @Model.MinLength;
+        var maxSuggest = @Model.SuggestionCount;
+        var textField  = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.TextField));
+        var valueField = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.ValueField));
+        var filteringFnName = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.FilteringFn));
+        var onSelectFnName  = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.OnSelectFn));
+
+        var cache = [];
+        var lastPrefix = "";
+     
+        function s(v){ return (v ?? '').toString().toLowerCase(); }
+
+        function ensureAutocomplete(allowFallbackCreation) {
+            var el = document.getElementById(id);
+            var existing = el?.ej2_instances?.[0];
+            if (existing) return existing;
+
+            if (!allowFallbackCreation || !el || !window.ej?.dropdowns?.AutoComplete) return null;
+
+            var ac = new ej.dropdowns.AutoComplete({
+                floatLabelType: @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.FloatLabelType)),
+                allowFiltering: true,
+                placeholder: placeholder,
+                debounceDelay: @Model.DebounceDelay,
+                minLength: minLength,
+                suggestionCount: maxSuggest,
+                fields: { value: valueField, text: textField },
+                filtering: window[filteringFnName]
+            });
+
+            ac.appendTo(el);
+            return ac;
+        }
+       
+        // --------------------------
+        // FILTERING (always required)
+        // --------------------------
+        window[filteringFnName] = function (e) {
+            e.preventDefaultAction = true;
+
+            var text = (e.text || '');
+            var len = text.length;
+
+            if (len < minLength) {
+                e.updateData([], null);
+            return;
+            }
+
+            var prefix = text.substring(0, minLength);
+
+            // 🔥 FIRST TIME OR NEW PREFIX → ALWAYS FETCH
+            if (prefix !== lastPrefix) {
+                lastPrefix = prefix;
+
+                var url = new URL(searchUrl, window.location.origin);
+                url.searchParams.set('searchText', text);
+
+                fetch(url.toString(), { method: 'GET', headers: { 'Accept': 'application/json' } })
+                    .then(r => r.ok ? r.json() : [])
+                    .then(data => {
+                        cache = Array.isArray(data) ? data : [];
+                        e.updateData(cache.slice(0, maxSuggest), null);
+                    })
+                    .catch(() => {
+                        cache = [];
+                        e.updateData([], null);
+                    });
+
+                return;
+            }
+
+            // 🔥 SAME PREFIX → FILTER CACHE
+            var t = s(text);
+
+            var filtered = cache.filter(function (x) {
+                return s(x[textField]).includes(t) ||
+                        s(x[valueField]).includes(t);
+            }).slice(0, maxSuggest);
+
+            e.updateData(filtered, null);
+        };
+
+        // --------------------------
+        // SELECT attach (optional)
+        // --------------------------
+        var tries = 0;
+        var timer = setInterval(function () {
+                // The EJ2 Tag Helper initialization script normally runs in the
+                // same turn. Create manually only as a delayed fallback, otherwise
+                // AJAX editors get two AutoComplete wrappers on the same input.
+                var ac = ensureAutocomplete(tries >= 4);
+                if (!ac) {
+                    if (++tries > 50) clearInterval(timer);
+                    return;
+                }
+
+                clearInterval(timer);
+
+                if (onSelectFnName && onSelectFnName.trim().length > 0) {
+                    ac.select = function(args){
+                        var fn = window[onSelectFnName];
+                        if (typeof fn === "function") fn(args);
+                    };
+                }
+            }, 50);
+    })();
+</script>

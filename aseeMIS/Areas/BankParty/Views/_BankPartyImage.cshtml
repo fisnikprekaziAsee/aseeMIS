@@ -1,0 +1,308 @@
+﻿@using Syncfusion.EJ2.ImageEditor
+@model dsBankParty.Core.ViewModels.BankPartyImageViewModel
+@{
+    var bankPartyId  = Model?.BankPartyId ?? 0;
+    // Paths are server-prefilled via the parent partial (no more GetImages AJAX round-trip).
+    // Empty strings render as no-op in JS; non-empty paths are routed through /Common/CRUD/Preview
+    // for SecureStorage / encrypted ".bin" files.
+    var profilePath       = Model?.ProfileImagePath       ?? "";
+    var signaturePath     = Model?.SignatureImagePath     ?? "";
+    var docFrontPath      = Model?.DocumentFrontImagePath ?? "";
+    var docBackPath       = Model?.DocumentBackImagePath  ?? "";
+    var proofAddressPath  = Model?.ProofOfAddressImagePath ?? "";
+    var initialDocType = ViewData["BankPartyPhotoDocType"] as string
+        ?? (!string.IsNullOrEmpty(docFrontPath) && string.IsNullOrEmpty(docBackPath) ? "passport"
+            : (!string.IsNullOrEmpty(docFrontPath) || !string.IsNullOrEmpty(docBackPath) ? "id" : ""));
+    var imageFormSessionId = ViewData["BankPartyImageFormSessionId"] as string ?? "";
+    var photoDocumentsJson = ViewData["BankPartyPhotoDocuments"] as string ?? "{}";
+    var bpiEditorToolbar = Array.Empty<string>();
+}
+
+<style>
+    /* ── ONLY what Bootstrap cannot do natively ────────────────────────────── */
+
+    /* Image drop zone: aspect-ratio + dashed border + hover state.
+       Bootstrap has `.ratio-1x1` but it requires a single absolutely-positioned
+       child, conflicting with our overlay chips + placeholder, so a tiny custom
+       rule is unavoidable. */
+    .bpi-zone               { position:relative; aspect-ratio:1/1; max-width:220px; margin:0 auto;
+                              border:1.5px dashed var(--bs-border-color); border-radius:.5rem;
+                              cursor:pointer; overflow:hidden; background:var(--bs-tertiary-bg);
+                              display:flex; align-items:center; justify-content:center;
+                              transition:border-color .15s, background-color .15s; }
+    .bpi-zone-doc           { aspect-ratio:4/3; max-width:100%; }
+    .bpi-half-column > .card { flex:1 1 0; min-height:0; overflow:hidden; }
+    .bpi-half-column > .card > .card-body { min-height:0; display:flex; align-items:center; }
+    .bpi-half-column .bpi-zone-doc { max-height:100%; }
+    .bpi-zone:hover         { border-color:var(--bs-primary); background:var(--bs-primary-bg-subtle); }
+    .bpi-zone canvas        { display:none; width:100% !important; height:100% !important; object-fit:contain; }
+
+    /* Image-present state — toggles canvas, placeholder, chips, and border style. */
+    .doc-image-wrapper.e-hide canvas                 { display:none !important; }
+    .doc-image-wrapper.e-hide .bpi-chip              { display:none !important; }
+    .doc-image-wrapper:not(.e-hide) canvas           { display:block !important; }
+    .doc-image-wrapper:not(.e-hide) .bpi-zone-ph     { display:none; }
+    .doc-image-wrapper:not(.e-hide) .bpi-zone        { border-style:solid; border-color:var(--bs-primary); background:#fff; }
+    .doc-image-wrapper:not(.e-hide) .bpi-chip        { display:flex; }
+
+    /* Floating overlay chips — Bootstrap has no overlay-chip utility. */
+    .bpi-chip               { position:absolute; width:26px; height:26px; border-radius:50%;
+                              display:none; align-items:center; justify-content:center;
+                              color:#fff; border:0; padding:0; cursor:pointer;
+                              box-shadow:0 2px 6px rgba(0,0,0,.22);
+                              transition:transform .12s, background-color .12s; }
+    .bpi-chip:hover         { transform:scale(1.08); }
+    .bpi-chip svg           { width:13px; height:13px; }
+    .bpi-edit-chip          { bottom:6px; right:6px; background:rgba(13,110,253,.92); }
+    .bpi-edit-chip:hover    { background:var(--bs-primary); }
+    .bpi-delete-chip        { top:6px; right:6px; background:rgba(220,53,69,.92); }
+    .bpi-delete-chip:hover  { background:var(--bs-danger); }
+
+   
+    #bpiCropModal           { position:fixed; inset:0; z-index:1055;
+                              display:flex; align-items:center; justify-content:center;
+                              visibility:hidden; pointer-events:none; }
+    #bpiCropModal.bpi-open  { visibility:visible; pointer-events:auto; }
+    #bpiCropBackdrop        { position:absolute; inset:0; background:rgba(0,0,0,.5); }
+    #bpiImageEditor         { height:420px !important; }
+
+    /* Busy overlay — sits above the zones while an async upload/delete is in flight. */
+    .bpi-busy               { position:absolute; inset:0; background:rgba(255,255,255,.65);
+                              display:flex; align-items:center; justify-content:center;
+                              z-index:5; backdrop-filter:blur(1px); }
+    .bpi-busy[hidden]       { display:none; }
+</style>
+
+<input type="hidden" id="bpiBankPartyId"        value="@bankPartyId" />
+<input type="hidden" id="bpiIsIndividual"       value="@Model?.IsIndividual.ToString().ToLowerInvariant()" />
+<input type="hidden" id="bpiImageFormSessionId" value="@imageFormSessionId" />
+<input type="hidden" id="bpiPhotoDocuments"     value="@photoDocumentsJson" />
+<input type="hidden" id="bpiPath_1"             value="@profilePath" />
+<input type="hidden" id="bpiPath_2"             value="@signaturePath" />
+<input type="hidden" id="bpiPath_3"             value="@docFrontPath" />
+<input type="hidden" id="bpiPath_4"             value="@docBackPath" />
+<input type="hidden" id="bpiPath_5"             value="@proofAddressPath" />
+<input type="hidden" id="bpiInitialDocType"     value="@initialDocType" />
+<input type="file"   id="bpiFileInput"          accept="image/*" style="display:none" />
+
+<!-- Modal lives here so Razor/Syncfusion initialises the ImageEditor correctly.
+     JS will move it to <body> after bpiEditorCreated to escape transformed ancestors. -->
+<div id="bpiCropModal">
+    <div id="bpiCropBackdrop"></div>
+    <div class="card shadow-lg position-relative" style="width:640px;max-width:95vw;z-index:1">
+        <div class="card-header bg-white py-2 px-3 d-flex justify-content-between align-items-center">
+            <span class="fw-semibold small">Edit image</span>
+            <button type="button" class="btn-close" id="bpiCropClose"></button>
+        </div>
+        <div>
+            <ejs-imageeditor id="bpiImageEditor"
+                             created="bpiEditorCreated"
+                             fileOpened="bpiEditorOpened"
+                             toolbar="bpiEditorToolbar">
+            </ejs-imageeditor>
+        </div>
+        <div class="card-footer bg-white py-2 px-3 d-flex justify-content-between">
+            <div class="d-flex gap-2 flex-wrap">
+                <button type="button" class="btn btn-sm btn-outline-secondary" id="bpiBtnOpen">Open</button>
+                <button type="button" class="btn btn-sm btn-outline-secondary" id="bpiBtnZoomOut" title="Zoom out">&#8722;</button>
+                <button type="button" class="btn btn-sm btn-outline-secondary" id="bpiBtnZoomIn" title="Zoom in">+</button>
+                <button type="button" class="btn btn-sm btn-outline-secondary" id="bpiBtnRotate">&#8634; Rotate</button>
+                <button type="button" class="btn btn-sm btn-outline-secondary" id="bpiBtnReset">Reset</button>
+            </div>
+            <div class="d-flex gap-2">
+                <button type="button" class="btn btn-sm btn-secondary" id="bpiBtnCancel">Cancel</button>
+                <button type="button" class="btn btn-sm btn-primary"   id="bpiBtnApply">Apply</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-3 position-relative">
+
+    <!-- Spinner overlay covering all four cards while an async upload/delete is in flight. -->
+    <div id="bpiBusyOverlay" class="bpi-busy" hidden>
+        <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">Saving...</span>
+        </div>
+    </div>
+
+    <!-- ────────────── Profile picture (col-12 / col-md-3) — data-type="1" ────────────── -->
+    <div class="col-12 col-md-3">
+        <div class="card h-100">
+            <div class="card-header bg-light py-2 px-3 d-flex align-items-center gap-2">
+                <span class="d-inline-flex align-items-center justify-content-center rounded" style="width:26px;height:26px;background:#e7f1ff">
+                    <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+                        <circle cx="8" cy="5.5" r="2.5" fill="#0d6efd"/>
+                        <path d="M2 14c0-2.5 2.5-4.5 6-4.5s6 2 6 4.5" stroke="#0d6efd" stroke-width="1.5" stroke-linecap="round"/>
+                    </svg>
+                </span>
+                <div class="lh-sm">
+                    <div class="small fw-semibold">Profile picture</div>
+                </div>
+            </div>
+            <div class="card-body p-3">
+                <div class="doc-image-wrapper e-hide bpi-zone" data-type="1" data-imageid="" data-base64="">
+                    <canvas class="img-canvas"></canvas>
+                    <div class="bpi-zone-ph text-center text-secondary pe-none">
+                        <svg width="36" height="36" viewBox="0 0 24 24" fill="none" class="opacity-50 d-block mx-auto mb-1">
+                            <circle cx="12" cy="8" r="4" stroke="currentColor" stroke-width="1.5"/>
+                            <path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                        </svg>
+                        <span class="small text-muted">Click to upload</span>
+                    </div>
+                    <button type="button" class="bpi-chip bpi-delete-chip delete-doc" data-type="1" title="Remove">
+                        <svg viewBox="0 0 16 16" fill="currentColor"><path d="M4.5 1a.5.5 0 0 0-.5.5V3H2a.5.5 0 0 0 0 1h.07l.65 9.07A2 2 0 0 0 4.72 15h6.56a2 2 0 0 0 2-1.93L13.93 4H14a.5.5 0 0 0 0-1h-2V1.5a.5.5 0 0 0-.5-.5h-7zM5 3V2h6v1H5zM3.07 4h9.86l-.64 8.93A1 1 0 0 1 11.28 14H4.72a1 1 0 0 1-1-1.07L3.07 4z"/></svg>
+                    </button>
+                    <span class="bpi-chip bpi-edit-chip" title="Edit">
+                        <svg viewBox="0 0 16 16" fill="currentColor"><path d="M12.146.146a.5.5 0 0 1 .708 0l3 3a.5.5 0 0 1 0 .708l-10 10a.5.5 0 0 1-.168.11l-5 2a.5.5 0 0 1-.65-.65l2-5a.5.5 0 0 1 .11-.168l10-10zM11.207 2.5 13.5 4.793 14.793 3.5 12.5 1.207 11.207 2.5z"/></svg>
+                    </span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ────────────── Specimen signature (col-12 / col-md-3) — data-type="2" ────────────── -->
+    <div class="col-12 col-md-3 d-flex flex-column gap-3 bpi-half-column">
+        <div class="card">
+            <div class="card-header bg-light py-2 px-3 d-flex align-items-center gap-2">
+                <span class="d-inline-flex align-items-center justify-content-center rounded" style="width:26px;height:26px;background:#f3e8ff">
+                    <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+                        <path d="M2 11c2-4 4-6.5 5.5-6.5s2 2 0 5.5-1 3.5 2 3.5 4-2 5-4"
+                              stroke="#6f42c1" stroke-width="1.5" stroke-linecap="round"/>
+                    </svg>
+                </span>
+                <div class="lh-sm">
+                    <div class="small fw-semibold">Specimen signature</div>
+                </div>
+            </div>
+            <div class="card-body p-3">
+                <div class="doc-image-wrapper e-hide bpi-zone bpi-zone-doc" data-type="2" data-imageid="" data-base64="">
+                    <canvas class="img-canvas"></canvas>
+                    <div class="bpi-zone-ph text-center text-secondary pe-none">
+                        <svg width="36" height="36" viewBox="0 0 24 24" fill="none" class="opacity-50 d-block mx-auto mb-1">
+                            <path d="M3 17c3-6 5-10 8-10s2 3 0 7-2 5 3 5 5-3 8-6"
+                                  stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                        </svg>
+                        <span class="small text-muted">Click to upload</span>
+                    </div>
+                    <button type="button" class="bpi-chip bpi-delete-chip delete-doc" data-type="2" title="Remove">
+                        <svg viewBox="0 0 16 16" fill="currentColor"><path d="M4.5 1a.5.5 0 0 0-.5.5V3H2a.5.5 0 0 0 0 1h.07l.65 9.07A2 2 0 0 0 4.72 15h6.56a2 2 0 0 0 2-1.93L13.93 4H14a.5.5 0 0 0 0-1h-2V1.5a.5.5 0 0 0-.5-.5h-7zM5 3V2h6v1H5zM3.07 4h9.86l-.64 8.93A1 1 0 0 1 11.28 14H4.72a1 1 0 0 1-1-1.07L3.07 4z"/></svg>
+                    </button>
+                    <span class="bpi-chip bpi-edit-chip" title="Edit">
+                        <svg viewBox="0 0 16 16" fill="currentColor"><path d="M12.146.146a.5.5 0 0 1 .708 0l3 3a.5.5 0 0 1 0 .708l-10 10a.5.5 0 0 1-.168.11l-5 2a.5.5 0 0 1-.65-.65l2-5a.5.5 0 0 1 .11-.168l10-10zM11.207 2.5 13.5 4.793 14.793 3.5 12.5 1.207 11.207 2.5z"/></svg>
+                    </span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Proof of address — data-type="5" -->
+        <div class="card">
+            <div class="card-header bg-light py-2 px-3 d-flex align-items-center gap-2">
+                <span class="d-inline-flex align-items-center justify-content-center rounded" style="width:26px;height:26px;background:#e8f5e9">
+                    <i class="bi bi-house-door text-success"></i>
+                </span>
+                <div class="small fw-semibold">Proof of address</div>
+            </div>
+            <div class="card-body p-3">
+                <div class="doc-image-wrapper e-hide bpi-zone bpi-zone-doc" data-type="5" data-imageid="" data-base64="">
+                    <canvas class="img-canvas"></canvas>
+                    <div class="bpi-zone-ph text-center text-secondary pe-none">
+                        <i class="bi bi-house-door fs-2 opacity-50 d-block mb-1"></i>
+                        <span class="small text-muted">Click to upload</span>
+                    </div>
+                    <button type="button" class="bpi-chip bpi-delete-chip delete-doc" data-type="5" title="Remove">
+                        <svg viewBox="0 0 16 16" fill="currentColor"><path d="M4.5 1a.5.5 0 0 0-.5.5V3H2a.5.5 0 0 0 0 1h.07l.65 9.07A2 2 0 0 0 4.72 15h6.56a2 2 0 0 0 2-1.93L13.93 4H14a.5.5 0 0 0 0-1h-2V1.5a.5.5 0 0 0-.5-.5h-7zM5 3V2h6v1H5zM3.07 4h9.86l-.64 8.93A1 1 0 0 1 11.28 14H4.72a1 1 0 0 1-1-1.07L3.07 4z"/></svg>
+                    </button>
+                    <span class="bpi-chip bpi-edit-chip" title="Edit">
+                        <svg viewBox="0 0 16 16" fill="currentColor"><path d="M12.146.146a.5.5 0 0 1 .708 0l3 3a.5.5 0 0 1 0 .708l-10 10a.5.5 0 0 1-.168.11l-5 2a.5.5 0 0 1-.65-.65l2-5a.5.5 0 0 1 .11-.168l10-10zM11.207 2.5 13.5 4.793 14.793 3.5 12.5 1.207 11.207 2.5z"/></svg>
+                    </span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ────────────── Legal identity (col-12 / col-md-6) — Front (3) + Back (4) ────────────── -->
+    <div class="col-12 col-md-6">
+        <div class="card h-100">
+            <div class="card-header bg-light py-2 px-3 d-flex align-items-center gap-2 flex-wrap">
+                <span class="d-inline-flex align-items-center justify-content-center rounded" style="width:26px;height:26px;background:#fff3cd">
+                    <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+                        <rect x="2" y="1" width="9" height="13" rx="1.5" stroke="#856404" stroke-width="1.4"/>
+                        <path d="M5 5h4M5 7.5h3M5 10h2" stroke="#856404" stroke-width="1.1" stroke-linecap="round"/>
+                        <rect x="9.5" y="8.5" width="5" height="6" rx="1" fill="#fff3cd" stroke="#856404" stroke-width="1.1"/>
+                    </svg>
+                </span>
+                <div class="lh-sm">
+                    <div class="small fw-semibold">Legal identity document</div>
+                </div>
+                <div class="d-flex align-items-center gap-2 ms-auto">
+                    <span class="text-muted small text-nowrap">Document type</span>
+                    <select class="form-select form-select-sm" id="bpiDocType" onchange="bpiHandleDocType()" style="width:auto">
+                        <option value="">— select —</option>
+                        <option value="id">National ID</option>
+                        <option value="passport">Passport</option>
+                        <option value="license">Driver's license</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="card-body p-3">
+                <div class="text-center text-muted py-4 small" id="bpiDocPlaceholder">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" class="opacity-25 d-block mx-auto mb-2">
+                        <rect x="3" y="4" width="15" height="18" rx="2" stroke="currentColor" stroke-width="1.5"/>
+                        <path d="M7 9h7M7 12h5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+                    </svg>
+                    Select a document type above to add images
+                </div>
+
+                <div class="row g-3">
+                    <!-- Front  data-type="3" -->
+                    <div class="col-12 col-md-6" id="bpiDocFrontWrap" style="display:none">
+                        <div class="text-muted text-uppercase fw-semibold mb-2" id="bpiDocFrontLabel" style="font-size:10px;letter-spacing:.04em">Front</div>
+                        <div class="doc-image-wrapper e-hide bpi-zone bpi-zone-doc" data-type="3" data-imageid="" data-base64="">
+                            <canvas class="img-canvas"></canvas>
+                            <div class="bpi-zone-ph text-center text-secondary pe-none">
+                                <svg width="36" height="36" viewBox="0 0 24 24" fill="none" class="opacity-50 d-block mx-auto mb-1">
+                                    <rect x="3" y="5" width="18" height="14" rx="2" stroke="currentColor" stroke-width="1.5"/>
+                                    <circle cx="8" cy="11" r="2" stroke="currentColor" stroke-width="1.2"/>
+                                    <path d="M12 10h5M12 13h3" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+                                </svg>
+                                <span class="small text-muted">Click to upload</span>
+                            </div>
+                            <button type="button" class="bpi-chip bpi-delete-chip delete-doc" data-type="3" title="Remove">
+                                <svg viewBox="0 0 16 16" fill="currentColor"><path d="M4.5 1a.5.5 0 0 0-.5.5V3H2a.5.5 0 0 0 0 1h.07l.65 9.07A2 2 0 0 0 4.72 15h6.56a2 2 0 0 0 2-1.93L13.93 4H14a.5.5 0 0 0 0-1h-2V1.5a.5.5 0 0 0-.5-.5h-7zM5 3V2h6v1H5zM3.07 4h9.86l-.64 8.93A1 1 0 0 1 11.28 14H4.72a1 1 0 0 1-1-1.07L3.07 4z"/></svg>
+                            </button>
+                            <span class="bpi-chip bpi-edit-chip" title="Edit">
+                                <svg viewBox="0 0 16 16" fill="currentColor"><path d="M12.146.146a.5.5 0 0 1 .708 0l3 3a.5.5 0 0 1 0 .708l-10 10a.5.5 0 0 1-.168.11l-5 2a.5.5 0 0 1-.65-.65l2-5a.5.5 0 0 1 .11-.168l10-10zM11.207 2.5 13.5 4.793 14.793 3.5 12.5 1.207 11.207 2.5z"/></svg>
+                            </span>
+                        </div>
+                    </div>
+
+                    <!-- Back  data-type="4" -->
+                    <div class="col-12 col-md-6" id="bpiDocBackWrap" style="display:none">
+                        <div class="text-muted text-uppercase fw-semibold mb-2" style="font-size:10px;letter-spacing:.04em">Back</div>
+                        <div class="doc-image-wrapper e-hide bpi-zone bpi-zone-doc" data-type="4" data-imageid="" data-base64="">
+                            <canvas class="img-canvas"></canvas>
+                            <div class="bpi-zone-ph text-center text-secondary pe-none">
+                                <svg width="36" height="36" viewBox="0 0 24 24" fill="none" class="opacity-50 d-block mx-auto mb-1">
+                                    <rect x="3" y="5" width="18" height="14" rx="2" stroke="currentColor" stroke-width="1.5"/>
+                                    <path d="M6 10h12M6 13.5h8" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+                                </svg>
+                                <span class="small text-muted">Click to upload</span>
+                            </div>
+                            <button type="button" class="bpi-chip bpi-delete-chip delete-doc" data-type="4" title="Remove">
+                                <svg viewBox="0 0 16 16" fill="currentColor"><path d="M4.5 1a.5.5 0 0 0-.5.5V3H2a.5.5 0 0 0 0 1h.07l.65 9.07A2 2 0 0 0 4.72 15h6.56a2 2 0 0 0 2-1.93L13.93 4H14a.5.5 0 0 0 0-1h-2V1.5a.5.5 0 0 0-.5-.5h-7zM5 3V2h6v1H5zM3.07 4h9.86l-.64 8.93A1 1 0 0 1 11.28 14H4.72a1 1 0 0 1-1-1.07L3.07 4z"/></svg>
+                            </button>
+                            <span class="bpi-chip bpi-edit-chip" title="Edit">
+                                <svg viewBox="0 0 16 16" fill="currentColor"><path d="M12.146.146a.5.5 0 0 1 .708 0l3 3a.5.5 0 0 1 0 .708l-10 10a.5.5 0 0 1-.168.11l-5 2a.5.5 0 0 1-.65-.65l2-5a.5.5 0 0 1 .11-.168l10-10zM11.207 2.5 13.5 4.793 14.793 3.5 12.5 1.207 11.207 2.5z"/></svg>
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<script src="/js/bankPartyImage.js"></script>

@@ -1,0 +1,37 @@
+@model object
+@using System.Text.Json
+
+@{
+    var viewPath = ViewData["EntityDetailViewPath"] as string;
+    var request = ViewData["EntityDetailRequest"] as aseeMIS.Areas.Common.DTOs.EntityDetailRequest;
+    var formSessionId = request?.FormSessionId ?? string.Empty;
+
+    var fkData = ViewData
+        .Where(kv => kv.Key.StartsWith("FK_", StringComparison.OrdinalIgnoreCase))
+        .ToDictionary(kv => kv.Key, kv => kv.Value, StringComparer.OrdinalIgnoreCase);
+
+    var fkDataSourceMap = ViewData["FKDataSourceMap"]
+        ?? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+    var fkDisplayMap = ViewData["FKDisplayMap"] ?? Array.Empty<object>();
+    var cascadeMap = ViewData["CascadeMap"] ?? Array.Empty<object>();
+}
+
+@if (!string.IsNullOrWhiteSpace(viewPath))
+{
+    @await Html.PartialAsync(viewPath, Model, ViewData)
+}
+
+<script>
+    window.ds = window.ds || {};
+    window.ds.entity = window.ds.entity || {};
+    window.ds.entity.fkData = window.ds.entity.fkData || {};
+    window.ds.entity.fkDataSourceMap = window.ds.entity.fkDataSourceMap || {};
+    window.ds.entity.fkDisplayMap = window.ds.entity.fkDisplayMap || {};
+    window.ds.entity.cascadeMap = window.ds.entity.cascadeMap || {};
+
+    window.ds.entity.fkData["@formSessionId"] = @Html.Raw(JsonSerializer.Serialize(fkData));
+    window.ds.entity.fkDataSourceMap["@formSessionId"] = @Html.Raw(JsonSerializer.Serialize(fkDataSourceMap));
+    window.ds.entity.fkDisplayMap["@formSessionId"] = @Html.Raw(JsonSerializer.Serialize(fkDisplayMap));
+    window.ds.entity.cascadeMap["@formSessionId"] = @Html.Raw(JsonSerializer.Serialize(cascadeMap));
+</script>

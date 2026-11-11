@@ -1,0 +1,15 @@
+@model aseeMIS.Areas.Credit.ViewModels.CreditEngineAmortizationLabViewModel
+@{
+    ViewData["Title"] = "Credit Engine Amortization Lab";
+}
+
+<div class="container-fluid py-3">
+    <div class="d-flex align-items-center justify-content-between mb-3">
+        <div>
+            <h4 class="mb-1">Credit Engine Amortization Lab</h4>
+            <p class="text-muted mb-0">Standalone preview form for the new <code>dsCreditEngine</code> before we wire it into Loan360.</p>
+        </div>
+    </div>
+
+    @await Html.PartialAsync("~/Areas/Credit/Views/Loan/_CreditEngineAmortizationLab.cshtml", Model)
+</div>

@@ -1,0 +1,288 @@
+﻿@using Syncfusion.EJ2.Navigations
+@using Syncfusion.EJ2.DropDowns
+
+@* Add CSRF token for AJAX requests *@
+<form id="roleFormTokenForm">
+    @Html.AntiForgeryToken()
+</form>
+
+<div class="col-lg-12 control-section msg-default-section">
+    <div class="content-section">
+        <ejs-message id="RoleFormList_MSG" visible="false" showCloseIcon="true"></ejs-message>
+    </div>
+</div>
+
+<br />
+
+<div class="row">
+    <!-- Left Column: Dropdowns + Button -->
+    <div class="col-md-4">
+        <div class="mb-3">
+            <ejs-dropdownlist id="roleDropdown"
+                              dataSource="@ViewBag.Roles"
+                              placeholder="Select Role"
+                              change="onSelectionChange"
+                              fields="@(new DropDownListFieldSettings { Value = "Id", Text = "Name" })">
+            </ejs-dropdownlist>
+        </div>
+        <div class="mb-3">
+            <ejs-dropdownlist id="actionDropdown"
+                              dataSource="@ViewBag.Actions"
+                              placeholder="Select Permission"
+                              change="onSelectionChange"
+                              fields="@(new DropDownListFieldSettings { Value = "ConstantKey", Text = "ConstantValue" })">
+            </ejs-dropdownlist>
+        </div>
+    </div>
+
+    <!-- Right Column: Checkbox List -->
+    <div class="col-md-8">
+        <div id="loadingIndicator" style="display: none; text-align: center;">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+        </div>
+        
+        <div id="formCheckboxContainer" style="display: none;">
+            <div class="ds-card">
+                <div class="ds-card-h d-flex align-items-center justify-content-between">
+                    <div class="d-flex align-items-center gap-2">
+                        <i class="bi bi-list-check"></i>
+                        <span class="ds-card-title">Forms</span>
+                        <span class="ds-card-sub">Select forms for this role and permission</span>
+                    </div>
+                </div>
+
+                <div class="ds-card-b">
+                    <div class="form-checkbox-list" id="formCheckboxList">
+                        <!-- Checkboxes will be dynamically generated here -->
+                    </div>
+                </div>
+            </div>
+            <div class="mb-3">
+                <button type="button" class="btn btn-success mt-3" onclick="saveChanges()">Save Changes</button>
+            </div>
+        </div>
+
+        <div id="noSelectionMessage" class="alert alert-info mt-4">
+            Please select a Role and Permission to load the forms.
+        </div>
+    </div>
+</div>
+
+<style>
+    .form-checkbox-list {
+        max-height: 60vh;
+        overflow-y: auto;
+        border: 1px solid #dee2e6;
+        border-radius: 0.375rem;
+        padding: 0.75rem;
+    }
+
+    .form-checkbox-list .form-check {
+        margin-bottom: 0.5rem;
+        padding-left: 1.5rem;
+    }
+
+    .form-checkbox-list .form-check:last-child {
+        margin-bottom: 0;
+    }
+
+    .form-checkbox-list .form-check-label {
+        cursor: pointer;
+        user-select: none;
+    }
+
+    .form-checkbox-indent-1 {
+        padding-left: 2.5rem;
+    }
+
+    .form-checkbox-indent-2 {
+        padding-left: 3.5rem;
+    }
+</style>
+
+<script>
+    let currentData = [];
+    const MAX_INDENT_LEVEL = 2;
+    let cachedAntiForgeryToken = null;
+
+    function getAntiForgeryToken() {
+        if (!cachedAntiForgeryToken) {
+            cachedAntiForgeryToken = document.querySelector('input[name="__RequestVerificationToken"]')?.value || '';
+        }
+        return cachedAntiForgeryToken;
+    }
+
+    function hideMessages() {
+        const msg = document.getElementById("RoleFormList_MSG").ej2_instances[0];
+        msg.visible = false;
+    }
+
+    function showSuccessMessage(message) {
+        const msg = document.getElementById("RoleFormList_MSG").ej2_instances[0];
+        msg.severity = 'Success';
+        msg.content = message;
+        msg.visible = true;
+        
+        // Auto-hide after 5 seconds
+        setTimeout(hideMessages, 5000);
+    }
+
+    function showErrorMessage(message) {
+        const msg = document.getElementById("RoleFormList_MSG").ej2_instances[0];
+        msg.severity = 'Error';
+        msg.content = message;
+        msg.visible = true;
+    }
+
+    function onSelectionChange() {
+        const roleDropdown = document.getElementById("roleDropdown").ej2_instances[0];
+        const actionDropdown = document.getElementById("actionDropdown").ej2_instances[0];
+        
+        const roleId = roleDropdown.value;
+        const formAction = actionDropdown.value;
+
+        if (roleId && formAction) {
+            loadData(roleId, formAction);
+        }
+    }
+
+    function loadData(roleId, formAction) {
+        hideMessages();
+        
+        // Show loading indicator
+        document.getElementById("loadingIndicator").style.display = "block";
+        document.getElementById("formCheckboxContainer").style.display = "none";
+        document.getElementById("noSelectionMessage").style.display = "none";
+
+        fetch('@Url.Action("GetData", "AspNetRoleForm", new { area = "IdentityMng" })', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'RequestVerificationToken': getAntiForgeryToken()
+            },
+            body: JSON.stringify({
+                roleId: roleId,
+                formAction: formAction
+            })
+        })
+        .then(response => response.json())
+        .then(result => {
+            document.getElementById("loadingIndicator").style.display = "none";
+            
+            if (result.success) {
+                currentData = result.data || [];
+                renderCheckboxList(currentData);
+                document.getElementById("formCheckboxContainer").style.display = "block";
+            } else {
+                showErrorMessage(result.error || "Failed to load data.");
+                document.getElementById("noSelectionMessage").style.display = "block";
+            }
+        })
+        .catch(error => {
+            document.getElementById("loadingIndicator").style.display = "none";
+            document.getElementById("noSelectionMessage").style.display = "block";
+            showErrorMessage("An error occurred while loading data: " + error.message);
+            console.error('Error:', error);
+        });
+    }
+
+    function renderCheckboxList(data) {
+        const container = document.getElementById("formCheckboxList");
+        container.innerHTML = "";
+
+        if (!data || data.length === 0) {
+            container.innerHTML = '<div class="alert alert-warning">No forms available for this role.</div>';
+            return;
+        }
+
+        // Build a hierarchy map
+        const itemsById = {};
+        const rootItems = [];
+
+        data.forEach(item => {
+            itemsById[item.FormId] = item;
+            item.children = [];
+        });
+
+        data.forEach(item => {
+            if (item.FormParentId && itemsById[item.FormParentId]) {
+                itemsById[item.FormParentId].children.push(item);
+            } else {
+                rootItems.push(item);
+            }
+        });
+
+        // Render hierarchical checkboxes
+        function renderItem(item, level) {
+            const indentClass = level > 0 ? `form-checkbox-indent-${Math.min(level, MAX_INDENT_LEVEL)}` : '';
+            const checked = item.FormAction ? 'checked' : '';
+            
+            const html = `
+                <div class="form-check ${indentClass}">
+                    <input class="form-check-input" type="checkbox" value="${item.FormId}" 
+                           id="form_${item.FormId}" ${checked}>
+                    <label class="form-check-label" for="form_${item.FormId}">
+                        ${item.FormTitle || 'Untitled'}
+                    </label>
+                </div>
+            `;
+            
+            container.insertAdjacentHTML('beforeend', html);
+
+            // Render children
+            if (item.children && item.children.length > 0) {
+                item.children.forEach(child => renderItem(child, level + 1));
+            }
+        }
+
+        rootItems.forEach(item => renderItem(item, 0));
+    }
+
+    function saveChanges() {
+        const roleDropdown = document.getElementById("roleDropdown").ej2_instances[0];
+        const actionDropdown = document.getElementById("actionDropdown").ej2_instances[0];
+        
+        const roleId = roleDropdown.value;
+        const formAction = actionDropdown.value;
+
+        if (!roleId || !formAction) {
+            showErrorMessage("Please select both Role and Permission.");
+            return;
+        }
+
+        // Get all checked form IDs
+        const checkboxes = document.querySelectorAll('#formCheckboxList input[type="checkbox"]:checked');
+        const formIds = Array.from(checkboxes).map(cb => parseInt(cb.value));
+
+        hideMessages();
+
+        fetch('@Url.Action("Modify", "AspNetRoleForm", new { area = "IdentityMng" })', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'RequestVerificationToken': getAntiForgeryToken()
+            },
+            body: JSON.stringify({
+                formIds: formIds,
+                roleId: roleId,
+                formAction: formAction
+            })
+        })
+        .then(response => response.json())
+        .then(result => {
+            if (result.message) {
+                showSuccessMessage(result.message);
+                // Reload data to reflect changes
+                loadData(roleId, formAction);
+            } else {
+                showErrorMessage(result.error || "An error occurred while saving.");
+            }
+        })
+        .catch(error => {
+            showErrorMessage("An error occurred while saving: " + error.message);
+            console.error('Error:', error);
+        });
+    }
+</script>

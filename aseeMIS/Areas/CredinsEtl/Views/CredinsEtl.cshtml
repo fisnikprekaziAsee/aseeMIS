@@ -1,0 +1,739 @@
+﻿@using dsCredinsEtl.Core.ViewModels
+@model List<DwEtlFileImportLogGridViewModel>
+
+@{
+    ViewData["Title"] = "ETL Import";
+    var files = ViewBag.EtlFiles as List<DwEtlFileViewModel> ?? new List<DwEtlFileViewModel>();
+
+    // 2. Group by ID to prevent "Duplicate Key" crashes, taking the first file name for each ID
+    var safeFileDict = files
+        .GroupBy(f => f.DwEtlFileId)
+        .ToDictionary(g => g.Key, g => g.First().DwEtlFileName);
+
+    // 3. Serialize to a JSON string here
+    var fileTypeMapJson = System.Text.Json.JsonSerializer.Serialize(safeFileDict);
+}
+
+<link rel="stylesheet" href="~/css/dw-shared.css" />
+<style>
+    body {
+        background: #f5f7fa;
+    }
+</style>
+
+<input type="hidden" id="formId" value="@ViewBag.FormId" />
+<input type="hidden" id="formSessionId" value="@ViewBag.FormSessionId" />
+
+<div class="etl-page">
+    <div class="container-fluid">
+        <div class="row g-3 align-items-stretch">
+
+            <div class="col-12 col-lg-5">
+                <div class="etl-card section-spacer">
+                    <div class="etl-card-header">
+                        <i class="bi bi-calendar-date"></i>
+                        <span>Import Date</span>
+                    </div>
+                    <div class="etl-card-body">
+                        <div id="etlMsgImport" class="alert rounded-3 d-none mb-3" role="alert"></div>
+                        <div class="import-date-input d-flex gap-2">
+                            <input type="date" id="reportDate" class="form-control" required />
+                            <button type="button" id="btnLoadDate" class="btn-process-custom">
+                                <i class="bi bi-search"></i> Search
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="etl-card">
+                    <div class="etl-card-header">
+                        <i class="bi bi-upload"></i>
+                        <span>Available Files</span>
+                    </div>
+                    <div class="etl-card-body file-list" id="importArea">
+                        @if (ViewBag.EtlFiles != null)
+                        {
+                            @foreach (var file in ViewBag.EtlFiles)
+                            {
+                                string fileType = file.DwEtlFileType;
+                                string sheetName = file.DwEtlSheetName;
+                                string displayName = file.DwEtlFileName;
+                                string subtitle = fileType?.ToUpper() + " • Core";
+                                string icon = fileType?.ToLower() == "xlsb" ? "bi-file-earmark-spreadsheet" : "bi-file-earmark-text";
+                                string accept = "." + fileType?.ToLower();
+                                <form asp-action="Import" method="post" enctype="multipart/form-data" class="file-row">
+                                    @Html.AntiForgeryToken()
+                                    <input type="hidden" name="reportDate" />
+                                    <input type="hidden" name="fileType" value="@fileType" />
+                                    <input type="hidden" name="sheetName" value="@sheetName" />
+                                    <input type="hidden" name="defaultFileName" value="@displayName" />
+                                    <div class="file-left">
+                                        <div class="file-icon">
+                                            <i class="bi @icon"></i>
+                                        </div>
+                                        <div class="file-meta">
+                                            <div class="file-title">@displayName</div>
+                                            <div class="file-subtitle">@subtitle</div>
+                                        </div>
+                                    </div>
+                                    <div class="file-actions">
+                                        <div class="reupload-box alert alert-warning d-none p-1 mb-0">
+                                            <span class="reupload-text">Reupload?</span>
+                                            <input class="form-check-input reupload-check" type="checkbox" />
+                                        </div>
+                                        <div class="browse-box">
+                                            <input type="file" name="file" class="form-control form-control-sm" accept="@accept" required />
+                                        </div>
+                                        <button type="submit" class="btn-import">
+                                            <i class="bi bi-upload"></i> Import
+                                        </button>
+                                    </div>
+                                </form>
+                            }
+                        }
+                        else
+                        {
+                            <div class="dw-empty-reports">No files available.</div>
+                        }
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-12 col-lg-7">
+                <div class="etl-card h-100">
+                    <div class="etl-card-body">
+                        <div class="top-log-bar">
+                            <div class="small-icon-title">
+                                <i class="bi bi-file-earmark-text"></i>
+                                <span>Import Log</span>
+                            </div>
+
+                            <div class="top-log-actions">
+                                <div class="log-counter" id="jobCounter">0 entries</div>
+
+                                <button id="btnNext"
+                                        type="button"
+                                        class="e-btn next-syncfusion-btn">
+                                    <span class="e-btn-icon e-icons e-chevron-right"></span>
+                                    <span>Next</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        <div id="etlMsgGrid" class="alert rounded-3 d-none mb-3" role="alert"></div>
+
+                        <div id="gridWrapper">
+                            <ejs-grid id="FileImportGrid"
+                                      dataSource="Model"
+                                      queryCellInfo="onQueryCellInfo"
+                                      width="100%"
+                                      height="650"
+                                      gridLines="Both"
+                                      allowPaging="true"
+                                      allowSorting="true"
+                                      allowFiltering="true"
+                                      allowResizing="true"
+                                      allowReordering="true"
+                                      allowSelection="true"
+                                      allowTextWrap="true"
+                                      allowExcelExport="true"
+                                      allowPdfExport="true"
+                                      showColumnChooser="true"
+                                      showColumnMenu="true"
+                                      enableStickyHeader="true"
+                                      enableHover="true"
+                                      enablePersistence="false"
+                                      enableAltRow="true"
+                                      toolbarClick="toolbarClick"
+                                      toolbar="@(new List<string>() { "Search", "ExcelExport", "ColumnChooser" })"
+                                      contextMenuItems="@(new List<object>() { "AutoFit", "AutoFitAll", "SortAscending", "SortDescending", "Copy", "Edit", "Delete", "Save", "Cancel", "PdfExport", "ExcelExport", "CsvExport", "FirstPage", "PrevPage", "LastPage", "NextPage" })">
+
+                                <e-grid-pagesettings pageSize="10"
+                                                     pageSizes="true"
+                                                     pageCount="5">
+                                </e-grid-pagesettings>
+
+                                <e-grid-filtersettings type="Excel"
+                                                       mode="Immediate"
+                                                       ignoreAccent="true">
+                                </e-grid-filtersettings>
+
+                                <e-grid-selectionsettings type="Multiple"
+                                                          mode="Row"
+                                                          checkboxOnly="false"
+                                                          enableSimpleMultiRowSelection="true">
+                                </e-grid-selectionsettings>
+
+                                <e-grid-textwrapsettings wrapMode="Content"></e-grid-textwrapsettings>
+
+                                <e-grid-sortsettings columns="@(new List<object>
+                                                                                                                      {
+                                                                                                                          new { field = "ImportDate", direction = "Descending" }
+                                                                                                                      })">
+                                </e-grid-sortsettings>
+
+                                <e-grid-columns>
+
+                                    <e-grid-column field="DwEtlFileImportLogId"
+                                                   headerText="ID"
+                                                   width="100"
+                                                   minWidth="80"
+                                                   maxWidth="140"
+                                                   textAlign="Right"
+                                                   isPrimaryKey="true"
+                                                   visible="true"
+                                                   showInColumnChooser="true"
+                                                   allowFiltering="true"
+                                                   allowSorting="true"
+                                                   allowGrouping="false">
+                                    </e-grid-column>
+                                    <e-grid-column field="DwEtlFileId"
+                                                   headerText="File Type"
+                                                   width="160"
+                                                   minWidth="130"
+                                                   textAlign="Left"
+                                                   showInColumnChooser="true">
+                                    </e-grid-column>
+                                    <e-grid-column field="ErrorMessage"
+                                                   headerText="Error"
+                                                   width="300"
+                                                   minWidth="200"
+                                                   textAlign="Left"
+                                                   clipMode="EllipsisWithTooltip"
+                                                   showInColumnChooser="true">
+                                    </e-grid-column>
+
+                                    <e-grid-column field="HasPassed"
+                                                   headerText="Has Passed Validation"
+                                                   displayAsCheckBox="true"
+                                                   type="boolean"
+                                                   textAlign="Center"
+                                                   showInColumnChooser="true"
+                                                   autoFit="true">
+                                    </e-grid-column>
+
+                                    <e-grid-column field="DwEtlFileName"
+                                                   headerText="File Name"
+                                                   width="260"
+                                                   minWidth="180"
+                                                   textAlign="Left"
+                                                   clipMode="EllipsisWithTooltip"
+                                                   showInColumnChooser="true">
+                                    </e-grid-column>
+
+                                    <e-grid-column field="CreatedBy"
+                                                   headerText="Created By"
+                                                   width="220"
+                                                   minWidth="160"
+                                                   textAlign="Left"
+                                                   clipMode="EllipsisWithTooltip"
+                                                   showInColumnChooser="true">
+                                    </e-grid-column>
+
+                                    <e-grid-column field="ReportingDate"
+                                                   headerText="Report Date"
+                                                   width="150"
+                                                   minWidth="130"
+                                                   type="date"
+                                                   format="yyyy-MM-dd"
+                                                   textAlign="Center"
+                                                   clipMode="EllipsisWithTooltip"
+                                                   showInColumnChooser="true">
+                                    </e-grid-column>
+
+                                    <e-grid-column field="ImportDate"
+                                                   headerText="Import Date"
+                                                   width="180"
+                                                   minWidth="160"
+                                                   type="datetime"
+                                                   format="yyyy-MM-dd HH:mm"
+                                                   textAlign="Center"
+                                                   clipMode="EllipsisWithTooltip"
+                                                   showInColumnChooser="true">
+                                    </e-grid-column>
+
+                                    <e-grid-column field="CreatedAt"
+                                                   headerText="Created At"
+                                                   width="180"
+                                                   minWidth="160"
+                                                   type="datetime"
+                                                   format="yyyy-MM-dd HH:mm"
+                                                   textAlign="Center"
+                                                   clipMode="EllipsisWithTooltip"
+                                                   showInColumnChooser="true">
+                                    </e-grid-column>
+
+                                    <e-grid-column field="RecordsCount"
+                                                   headerText="Records"
+                                                   width="120"
+                                                   minWidth="100"
+                                                   type="number"
+                                                   format="N0"
+                                                   textAlign="Right"
+                                                   showInColumnChooser="true">
+                                    </e-grid-column>
+
+                                </e-grid-columns>
+                            </ejs-grid>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    let fileImportGrid;
+    let loadRequestId = 0;
+    let selectedLoadedDate = "";
+    let hasSearched = false;
+
+    // ✅ Read from hidden inputs (set by controller via ViewBag)
+    const formId = document.getElementById("formId")?.value || "";
+    const formSessionId = document.getElementById("formSessionId")?.value || "";
+    // ✅ Output the safely serialized JSON string
+    const fileTypeMap = @Html.Raw(fileTypeMapJson);
+
+    function toolbarClick(args) {
+        const grid = document.getElementById("FileImportGrid")?.ej2_instances?.[0];
+        if (!grid) return;
+
+        const itemId = (args?.item?.id || "").toLowerCase();
+
+        if (itemId.includes("excelexport")) {
+            grid.excelExport();
+        }
+    }
+
+    function onQueryCellInfo(args) {
+        if (args.column.field === "DwEtlFileId" || args.column.field === "dwEtlFileId") {
+            const id = args.data.DwEtlFileId || args.data.dwEtlFileId;
+            args.cell.innerText = fileTypeMap[id] || "Unknown";
+        }
+    }
+
+    document.addEventListener("DOMContentLoaded", async () => {
+        const els = {
+            reportDate: document.getElementById("reportDate"),
+            btnLoadDate: document.getElementById("btnLoadDate"),
+            btnNext: document.getElementById("btnNext"),
+            msgImport: document.getElementById("etlMsgImport"),
+            msgGrid: document.getElementById("etlMsgGrid"),
+            jobCounter: document.getElementById("jobCounter"),
+            importForms: document.querySelectorAll("#importArea form")
+        };
+
+        const today = new Date().toISOString().split("T")[0];
+
+        if (els.reportDate && !els.reportDate.value) {
+            els.reportDate.value = today;
+        }
+
+        if (els.reportDate) {
+            els.reportDate.max = today;
+        }
+
+        fileImportGrid = document.getElementById("FileImportGrid")?.ej2_instances?.[0];
+
+        function showMessage(element, ok, text) {
+            if (!element) return;
+
+            element.classList.remove("d-none", "alert-success", "alert-danger");
+            element.classList.add(ok ? "alert-success" : "alert-danger");
+            element.textContent = text || (ok ? "Done" : "Failed");
+        }
+
+        function clearMessage(element) {
+            if (!element) return;
+
+            element.classList.add("d-none");
+            element.classList.remove("alert-success", "alert-danger");
+            element.textContent = "";
+        }
+
+        function setButtonLoading(button, isLoading, loadingText = "Importing...") {
+            if (!button) return;
+
+            if (isLoading) {
+                button.dataset.originalHtml = button.innerHTML;
+                button.disabled = true;
+                button.innerHTML = `<span class="spinner-border spinner-border-sm"></span> ${loadingText}`;
+            } else {
+                button.disabled = false;
+                button.innerHTML = button.dataset.originalHtml || button.innerHTML;
+            }
+        }
+
+        function refreshLogState() {
+            const dataSource = Array.isArray(fileImportGrid?.dataSource)
+                ? fileImportGrid.dataSource
+                : [];
+
+            const count = dataSource.length;
+
+            if (els.jobCounter) {
+                els.jobCounter.textContent = `${count} ${count === 1 ? "entry" : "entries"}`;
+            }
+        }
+
+        function bindGridRows(rows) {
+            if (!fileImportGrid) return;
+
+            const safeRows = Array.isArray(rows) ? rows : [];
+
+            if (fileImportGrid.pageSettings) {
+                fileImportGrid.pageSettings.currentPage = 1;
+            }
+
+            fileImportGrid.setProperties({ dataSource: safeRows }, false);
+            fileImportGrid.dataBind();
+            fileImportGrid.refresh();
+
+            refreshLogState();
+        }
+
+        function applyLoadedDateToForms(dateValue) {
+            els.importForms.forEach(form => {
+                const hiddenDate = form.querySelector("input[name='reportDate']");
+                if (hiddenDate) {
+                    hiddenDate.value = dateValue || "";
+                }
+            });
+        }
+
+        function toggleReuploadBox(form, show, message = "Reupload?") {
+            const box = form.querySelector(".reupload-box");
+            const text = form.querySelector(".reupload-text");
+            const checkbox = form.querySelector(".reupload-check");
+
+            if (!box) return;
+
+            box.classList.toggle("d-none", !show);
+
+            if (text) {
+                text.textContent = message;
+            }
+
+            if (!show && checkbox) {
+                checkbox.checked = false;
+            }
+        }
+
+        function updateFormState(form) {
+            const submitBtn = form.querySelector("button[type='submit']");
+            const reuploadCheck = form.querySelector(".reupload-check");
+            const reuploadBox = form.querySelector(".reupload-box");
+            const fileInput = form.querySelector("input[type='file']");
+
+            const reuploadVisible = reuploadBox && !reuploadBox.classList.contains("d-none");
+
+            if (fileInput) {
+                fileInput.disabled = !hasSearched || (reuploadVisible && !(reuploadCheck && reuploadCheck.checked));
+            }
+
+            if (submitBtn) {
+                submitBtn.disabled = !hasSearched || (reuploadVisible && !(reuploadCheck && reuploadCheck.checked));
+            }
+        }
+
+        function updateAllFormsState() {
+            els.importForms.forEach(form => updateFormState(form));
+        }
+
+        // ✅ Helper: reads the sheetName hidden input from a form (empty string if missing)
+        function getSheetNameFromForm(form) {
+            return form.querySelector("input[name='sheetName']")?.value || "";
+        }
+
+        // ✅ Updated: sends FormSessionId header on every GET request
+        async function getJson(url) {
+            const response = await fetch(url, {
+                headers: {
+                    "X-Requested-With": "XMLHttpRequest",
+                    "FormSessionId": formSessionId
+                }
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status} ${response.statusText}`);
+            }
+
+            const contentType = response.headers.get("content-type") || "";
+
+            if (!contentType.includes("application/json")) {
+                const text = await response.text();
+                console.error("Unexpected response:", text);
+                throw new Error("Server did not return JSON.");
+            }
+
+            return await response.json();
+        }
+
+        // ✅ Updated: formId in URL
+        async function loadImportsByDate(dateValue) {
+            if (!fileImportGrid) {
+                showMessage(els.msgGrid, false, "Grid instance was not found.");
+                return;
+            }
+
+            const currentRequestId = ++loadRequestId;
+
+            if (!dateValue) {
+                bindGridRows([]);
+                return;
+            }
+
+            bindGridRows([]);
+
+            const url = `@Url.Action("GetImportsByReportDate", "CredinsEtl", new { area = "CredinsEtl" })?formId=${formId}&reportDate=${encodeURIComponent(dateValue)}`;
+
+            try {
+                clearMessage(els.msgGrid);
+
+                const data = await getJson(url);
+
+                if (currentRequestId !== loadRequestId) {
+                    return;
+                }
+
+                if (!data?.ok) {
+                    bindGridRows([]);
+                    showMessage(els.msgGrid, false, data?.message || "No imports found.");
+                    return;
+                }
+
+                bindGridRows(data.rows);
+            } catch (error) {
+                if (currentRequestId !== loadRequestId) {
+                    return;
+                }
+
+                console.error("loadImportsByDate error:", error);
+                bindGridRows([]);
+                showMessage(els.msgGrid, false, "Failed to load imports: " + (error?.message ?? error));
+            }
+        }
+
+        // ✅ Updated: sheetName added to query string
+        async function checkImportExists(dateValue, fileType, sheetName, fileName) {
+            const url = `@Url.Action("CheckReportDate", "CredinsEtl", new { area = "CredinsEtl" })`
+                + `?formId=${formId}`
+                + `&reportDate=${encodeURIComponent(dateValue)}`
+                + `&fileType=${encodeURIComponent(fileType)}`
+                + `&sheetName=${encodeURIComponent(sheetName ?? "")}`
+                + `&fileName=${encodeURIComponent(fileName ?? "")}`;
+
+            const data = await getJson(url);
+
+            return {
+                exists: !!data?.exists,
+                hasPassed: !!data?.hasPassed
+            };
+        }
+
+        async function evaluateFormsForDate(dateValue) {
+            for (const form of els.importForms) {
+                const reuploadCheck = form.querySelector(".reupload-check");
+                const fileType = form.querySelector("input[name='fileType']")?.value || "";
+                const sheetName = getSheetNameFromForm(form);
+                const fileInput = form.querySelector("input[type='file']");
+                let fileName = fileInput?.files?.[0]?.name || "";
+                if (!fileName) {
+                    fileName = form.querySelector("input[name='defaultFileName']")?.value || "";
+                }
+
+                if (!dateValue || !fileType) {
+                    toggleReuploadBox(form, false);
+                    updateFormState(form);
+                    continue;
+                }
+
+                try {
+                    const result = await checkImportExists(dateValue, fileType, sheetName, fileName);
+                    const showReupload = result.exists && result.hasPassed;
+
+                    toggleReuploadBox(form, showReupload);
+
+                    if (reuploadCheck) {
+                        reuploadCheck.onchange = () => {
+                            updateFormState(form);
+                        };
+                    }
+
+                    updateFormState(form);
+                } catch (error) {
+                    console.error("evaluateFormsForDate error:", error);
+                    toggleReuploadBox(form, false);
+                    updateFormState(form);
+                }
+            }
+        }
+
+        async function handleLoadButtonClick() {
+            clearMessage(els.msgImport);
+            clearMessage(els.msgGrid);
+
+            const dateValue = els.reportDate?.value || "";
+
+            if (!dateValue) {
+                showMessage(els.msgGrid, false, "Please select a report date first.");
+                return;
+            }
+
+            hasSearched = true;
+            selectedLoadedDate = dateValue;
+            applyLoadedDateToForms(dateValue);
+
+            bindGridRows([]);
+
+            await loadImportsByDate(dateValue);
+            await evaluateFormsForDate(dateValue);
+            updateAllFormsState();
+        }
+
+        els.btnLoadDate?.addEventListener("click", handleLoadButtonClick);
+
+        els.btnNext?.addEventListener("click", function () {
+            window.location.href = "/CredinsEtl/DwEtlFileDataViewer/Index/9902";
+        });
+
+        els.reportDate?.addEventListener("change", () => {
+            hasSearched = false;
+            selectedLoadedDate = "";
+            applyLoadedDateToForms("");
+            bindGridRows([]);
+            clearMessage(els.msgGrid);
+            clearMessage(els.msgImport);
+
+            els.importForms.forEach(form => {
+                toggleReuploadBox(form, false);
+
+                const reuploadCheck = form.querySelector(".reupload-check");
+                const fileInput = form.querySelector("input[type='file']");
+                const hiddenDate = form.querySelector("input[name='reportDate']");
+
+                if (reuploadCheck) {
+                    reuploadCheck.checked = false;
+                }
+
+                if (fileInput) {
+                    fileInput.value = "";
+                }
+
+                if (hiddenDate) {
+                    hiddenDate.value = "";
+                }
+
+                updateFormState(form);
+            });
+        });
+
+        els.importForms.forEach(form => {
+            form.addEventListener("submit", async (e) => {
+                e.preventDefault();
+
+                clearMessage(els.msgImport);
+
+                const submitBtn = form.querySelector("button[type='submit']");
+                const fileInput = form.querySelector("input[type='file']");
+                const hiddenDate = form.querySelector("input[name='reportDate']");
+                const token = form.querySelector("input[name='__RequestVerificationToken']")?.value || null;
+                const reuploadCheck = form.querySelector(".reupload-check");
+                const fileType = form.querySelector("input[name='fileType']")?.value || "";
+                const sheetName = getSheetNameFromForm(form);
+                const reportDate = selectedLoadedDate;
+                let fileName = fileInput?.files?.[0]?.name || "";
+                if (!fileName) {
+                    fileName = form.querySelector("input[name='defaultFileName']")?.value || "";
+                }
+
+                if (!reportDate || !hasSearched) {
+                    showMessage(els.msgImport, false, "Please select a report date and click Search first.");
+                    return;
+                }
+
+                if (!fileInput?.files?.length) {
+                    showMessage(els.msgImport, false, "Please browse and select a file first.");
+                    return;
+                }
+
+                try {
+                    const result = await checkImportExists(reportDate, fileType, sheetName, fileName);
+                    const showReupload = result.exists && result.hasPassed;
+
+                    if (showReupload && (!reuploadCheck || !reuploadCheck.checked)) {
+                        toggleReuploadBox(form, true);
+                        updateFormState(form);
+                        showMessage(els.msgImport, false, "An import already exists and passed. Check reupload to continue.");
+                        return;
+                    }
+                } catch (error) {
+                    console.error("duplicate check error:", error);
+                }
+
+                if (hiddenDate) {
+                    hiddenDate.value = reportDate;
+                }
+
+                try {
+                    setButtonLoading(submitBtn, true);
+
+                    const formData = new FormData(form);
+                    formData.set("reportDate", reportDate);
+
+                    // ✅ Updated: formId in URL + FormSessionId in header
+                    const actionUrl = form.action + (form.action.includes("?") ? "&" : "?") + `formId=${formId}`;
+
+                    const headers = {
+                        "X-Requested-With": "XMLHttpRequest",
+                        "FormSessionId": formSessionId
+                    };
+
+                    if (token) {
+                        headers["RequestVerificationToken"] = token;
+                    }
+
+                    const response = await fetch(actionUrl, {
+                        method: "POST",
+                        body: formData,
+                        headers: headers
+                    });
+
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status} ${response.statusText}`);
+                    }
+
+                    const contentType = response.headers.get("content-type") || "";
+
+                    if (!contentType.includes("application/json")) {
+                        const text = await response.text();
+                        console.error("Unexpected server response:", text);
+                        throw new Error("Unexpected server response.");
+                    }
+
+                    const data = await response.json();
+                    showMessage(els.msgImport, !!data?.ok, data?.message || "Done");
+
+                    await loadImportsByDate(reportDate);
+                    await evaluateFormsForDate(reportDate);
+
+                    if (fileInput) {
+                        fileInput.value = "";
+                    }
+                } catch (error) {
+                    console.error("submit import error:", error);
+                    showMessage(els.msgImport, false, "Import failed: " + (error?.message ?? error));
+                } finally {
+                    setButtonLoading(submitBtn, false);
+                    updateFormState(form);
+                }
+            });
+        });
+
+        bindGridRows([]);
+        applyLoadedDateToForms("");
+        updateAllFormsState();
+    });
+</script>

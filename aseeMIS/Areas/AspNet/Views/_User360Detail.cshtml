@@ -1,0 +1,564 @@
+@model dsAspNet.Core.ViewModels.AspNetUserEmployeeViewModel
+@using Syncfusion.EJ2
+@using Syncfusion.EJ2.DropDowns
+@using System.Linq
+
+@{
+    var request = ViewData["EntityDetailRequest"] as aseeMIS.Areas.Common.DTOs.EntityDetailRequest
+        ?? throw new InvalidOperationException("EntityDetailRequest is required.");
+    bool isAdd = request.IsAdd;
+
+    bool isReadonly = isAdd ? false : (Model.IsApproved == null);
+
+    string statusText = request.IsApprovedText;
+    string statusCss = Model.IsApproved == null ? "badge bg-warning text-dark"
+                    : Model.IsApproved == true ? "badge bg-success"
+                    : "badge bg-danger";
+
+    var genders = ViewData["FK_GenderId"] as IEnumerable<object>;
+    var languages = ViewData["FK_LanguageCode"] as IEnumerable<object>;
+    var roles = ViewData["FK_MentionedRoleIds"] as IEnumerable<object>;
+
+    var roleItems = (roles ?? Enumerable.Empty<object>())
+        .Select(r =>
+        {
+            var t = r.GetType();
+
+            var id = t.GetProperty("RoleId")?.GetValue(r)?.ToString();
+            var text = t.GetProperty("RoleName")?.GetValue(r)?.ToString();
+
+            return new
+            {
+                Id = id,
+                Text = text
+            };
+        })
+        .Where(x => !string.IsNullOrEmpty(x.Id))
+        .ToList();
+
+    string statusColClass = "col-3";
+
+    // ✅ Default (EDIT): multi-column switches
+    string switchItemClass = "col-12";
+
+    // if (isAdd)
+    // {
+    //     Model.IsActive = true;        // default for new user
+    //     statusColClass = "col-3";
+
+    //     // ✅ INSERT: one switch per line (label left, switch right)
+    //     switchItemClass = "col-12";
+    // }
+
+    // ✅ unique form id + unique preSave function name (important in Entity360)
+    var formDomId = "entityForm_" + request.FormSessionId;
+}
+<form id="@formDomId" onsubmit="return false;">
+    <style>
+
+
+        /* ===============================
+                                    CARD LAYOUT
+                                   ================================ */
+
+        .equal-height-row {
+            display: flex;
+            align-items: stretch;
+        }
+
+            .equal-height-row > [class*="col-"] {
+                display: flex;
+            }
+
+        .ds-card {
+            display: flex;
+            flex-direction: column;
+            width: 100%;
+            border-radius: 12px;
+        }
+
+        .ds-card-h {
+            height: 64px;
+            display: flex;
+            align-items: center;
+            padding: 0 1.25rem;
+        }
+
+        .ds-card-b {
+            flex: 1;
+            padding: 1rem 1.25rem;
+        }
+
+            /* Remove unwanted Bootstrap row stacking gaps */
+            .ds-card-b .row {
+                margin-top: 0 !important;
+            }
+
+
+        /* ===============================
+                                                                                   SWITCH LAYOUT (ADD vs EDIT)
+                                                                                ================================ */
+
+        /* Base switch row */
+        .switch-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between; /* label left, switch right */
+            width: 100%;
+            gap: 1rem;
+        }
+
+            .switch-row .switch-label {
+                margin: 0;
+                line-height: 1.2;
+                white-space: nowrap;
+            }
+
+            /* EDIT mode: aligned left but still clean */
+            .switch-row.mode-edit {
+                justify-content: space-between;
+            }
+
+            /* ADD mode: label left, switch right */
+            .switch-row.mode-add {
+                justify-content: space-between;
+            }
+
+                .switch-row.mode-add .e-switch-wrapper {
+                    margin-left: auto;
+                }
+
+                /* Optional slightly smaller switch on insert */
+                .switch-row.mode-add .e-switch-wrapper {
+                    transform: scale(0.97);
+                    transform-origin: right center;
+                }
+
+
+        /* ===============================
+                                                                                   USERNAME FIELD
+                                                                                ================================ */
+
+        .username-wrapper {
+            position: relative;
+        }
+
+            .username-wrapper .e-input {
+                padding-right: 110px !important;
+            }
+
+        .username-suffix {
+            position: absolute;
+            right: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #6c757d;
+            font-size: 0.875rem;
+            pointer-events: none;
+            white-space: nowrap;
+        }
+
+        /* Domain styling inside appendTemplate */
+        .username-domain-wrapper {
+            display: flex;
+            align-items: center;
+            color: #6c757d;
+            font-size: 0.875rem;
+        }
+
+        .username-domain {
+            opacity: 0.75;
+        }
+
+        /* Trash icon */
+        .username-clear-wrapper {
+            display: flex;
+            align-items: center;
+        }
+
+            .username-clear-wrapper i {
+                cursor: pointer;
+                font-size: 15px;
+            }
+
+                .username-clear-wrapper i:hover {
+                    color: #dc3545;
+                }
+
+
+        /* ===============================
+                                                                                   ICON ALIGNMENT
+                                                                                ================================ */
+
+        .e-input-group-icon {
+            display: flex;
+            align-items: center;
+        }
+
+        .e-listbox-wrapper .e-list-item .e-list-text {
+            display: inline !important;
+            visibility: visible !important;
+            color: #000 !important;
+        }
+    </style>
+
+    <div class="form-container" data-form-session-id="@request.FormSessionId" data-form-id="@request.FormId" data-primary-key="Id">
+
+        <div class="row g-3 mt-1 equal-height-row">
+
+            <!-- ================= EMPLOYEE CARD ================= -->
+            <div class="col-3">
+                <div class="ds-card">
+                    <div class="ds-card-h">
+                        <div class="d-flex align-items-center gap-2">
+                            <i class="bi-person-vcard"></i>
+                            <span class="ds-card-title">Profile Information</span>
+                        </div>
+                    </div>
+
+                    <div class="ds-card-b">
+
+                        <div class="row g-2">
+                            
+                            <div class="col-md-4" style="display:@(isAdd ? "none" : "block")">
+                                <ejs-numerictextbox ejs-for="Id" id="Id"
+                                                    placeholder="User Id"
+                                                    floatLabelType="Always"
+                                                    readonly="true"
+                                                    format="n0"
+                                                    decimals="0"
+                                                    showSpinButton="false">
+                                </ejs-numerictextbox>
+                            </div>
+                        </div>
+
+                        <div class="row g-2">
+                            <div class="col-md-12">
+                                <ejs-textbox ejs-for="FullName" id="FullName"
+                                             placeholder="Full Name"
+                                             floatLabelType="Always"
+                                             readonly="@isReadonly">
+                                </ejs-textbox>
+                            </div>
+                        </div>
+                        <div class="row g-2">
+
+                            <div class="col-md-6">
+                                <ejs-dropdownlist ejs-for="GenderId" id="GenderId"
+                                                  dataSource="@(genders)"
+                                                  placeholder="Gender"
+                                                  floatLabelType="Always"
+                                                  enabled="@(!isReadonly)">
+                                    <e-dropdownlist-fields text="GenderName" value="GenderId"></e-dropdownlist-fields>
+                                </ejs-dropdownlist>
+                            </div>
+
+                            <div class="col-md-6">
+                                <ejs-datepicker ejs-for="BirthDate" id="BirthDate"
+                                                placeholder="Birth Date"
+                                                floatLabelType="Always"
+                                                format="yyyy-MM-dd"
+                                                enabled="@(!isReadonly)">
+                                </ejs-datepicker>
+                            </div>
+
+                        </div>
+
+                    </div>
+                </div>
+            </div>
+
+            <!-- ================= USER CARD ================= -->
+            <div class="col-6">
+                <div class="ds-card">
+                    <div class="ds-card-h">
+                        <div class="d-flex align-items-center gap-2">
+                            <i class="bi bi-person"></i>
+                            <span class="ds-card-title">User Information</span>
+                        </div>
+                    </div>
+
+                    <div class="ds-card-b">
+
+                        <div class="row g-2">
+
+                            <!-- USERNAME -->
+                            <div class="col-12 ds-required-empty">
+                                @if (isAdd)
+                                {
+                                    <!-- ✅ ADD MODE -->
+                                    <ejs-textbox id="UserNameLocal"
+                                                 placeholder="Emri i përdoruesit"
+                                                 floatLabelType="Always"
+                                                 prependTemplate="@Html.Raw("<span class='e-input-group-icon'><i class='bi bi-person'></i></span><span class='e-input-separator'></span>")"
+                                                 appendTemplate="@Html.Raw("<span class='e-input-group-icon username-domain-wrapper'><span class='username-domain'>@dsmis.com</span></span>")">
+                                    </ejs-textbox>
+                                }
+                                else
+                                {
+                                    <!-- ✅ EDIT MODE -->
+                                    <ejs-textbox ejs-for="UserName"
+                                                 id="UserName"
+                                                 placeholder="Emri i përdoruesit"
+                                                 floatLabelType="Always"
+                                                 prependTemplate="@Html.Raw("<span class='e-input-group-icon'><i class='bi bi-person'></i></span><span class='e-input-separator'></span>")">
+                                    </ejs-textbox>
+                                }
+                            </div>
+
+                            <!-- EMAIL -->
+                            <div class="col-12 ds-required-empty">
+                                <ejs-textbox ejs-for="Email"
+                                             id="Email"
+                                             placeholder="Email"
+                                             floatLabelType="Always"
+                                             prependTemplate="@Html.Raw("<span class='e-input-group-icon'><i class='bi bi-envelope'></i></span><span class='e-input-separator'></span>")">
+                                </ejs-textbox>
+                            </div>
+
+                            <!-- PHONE -->
+                            <div class="col-6">
+                                <ejs-textbox ejs-for="PhoneNumber"
+                                             id="PhoneNumber"
+                                             placeholder="Numri telefonit"
+                                             floatLabelType="Always"
+                                             prependTemplate="@Html.Raw("<span class='e-input-group-icon'><i class='bi bi-telephone'></i></span><span class='e-input-separator'></span>")">
+                                </ejs-textbox>
+                            </div>
+
+                            <!-- LANGUAGE -->
+                            <div class="col-6 ds-required-empty">
+                                <ejs-dropdownlist ejs-for="LanguageCode"
+                                                  id="LanguageCode"
+                                                  dataSource="@(languages)"
+                                                  placeholder="Kodi i Gjuhës"
+                                                  floatLabelType="Always">
+                                    <e-dropdownlist-fields text="DisplayText" value="LanguageCode"></e-dropdownlist-fields>
+                                </ejs-dropdownlist>
+                            </div>
+
+                        </div>
+
+                    </div>
+
+                </div>
+            </div>
+
+            <!-- ================= STATUS CARD ================= -->
+            <div class="col-3">
+                <div class="ds-card">
+                    <div class="ds-card-h">
+                        <div class="d-flex align-items-center gap-2">
+                            <i class="bi bi-toggles"></i>
+                            <span class="ds-card-title">Account Status</span>
+                        </div>
+                    </div>
+
+                    <div class="ds-card-b">
+
+                        <div class="row g-3">
+                            <div class="@switchItemClass">
+                                <div class="switch-row">
+                                    <label class="ds-label switch-label">Email Confirmed</label>
+                                    <ejs-switch ejs-for="EmailConfirmed" id="EmailConfirmed"></ejs-switch>
+                                </div>
+                            </div>
+
+                            <div class="@switchItemClass">
+                                <div class="switch-row">
+                                    <label class="ds-label switch-label">Two-Factor Auth</label>
+                                    <ejs-switch ejs-for="TwoFactorEnabled" id="TwoFactorEnabled"></ejs-switch>
+                                </div>
+                            </div>
+
+                            <div class="@switchItemClass">
+                                <div class="switch-row">
+                                    <label class="ds-label switch-label">Is Active</label>
+                                    <ejs-switch ejs-for="IsActive" id="IsActive"></ejs-switch>
+                                </div>
+                            </div>
+
+                            <div class="@switchItemClass">
+                                <ejs-datetimepicker ejs-for="LockoutEnd"
+                                                    id="LockoutEnd"
+                                                    placeholder="Lockout End"
+                                                    floatLabelType="Always">
+                                </ejs-datetimepicker>
+                            </div>
+
+                        </div>
+
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+
+        <div class="row g-3 mt-1 equal-height-row">
+
+            @if (isAdd)
+            {
+                <!-- Roles Card -->
+                <div class="col-12">
+                    <div class="ds-card">
+                        <div class="ds-card-h d-flex align-items-center justify-content-between">
+                            <div class="d-flex align-items-center gap-2">
+                                <i class="bi bi-shield-lock"></i>
+                                <span class="ds-card-title">Roles</span>
+                                <span class="ds-card-sub">Select roles for this user</span>
+                            </div>
+                        </div>
+
+                        <div class="ds-card-b">
+                            <div class="row g-3">
+                                <ejs-listbox id="RoleCheckboxList"
+                                             dataSource="@roleItems"
+                                             height="275">
+                                    <e-listbox-fields text="Text" value="Id"></e-listbox-fields>
+                                    <e-listbox-selectionsettings showCheckbox="true" mode="Multiple"></e-listbox-selectionsettings>
+                                </ejs-listbox>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+    </div>
+
+    <!-- Hidden but kept in the model -->
+    @*  <div class="d-none">
+        <input type="hidden" id="IsApproved" value="@(Model.IsApproved.HasValue ? (Model.IsApproved.Value ? "true" : "false") : "")" />
+        <ejs-numerictextbox ejs-for="EmployeeId" id="EmployeeId" placeholder="Employee Id" floatLabelType="Always"></ejs-numerictextbox>
+        <ejs-textbox ejs-for="MentionedRoleIds" id="MentionedRoleIds" floatLabelType="Never"></ejs-textbox>
+        <ejs-textbox ejs-for="UserName" id="UserNameHidden"></ejs-textbox>
+    </div> *@
+
+    <div class="d-none">
+        <input type="hidden" id="IsApproved" value="@(Model.IsApproved.HasValue ? (Model.IsApproved.Value ? "true" : "false") : "")" />
+        <ejs-textbox ejs-for="MentionedRoleIds" id="MentionedRoleIds" floatLabelType="Never"></ejs-textbox>
+
+        @if (isAdd)
+        {
+            <!-- ✅ ADD MODE ONLY: Hidden field bound to the UserName model property (ejs-for="UserName").
+            In ADD mode, the visible input is "UserNameLocal" which only captures the local part (e.g. "john.doe").
+            In preSave(), the local part is concatenated with the domain  and written to this
+            hidden field so the model receives the full username (e.g. "john.doe@dsmis.com").
+            In EDIT mode, this field is not rendered — the visible "UserName" field binds directly to the model. -->
+            <ejs-textbox ejs-for="UserName" id="UserName"></ejs-textbox>
+        }
+    </div>
+
+    <!-- Actions -->
+    <div class="d-flex align-items-center mt-3">
+
+        @if (!isAdd)
+        {
+            <div class="d-flex align-items-center">
+                <span id="statusBadge" class="@statusCss">@statusText</span>
+            </div>
+        }
+
+        <button type="button"
+                class="btn btn-primary ms-auto"
+                id="btnSaveUser"
+                onclick="preSave()"
+                @(isReadonly ? "disabled" : "")>
+            <i class="bi bi-save me-2"></i>Save
+        </button>
+
+    </div>
+    </div>
+</form>
+
+<script>
+
+    (function () {
+        const isAdd = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(isAdd));
+        const isReadonly = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(isReadonly));
+
+        const roleListBoxId = "RoleCheckboxList";
+        const mentionedRoleIdsId = "MentionedRoleIds";
+
+        // 🔒 Mandatory username domain (Razor-safe)
+        const USERNAME_DOMAIN = "@@dsmis.com";
+
+
+        function getSelectedRoleIdsCsv() {
+            const lb = ds.ej(roleListBoxId);
+            if (!lb) return "";
+            const values = Array.isArray(lb.value) ? lb.value : [];
+            return values.map(v => String(v)).join(",");
+        }
+
+        function syncMentionedRoleIds() {
+            const tb = ds.ej(mentionedRoleIdsId);
+            if (!tb) return;
+            tb.value = getSelectedRoleIdsCsv();
+            tb.dataBind();
+        }
+
+        // ==========================================
+        // SAVE HANDLER
+        // ==========================================
+            window["preSave"] = function () {
+
+        // ================= USERNAME =================
+        const usernameLocalEj = ds.ej("UserNameLocal");
+
+    // In ADD mode, targets the hidden "UserName" field where we write the full
+    // usernamebefore saving.
+    // In EDIT mode, targets the visible "UserName" field bound directly to the model.
+
+        const usernameEj = ds.ej("UserName");
+
+        if (isAdd && usernameLocalEj && usernameEj) {
+            const localPart = (usernameLocalEj.value || "").trim();
+
+            if (!localPart) {
+                notify?.error?.("Username is required");
+                return;
+            }
+
+            const valid = /^[a-zA-Z0-9.]+$/.test(localPart);
+            if (!valid) {
+                notify?.error?.("Username can contain only letters, numbers and dots");
+                return;
+            }
+
+            usernameEj.value = localPart + USERNAME_DOMAIN;
+            usernameEj.dataBind();
+        }
+
+        // ================= ROLES =================
+        if (isAdd) {
+            const csv = getSelectedRoleIdsCsv();
+            if (!csv) {
+                notify?.error?.("Select at least one role");
+                return;
+            }
+            syncMentionedRoleIds();
+        }
+
+        // ================= 🔥 FORCE INSERT =================
+        if (isAdd && ds.entity && ds.entity.form && ds.entity.form.pk) {
+            ds.entity.form.pk = null;
+        }
+
+        const fullNameEj = ds.ej("FullName");
+        if (isAdd && fullNameEj && !(fullNameEj.value || "").trim()) {
+            notify?.error?.("Full Name is required");
+            return;
+        }
+
+        // ================= SAVE =================
+        ds.entity.save();
+    };
+
+        document.addEventListener("DOMContentLoaded", function () {
+            formLocalizationDataBound(
+    @Html.Raw(System.Text.Json.JsonSerializer.Serialize(request.Area))
+            );
+        });
+    })();
+</script>

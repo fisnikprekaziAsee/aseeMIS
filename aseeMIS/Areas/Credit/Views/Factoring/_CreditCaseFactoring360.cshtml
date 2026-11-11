@@ -1,0 +1,246 @@
+@model dsCredit.Core.ViewModels.CreditCaseFactoringApplicationViewModel
+
+<ul class="nav nav-tabs mb-3" id="factoring360Tabs" role="tablist">
+    <li class="nav-item" role="presentation">
+        <button class="nav-link active"
+                data-bs-toggle="tab"
+                data-bs-target="#tab-factoring-case-info"
+                type="button">
+            <i class="bi bi-receipt me-1"></i>
+            Factoring Information
+        </button>
+    </li>
+
+    <li class="nav-item" role="presentation">
+        <button class="nav-link"
+                data-bs-toggle="tab"
+                data-bs-target="#tab-factoring-invoices"
+                type="button">
+            <i class="bi bi-journal-text me-1"></i>
+            Invoices
+        </button>
+    </li>
+
+    <li class="nav-item" role="presentation">
+        <button class="nav-link"
+                data-bs-toggle="tab"
+                data-bs-target="#tab-factoring-subsidy"
+                type="button">
+            <i class="bi bi-cash-coin me-1"></i>
+            Interest Subsidies
+        </button>
+    </li>
+</ul>
+
+<div class="tab-content">
+    <div class="tab-pane fade show active" id="tab-factoring-case-info">
+        @await Html.PartialAsync(
+            "~/Areas/Credit/Views/Factoring/_CreditCaseFactoringUpsert.cshtml",
+            Model,
+            ViewData)
+    </div>
+
+    <div class="tab-pane fade" id="tab-factoring-invoices">
+        <div class="text-muted small p-3">Open the tab to load the invoice workspace.</div>
+    </div>
+
+    <div class="tab-pane fade" id="tab-factoring-subsidy">
+        <div class="text-muted small p-3">Open the tab to load the subsidy workspace.</div>
+    </div>
+</div>
+
+<script>
+    (function () {
+        const factoringHostPane = document.currentScript?.closest("#ccMasterTabsContent > .tab-pane")
+            || document.currentScript?.closest(".tab-pane");
+        const invoicesTabButton = document.querySelector('[data-bs-target="#tab-factoring-invoices"]');
+        const subsidiesTabButton = document.querySelector('[data-bs-target="#tab-factoring-subsidy"]');
+        const invoicesContainer = document.getElementById("tab-factoring-invoices");
+        const subsidiesContainer = document.getElementById("tab-factoring-subsidy");
+        const factoringUrls = {
+            invoices: '@(ViewBag.FactoringInvoicesUrl ?? Url.Action("LoadFactoringInvoicesTab", "CreditCaseFactoring", new { area = "Credit" }))',
+            interestSubsidies: '@(ViewBag.InterestSubsidiesUrl ?? Url.Action("LoadInterestSubsidiesTab", "CreditCaseFactoring", new { area = "Credit" }))'
+        };
+
+        if (invoicesTabButton && !invoicesTabButton.dataset.bound) {
+            invoicesTabButton.dataset.bound = "1";
+            invoicesTabButton.addEventListener("shown.bs.tab", function () {
+                loadFactoringInvoicesTab(false);
+            });
+        }
+
+        if (subsidiesTabButton && !subsidiesTabButton.dataset.bound) {
+            subsidiesTabButton.dataset.bound = "1";
+            subsidiesTabButton.addEventListener("shown.bs.tab", function () {
+                loadFactoringInterestSubsidiesTab(false);
+            });
+        }
+
+        function getElementValue(id) {
+            const element = document.getElementById(id);
+            if (!element) {
+                return null;
+            }
+
+            const instance = element.ej2_instances?.[0];
+            if (instance) {
+                if (typeof instance.checked !== "undefined") {
+                    return instance.checked;
+                }
+
+                if (typeof instance.value !== "undefined") {
+                    return instance.value;
+                }
+            }
+
+            if (element.type === "checkbox") {
+                return element.checked;
+            }
+
+            return element.value;
+        }
+
+        function normalizeTextValue(value) {
+            if (value === undefined || value === null) {
+                return "";
+            }
+
+            return String(value).trim();
+        }
+
+        function getFactoringContext() {
+            const creditCaseId = getElementValue("CreditCaseId");
+            const bankPartyId =
+                document.getElementById("ccBankPartyBankPartyId")?.value ??
+                getElementValue("BankPartyId");
+            const caseNumber = normalizeTextValue(getElementValue("CaseNumber"));
+
+            return {
+                creditCaseId: creditCaseId && creditCaseId !== 0 && creditCaseId !== "0" ? creditCaseId : "",
+                bankPartyId: bankPartyId && bankPartyId !== 0 && bankPartyId !== "0" ? bankPartyId : "",
+                caseNumber: caseNumber
+            };
+        }
+
+        function getFactoringFormSessionId() {
+            return document.querySelector("#tab-factoring-case-info .form-container")?.dataset.formSessionId
+                || "@(ViewBag.FormSessionId ?? string.Empty)";
+        }
+
+        function getFactoringChildFormSessionId(formId) {
+            return typeof window.getCreditHubChildSession === "function"
+                ? window.getCreditHubChildSession(formId) || getFactoringFormSessionId()
+                : getFactoringFormSessionId();
+        }
+
+        function updateHubDocumentContext() {
+            const context = getFactoringContext();
+            const formSessionId = getFactoringFormSessionId();
+
+            if (factoringHostPane) {
+                factoringHostPane.dataset.creditCaseId = context.creditCaseId || "";
+                factoringHostPane.dataset.caseNumber = context.caseNumber || "";
+                factoringHostPane.dataset.formSessionId = formSessionId || "";
+            }
+
+            if (typeof window.updateCreditHubCurrentCaseContext === "function") {
+                window.updateCreditHubCurrentCaseContext(context.creditCaseId, context.caseNumber, formSessionId);
+            }
+        }
+
+        function renderFactoringSupportGridHtml(container, html) {
+            if (!container) {
+                return;
+            }
+
+            if (window.jQuery) {
+                window.jQuery(container).html(html);
+            } else {
+                container.innerHTML = html;
+            }
+
+            setTimeout(function () {
+                if (window.ds?.entity?.init) {
+                    ds.entity.init();
+                }
+
+                if (window.ej?.base) {
+                    ej.base.enableRipple(true);
+                }
+            }, 0);
+        }
+
+        function loadFactoringSupportGridTab(container, url, forceReload, loadingText, childFormId) {
+            if (!container) {
+                return Promise.resolve();
+            }
+
+            if (!forceReload && container.dataset.loaded === "true") {
+                return Promise.resolve();
+            }
+
+            const context = getFactoringContext();
+            const requestUrl = new URL(url, window.location.origin);
+
+            if (context.creditCaseId) {
+                requestUrl.searchParams.set("creditCaseId", context.creditCaseId);
+            }
+
+            requestUrl.searchParams.set("formSessionId", getFactoringChildFormSessionId(childFormId));
+
+            container.innerHTML = `<div class="p-3 text-muted">${loadingText}</div>`;
+
+            return fetch(requestUrl, {
+                headers: {
+                    "X-Requested-With": "XMLHttpRequest"
+                }
+            })
+                .then(response => response.text())
+                .then(html => {
+                    renderFactoringSupportGridHtml(container, html);
+                    container.dataset.loaded = "true";
+                    updateHubDocumentContext();
+                })
+                .catch(error => {
+                    console.error(error);
+                    container.innerHTML = `
+                        <div class="text-danger p-3">
+                            Failed to load tab content.
+                        </div>
+                    `;
+                    throw error;
+                });
+        }
+
+        function loadFactoringInvoicesTab(forceReload) {
+            return loadFactoringSupportGridTab(
+                invoicesContainer,
+                factoringUrls.invoices,
+                forceReload,
+                "Loading invoices...",
+                335);
+        }
+
+        function loadFactoringInterestSubsidiesTab(forceReload) {
+            return loadFactoringSupportGridTab(
+                subsidiesContainer,
+                factoringUrls.interestSubsidies,
+                forceReload,
+                "Loading interest subsidies...",
+                326);
+        }
+
+        window.refreshFactoringSupportingTabs = function () {
+            if (invoicesContainer?.dataset.loaded === "true") {
+                loadFactoringInvoicesTab(true);
+            }
+
+            if (subsidiesContainer?.dataset.loaded === "true") {
+                loadFactoringInterestSubsidiesTab(true);
+            }
+        };
+
+        window.syncFactoringHubContext = updateHubDocumentContext;
+        updateHubDocumentContext();
+    })();
+</script>

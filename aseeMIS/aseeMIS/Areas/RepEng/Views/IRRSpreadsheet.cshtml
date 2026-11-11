@@ -1,0 +1,303 @@
+﻿@{
+    ViewData["Title"] = "Syncfusion Spreadsheet Example";
+}
+
+<div class="modal fade" id="cellModal" tabindex="-1" role="dialog" aria-labelledby="cellModalLabel" aria-hidden="true">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="cellModalLabel">Cell Information</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <p id="cellInfo"></p>
+                <div class="form-group">
+                    <label for="cellValueInput">Value:</label>
+                    <input type="text" class="form-control" id="cellValueInput" placeholder="Enter new value">
+                </div>
+                <div class="form-group">
+                    <label for="cellValueInput">Sql Condition:</label>
+                    <input type="text" class="form-control" id="cellValueInput1" placeholder="SqlCondition">
+                </div>
+                <div class="form-group">
+                    <label for="cellValueInput">WHATTTTT!!!????:</label>
+                    <input type="text" class="form-control" id="cellValueInput2" placeholder="WHATTTT!!!????">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-primary" id="saveButton">Save changes</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<button type="button" class="btn btn-primary" onclick="downloadExcelFile()">Download Template File</button>
+<button type="button" class="btn btn-primary" onclick="loadSpreadsheet()">Load Template</button>
+<button type="button" class="btn btn-success" onclick="addNewSheet()">
+    ➕ Add Sheet
+</button>
+<button type="button" class="btn btn-secondary" onclick="logActiveSheetJson()">
+    🧾 Log Active Sheet JSON
+</button>
+<button type="button" class="btn btn-warning" onclick="loadSheetFromServer()">
+    📥 Load F01 Sheet
+</button>
+
+
+
+<!-- Syncfusion Spreadsheet Control -->
+<ejs-spreadsheet id="spreadsheet" created="created" fileMenuItemSelect="fileMenuItemSelect" fileMenuBeforeOpen="fileMenuBeforeOpen" allowResizing="true" openUrl="/RepEng/IRRSpreadsheet/Open" saveUrl="/RepEng/IRRSpreadsheet/Save" contextMenuItemSelect="contextMenuItemSelectHandler" contextMenuBeforeOpen="createdHandler" height="600px">
+</ejs-spreadsheet>
+
+
+
+
+<!-- Syncfusion CSS -->
+<link href="https://cdn.syncfusion.com/ej2/21.1.35/material.css" rel="stylesheet">
+
+<!-- Syncfusion JavaScript -->
+<script src="https://cdn.syncfusion.com/ej2/21.1.35/dist/ej2.min.js"></script>
+
+<!-- Additional Syncfusion Scripts for Spreadsheet -->
+<script src="https://cdn.syncfusion.com/ej2/21.1.35/dist/ej2-spreadsheet.umd.min.js"></script>
+
+<script>
+    let spreadsheetObj; 
+
+    function created() {
+        spreadsheetObj = document.getElementById('spreadsheet').ej2_instances[0];
+
+        this.addFileMenuItems([{ text: 'Load Template', iconCss: 'e-open e-icons' },
+        { text: 'Save to ServerSide', iconCss: 'e-save e-icons' },
+        { text: 'Open', iconCss: 'e-open e-icons' }
+        ], 'Open');
+        this.addFileMenuItems(
+            [{
+                text: 'Export As', iconCss: 'e-save e-icons', items: [{ text: 'XLSX', iconCss: 'e-xlsx e-icons' },
+                { text: 'XLS', iconCss: 'e-xls e-icons' }, { text: 'CSV', iconCss: 'e-csv e-icons' }]
+            }],
+            'Save As', false);
+    }
+
+    function addNewSheet() {
+        if (!spreadsheetObj) return;
+
+        const sheetCount = spreadsheetObj.sheets.length + 1;
+
+        spreadsheetObj.insertSheet([
+            {
+                name: 'Sheet ' + sheetCount,
+                rows: [
+                    {
+                        cells: [
+                            { value: 'New Sheet ' + sheetCount }
+                        ]
+                    }
+                ]
+            }
+        ]);
+    }
+
+    function logActiveSheetJson() {
+        if (!spreadsheetObj) return;
+
+        const activeIndex = spreadsheetObj.activeSheetIndex;
+        const activeSheet = spreadsheetObj.sheets[activeIndex];
+
+        // Deep clone to avoid circular refs / live mutation
+        const sheetJson = JSON.parse(JSON.stringify(activeSheet));
+
+        console.log('Active Sheet Index:', activeIndex);
+        console.log('Active Sheet JSON:', sheetJson);
+    }
+
+    async function loadSheetFromServer() {
+        if (!spreadsheetObj) return;
+
+        try {
+            const response = await fetch('/RepEng/IRRSpreadsheet/LoadSheetJson?sheetName=F01');
+
+            if (!response.ok) {
+                throw new Error('Failed to load sheet JSON');
+            }
+
+            const sheetJson = await response.json();
+
+            // Ensure unique name if already exists
+            const existingNames = spreadsheetObj.sheets.map(s => s.name);
+            let finalName = sheetJson.name || 'F01';
+            let counter = 1;
+
+            while (existingNames.includes(finalName)) {
+                finalName = `${sheetJson.name}_${counter++}`;
+            }
+
+            sheetJson.name = finalName;
+
+            // Append like addNewSheet
+            spreadsheetObj.insertSheet([sheetJson]);
+
+            console.log('Sheet appended:', sheetJson.name);
+        }
+        catch (err) {
+            console.error('Error loading sheet:', err);
+        }
+    }
+
+    function fileMenuBeforeOpen() {
+        this.hideFileMenuItems(['Save As', 'Open']);
+
+        this.enableFileMenuItems([`${this.element.id}_New`], false, true);
+    }
+
+    function fileMenuItemSelect(args) {
+        switch (args.item.text) {
+            case 'Load Template':
+                loadSpreadsheet(); // Call the existing function for loading templates
+                break;
+            case 'Save to ServerSide':
+                saveToServer(); // Create this function to handle saving
+                break;
+            case 'Open':
+                openSpreadsheet(); // Call the existing function for loading templates
+                break;
+            case 'XLSX':
+                this.save({ saveType: 'Xlsx' });
+                break;
+            case 'XLS':
+                this.save({ saveType: 'Xls' });
+                break;
+            case 'CSV':
+                this.save({ saveType: 'Csv' });
+                break;
+        }
+    }
+
+    function createdHandler(args) {
+        // Ensure the context menu is created properly
+        if (args.element.id === this.element.id + '_contextmenu') {
+            // Add the custom context menu item
+            this.addContextMenuItems([{ text: 'Open Cell Info', id: 'openCellInfo' }], 'Cut', false);
+        }
+    }
+
+    let activeCell = null; // Holds the Excel-style cell reference
+
+    function contextMenuItemSelectHandler(menuArgs) {
+        if (menuArgs.item.id === 'openCellInfo') {
+            var spreadsheetInstance = document.getElementById('spreadsheet').ej2_instances[0];
+            var activeSheet = spreadsheetInstance.sheets[spreadsheetInstance.activeSheetIndex];
+
+            // Get the selected range from the active sheet
+            var selectedRange = activeSheet.selectedRange.split(':');
+            activeCell = selectedRange[0];  // Get the first cell in the selected range (e.g., "A1")
+
+            // Get the row and column indices from the activeCell
+            var rowIndex = parseInt(activeCell.match(/\d+/)[0]) - 1; // Row index
+            var colIndex = activeCell.charCodeAt(0) - 65; // Column index (A=0, B=1, etc.)
+
+            // Check if the row exists and then get the cell value
+            var cellValue = (activeSheet.rows[rowIndex] && activeSheet.rows[rowIndex].cells[colIndex])
+                ? activeSheet.rows[rowIndex].cells[colIndex].value || ''
+                : '';
+
+            var splitValues = cellValue.split(';');
+
+            // Assign each part to the corresponding input field
+            document.getElementById('cellInfo').innerText = "Cell: " + activeCell;
+            document.getElementById('cellValueInput').value = splitValues[0] || ''; // First part
+            document.getElementById('cellValueInput1').value = splitValues[1] || ''; // Second part
+            document.getElementById('cellValueInput2').value = splitValues[2] || '';
+
+            $('#cellModal').modal('show'); // Show modal
+        }
+    }
+
+    function saveToServer() {
+        const spreadsheet = document.getElementById('spreadsheet').ej2_instances[0];
+
+        // Directly trigger the save operation
+        spreadsheet.save(); // This uses the existing saveUrl defined in the spreadsheet
+    }
+
+    function openSpreadsheet() {
+        const spreadsheet = document.getElementById('spreadsheet').ej2_instances[0];
+
+        spreadsheet.open();
+    }
+
+    function saveCellValue() {
+        var spreadsheetInstance = document.getElementById('spreadsheet').ej2_instances[0];
+        var updatedValue = document.getElementById('cellValueInput').value;
+        var updatedValue2 = document.getElementById('cellValueInput1').value;
+        var updatedValue3 = document.getElementById('cellValueInput2').value;
+
+
+        // Ensure updatedValue is valid and activeCell is set
+        if (updatedValue && typeof updatedValue === 'string' && activeCell) {
+            try {
+                // Concatenate the values, separating them with a space or other delimiter
+                var concatValue = updatedValue + ";" + updatedValue2 + ";" + updatedValue3;
+
+                // Update the cell value using the Excel-style reference (activeCell)
+                spreadsheetInstance.updateCell({ value: concatValue }, activeCell);
+
+                spreadsheetInstance.updateCell({ style: { backgroundColor: '#FFFF00' } }, activeCell);
+
+                console.log('Cell updated successfully');
+                $('#cellModal').modal('hide');
+            } catch (error) {
+                console.error('Error updating cell:', error);
+            }
+        } else {
+            console.error('Invalid cell reference or updated value:', updatedValue, activeCell);
+        }
+
+    }
+
+    // Set the save button listener outside of the context menu handler
+    document.getElementById('saveButton').addEventListener('click', saveCellValue);
+
+
+
+    function downloadExcelFile() {
+        window.open('/RepEng/IRRSpreadsheet/GenerateExcelFile', '_blank');
+    }
+
+    function loadSpreadsheet() {
+        const spreadsheet = document.getElementById('spreadsheet').ej2_instances[0];
+
+        if (spreadsheet) {
+            // Create an object containing the file name
+            const requestBody = {
+                fileName: "template" // Use the file name without the extension
+            };
+
+            fetch('/RepEng/IRRSpreadsheet/LoadTemplate', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json', // Set the correct content type
+                },
+                body: JSON.stringify(requestBody) // Send the file name as JSON
+            })
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Network response was not ok ' + response.statusText);
+                    }
+                    return response.json(); // Assuming the controller returns JSON data
+                })
+                .then(data => {
+                    // Load the JSON data into the spreadsheet.
+                    spreadsheet.openFromJson({ file: data });
+                    console.log('Spreadsheet opened successfully');
+                })
+                .catch(error => console.error('Error loading Excel file:', error));
+        } else {
+            console.error('Spreadsheet instance not found');
+        }
+    }
+</script>
+

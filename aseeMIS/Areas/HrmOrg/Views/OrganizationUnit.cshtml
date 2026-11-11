@@ -1,0 +1,385 @@
+﻿@model List<dsHrmOrg.Core.ViewModels.HrmOrgOrganizationUnitChartViewModel>
+@using Syncfusion.EJ2;
+
+@{
+    var nodeDefaults = "nodeDefaults";
+    var connectorDefaults = "connectorDefaults";
+}
+
+<div class="row">
+
+    <!-- LEFT: DIAGRAM -->
+    <div class="col-lg-8 control-section" style="position: relative;">
+        <div class="content-wrapper">
+            <ejs-diagram id="diagram"
+                         width="100%"
+                         height="700px"
+                         created="diagramCreated"
+                         getNodeDefaults="@nodeDefaults"
+                         getConnectorDefaults="@connectorDefaults">
+
+                <e-diagram-layout type="OrganizationalChart"></e-diagram-layout>
+
+                <e-diagram-datasourcesettings id="Id"
+                                              parentId="ParentId"
+                                              dataSource="new DataManager() { Data = Model }">
+                </e-diagram-datasourcesettings>
+
+                <e-diagram-snapsettings constraints="None"></e-diagram-snapsettings>
+            </ejs-diagram>
+        </div>
+
+        <!-- Floating buttons -->
+        <div id="nodeActionButtons" style="
+            position:absolute;
+            display:none;
+            z-index:1000;
+        ">
+            <button id="btnAddChild"
+                    class="btn btn-success btn-sm rounded-circle"
+                    style="width:35px;height:35px;">
+                +
+            </button>
+
+            <button id="btnEditNode"
+                    class="btn btn-primary btn-sm rounded-circle"
+                    style="width:35px;height:35px; margin-left:5px;">
+                ✎
+            </button>
+        </div>
+    </div>
+
+    <!-- RIGHT: PROPERTIES PANEL -->
+    <div id="diagram-layout-panel" class="property-panel">
+        <div class="property-panel-header">Properties</div>
+
+        <!-- ORIENTATION -->
+        <div class="property-panel-content">
+            <div class="row-header">Orientation</div>
+
+            <ejs-dropdownlist id="orientationDropdown"
+                              dataSource='new List<string> { "TopToBottom", "BottomToTop", "LeftToRight", "RightToLeft" }'
+                              change="onOrientationChange"
+                              placeholder="Select orientation"
+                              width="100%">
+            </ejs-dropdownlist>
+        </div>
+
+        <!-- SUBTREE ALIGNMENT -->
+        <div class="property-panel-content">
+            <div class="row-header" style="margin-top: 10px;">Subtree Alignment</div>
+
+            <ejs-dropdownlist id="subtreeDropdown"
+                              dataSource='new List<string> { "Alternate", "Left", "Right", "Center", "Balanced" }'
+                              change="onSubtreeChange"
+                              placeholder="Select subtree alignment"
+                              width="100%">
+            </ejs-dropdownlist>
+        </div>
+
+        <!-- SPACING -->
+        <div class="property-panel-content" style="margin-top: 20px;">
+            <div class="row-header">Behavior</div>
+
+            <div style="margin-top: 10px;">
+                <label>Horizontal Spacing</label>
+                <ejs-numerictextbox id="hSpacing"
+                                    format="###.##"
+                                    min="20"
+                                    max="80"
+                                    step="5"
+                                    change="hSpacingChange"
+                                    value="40"
+                                    width="100%">
+                </ejs-numerictextbox>
+            </div>
+
+            <div style="margin-top: 10px;">
+                <label>Vertical Spacing</label>
+                <ejs-numerictextbox id="vSpacing"
+                                    format="###.##"
+                                    min="20"
+                                    max="80"
+                                    step="5"
+                                    change="vSpacingChange"
+                                    value="40"
+                                    width="100%">
+                </ejs-numerictextbox>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ==================== DIALOG FOR EDIT/ADD ==================== -->
+<ejs-dialog id="orgUnitDialog"
+            width="500px"
+            showCloseIcon="true"
+            isModal="true"
+            visible="false"
+            allowDragging="true"
+            close="onDialogClosed"
+            header="<div class='fw-bold text-primary'>Organization Unit</div>">
+    <e-content-template>
+        <div id="orgUnitDialogContent">
+            <!-- AJAX-loaded partial will appear here -->
+        </div>
+    </e-content-template>
+</ejs-dialog>
+
+<!-- ==================== STYLES ==================== -->
+<style>
+    .property-panel {
+        width: 15%;
+        min-width: 200px;
+        max-width: 280px;
+        border-left: 1px solid #ddd;
+        padding: 15px;
+        background: #fafafa;
+    }
+
+    .control-section {
+        width: 85% !important;
+    }
+
+    .property-panel-header {
+        font-size: 16px;
+        font-weight: 700;
+        margin-bottom: 12px;
+    }
+
+    .property-panel-content {
+        margin-bottom: 15px;
+    }
+
+    .row-header {
+        font-size: 13px;
+        font-weight: 600;
+        margin-bottom: 5px;
+    }
+</style>
+
+<!-- ==================== JAVASCRIPT ==================== -->
+<script>
+    var selectedNode = null;
+
+    function diagramCreated() {
+        var diagram = document.getElementById("diagram").ej2_instances[0];
+
+        diagram.tool =
+            ej.diagrams.DiagramTools.SingleSelect |
+            ej.diagrams.DiagramTools.MultipleSelect |
+            ej.diagrams.DiagramTools.ZoomPan;
+
+        diagram.constraints =
+            ej.diagrams.DiagramConstraints.Default |
+            ej.diagrams.DiagramConstraints.Select |
+            ej.diagrams.DiagramConstraints.Zoom;
+
+        diagram.constraints =
+            diagram.constraints &
+            ~ej.diagrams.DiagramConstraints.Resize &
+            ~ej.diagrams.DiagramConstraints.Rotate;
+
+        diagram.selectionChange = onSelectionChange;
+
+        diagram.dataBind();
+    }
+
+    function onSelectionChange(args) {
+        var diagram = document.getElementById("diagram").ej2_instances[0];
+        var buttons = document.getElementById("nodeActionButtons");
+
+        diagram.nodes.forEach(n => {
+            n.style.strokeWidth = 1;
+            n.style.strokeColor = "#4a7a7f";
+        });
+
+        if (args.state === "Changed" && args.newValue && args.newValue.length > 0) {
+
+            selectedNode = args.newValue[0];
+
+            selectedNode.style.strokeWidth = 3;
+            selectedNode.style.strokeColor = "#000";
+
+            var wrapper = selectedNode.wrapper;
+            var bounds = wrapper.bounds;
+
+            var diagramRect = diagram.element.getBoundingClientRect();
+
+            var left = bounds.center.x + diagramRect.left - 40;
+            var top = bounds.y + diagramRect.top - 50;
+
+            buttons.style.left = left + "px";
+            buttons.style.top = top + "px";
+            buttons.style.display = "block";
+        }
+        else {
+            selectedNode = null;
+            buttons.style.display = "none";
+        }
+
+        diagram.dataBind();
+    }
+
+    // ---------------- BUTTON ACTIONS ----------------
+    document.getElementById("btnAddChild").onclick = function () {
+        if (!selectedNode) return;
+
+        var parentId = selectedNode.data.Id;
+        openOrgUnitForm(parentId, null);
+    };
+
+    document.getElementById("btnEditNode").onclick = function () {
+        if (!selectedNode) return;
+
+        var id = selectedNode.data.Id;
+        var parentId = selectedNode.data.ParentId ?? 0;
+
+        openOrgUnitForm(parentId, id);
+    };
+
+    // -------- AJAX LOADER --------
+    function openOrgUnitForm(parentId, id) {
+        $.ajax({
+            url: "/HrmOrg/OrganizationUnit/LoadEditForm",
+            type: "GET",
+            data: { parentId, id },
+            success: function (html) {
+
+                const dlg = document.getElementById("orgUnitDialog")?.ej2_instances?.[0];
+                if (!dlg) {
+                    console.error("orgUnitDialog not found!");
+                    return;
+                }
+
+                $("#orgUnitDialogContent").html(html);
+
+                dlg.header = id
+                    ? "<div class='fw-bold text-primary'>Edit Organization Unit</div>"
+                    : "<div class='fw-bold text-primary'>Add Organization Unit</div>";
+
+                dlg.show();
+            },
+            error: function (_, __, err) {
+                console.error("LoadEditForm error:", err);
+            }
+        });
+    }
+
+    // ---------------- SPACING ----------------
+    function hSpacingChange(args) {
+        var diagram = document.getElementById("diagram").ej2_instances[0];
+        diagram.layout.horizontalSpacing = Number(args.value);
+        diagram.dataBind();
+        diagram.doLayout();
+    }
+
+    function vSpacingChange(args) {
+        var diagram = document.getElementById("diagram").ej2_instances[0];
+        diagram.layout.verticalSpacing = Number(args.value);
+        diagram.dataBind();
+        diagram.doLayout();
+    }
+
+    // ---------------- ORIENTATION ----------------
+    function onOrientationChange(args) {
+        var diagram = document.getElementById("diagram").ej2_instances[0];
+        diagram.layout.orientation = args.value;
+        diagram.dataBind();
+        diagram.doLayout();
+    }
+
+    // ---------------- SUBTREE ----------------
+    function onSubtreeChange(args) {
+        var alignment = args.value;
+        var diagram = document.getElementById("diagram").ej2_instances[0];
+
+        diagram.layout.getLayoutInfo = function (node, options) {
+            if (!options.hasSubTree) {
+                options.orientation = "Vertical";
+                options.type = alignment;
+            }
+        };
+
+        diagram.dataBind();
+        diagram.doLayout();
+    }
+
+    // ---------------- NODE DEFAULTS ----------------
+    function nodeDefaults(node, diagram) {
+        node.width = 220;
+        node.height = 60;
+
+        node.shape = { type: "Basic", shape: "Rectangle" };
+
+        node.style = {
+            fill: node.data.Color,
+            strokeColor: "#4a7a7f",
+            strokeWidth: 1
+        };
+
+        node.annotations = [
+            {
+                id: node.id + "_label",
+                content: node.data.Label,
+                style: { color: "#000", fontSize: 14, bold: true },
+                offset: { x: 0.5, y: 0.5 }
+            }
+        ];
+
+        return node;
+    }
+
+    function connectorDefaults(connector, diagram) {
+        connector.type = "Orthogonal";
+        connector.targetDecorator.shape = "None";
+        connector.style = { strokeColor: "#2F4F4F", strokeWidth: 1.2 };
+
+        connector.constraints =
+            ej.diagrams.ConnectorConstraints.Default &
+            ~ej.diagrams.ConnectorConstraints.Select;
+
+        return connector;
+    }
+</script>
+
+<script>
+    function onDialogClosed(args) {
+        console.log("Dialog closed → refreshing chart...");
+
+        refreshOrgChart();
+    }
+
+    function refreshOrgChart() {
+
+        const formId = 3126;
+
+       $.ajax({
+            url: "/HrmOrg/OrganizationUnit/GetNodes",
+            type: "GET",
+            data: { id: formId },
+            success: function (nodes) {
+
+                const diagram = document.getElementById("diagram").ej2_instances?.[0];
+                if (!diagram) {
+                    console.error("Diagram instance not found!");
+                    return;
+                }
+
+                // Replace only the data, not the full component
+                diagram.dataSourceSettings = {
+                    id: "Id",
+                    parentId: "ParentId",
+                    dataSource: new ej.data.DataManager(nodes)
+                };
+
+                diagram.dataBind();
+                diagram.doLayout();
+            },
+            error: function (xhr) {
+                console.error("Diagram refresh failed", xhr);
+            }
+        });
+    }
+
+</script>

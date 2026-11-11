@@ -1,0 +1,39 @@
+@{
+    ViewData["Title"] = "Party Profile";
+}
+
+<div class="bp-profile-shell">
+    @await Component.InvokeAsync("BankPartyContextWidget", new aseeMIS.Areas.BankParty.ViewModels.BankPartyContextWidgetOptions
+    {
+        WidgetId = "bpProfileParty",
+        Title = "Party Search",
+        Subtitle = "Search individual or business clients and select one to open the profile.",
+        LanguageCode = "en",
+        CollapseAfterSelection = true
+    })
+
+    <section class="ds-card d-none" id="bpProfileBodyPlaceholder">
+        <div class="ds-card-b text-muted">
+            <i class="bi bi-layout-text-window me-2"></i>
+            Profile sections, KPI cards, reports, and quick actions will load here after the header is finalized.
+        </div>
+    </section>
+</div>
+
+<style>
+    .bp-profile-shell {
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+    }
+</style>
+
+<script>
+    window.addEventListener('bankparty:selected', function () {
+        document.getElementById('bpProfileBodyPlaceholder')?.classList.remove('d-none');
+    });
+
+    window.addEventListener('bankparty:cleared', function () {
+        document.getElementById('bpProfileBodyPlaceholder')?.classList.add('d-none');
+    });
+</script>

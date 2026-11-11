@@ -1,0 +1,377 @@
+@using System.Globalization
+@using System.Reflection
+@model aseeMIS.Areas.Common.ViewModels.AdditionalFormWidgetViewModel
+
+@functions {
+    private static string ResolveOptionValue(object row, string? valueField)
+    {
+        if (row == null) return string.Empty;
+        var name = string.IsNullOrWhiteSpace(valueField) ? null : valueField;
+        if (!string.IsNullOrWhiteSpace(name))
+        {
+            var prop = row.GetType().GetProperty(name, BindingFlags.Public | BindingFlags.Instance | BindingFlags.IgnoreCase);
+            if (prop != null)
+                return prop.GetValue(row)?.ToString() ?? string.Empty;
+        }
+
+        var fallback = row.GetType().GetProperties(BindingFlags.Public | BindingFlags.Instance).FirstOrDefault();
+        return fallback?.GetValue(row)?.ToString() ?? string.Empty;
+    }
+
+    private static string ResolveOptionText(object row, string? textField)
+    {
+        if (row == null) return string.Empty;
+        var name = string.IsNullOrWhiteSpace(textField) ? null : textField;
+        if (!string.IsNullOrWhiteSpace(name))
+        {
+            var prop = row.GetType().GetProperty(name, BindingFlags.Public | BindingFlags.Instance | BindingFlags.IgnoreCase);
+            if (prop != null)
+                return prop.GetValue(row)?.ToString() ?? string.Empty;
+        }
+
+        var props = row.GetType().GetProperties(BindingFlags.Public | BindingFlags.Instance);
+        return (props.Skip(1).FirstOrDefault() ?? props.FirstOrDefault())?.GetValue(row)?.ToString() ?? string.Empty;
+    }
+
+    private static string GetColumnCss(byte? width)
+    {
+        var normalized = width.GetValueOrDefault();
+        if (normalized <= 0 || normalized > 12)
+            normalized = 12;
+
+        return $"col-12 col-md-{normalized}";
+    }
+
+    private static string GetLayoutColumnCss(int? width)
+    {
+        var normalized = width.GetValueOrDefault(12);
+        if (normalized <= 0 || normalized > 12)
+            normalized = 12;
+
+        return $"col-12 col-md-{normalized}";
+    }
+
+    private static bool IsBooleanField(string fieldTypeCode)
+        => fieldTypeCode.Equals("BOOLEAN", StringComparison.OrdinalIgnoreCase)
+        || fieldTypeCode.Equals("BOOL", StringComparison.OrdinalIgnoreCase)
+        || fieldTypeCode.Equals("CHECKBOX", StringComparison.OrdinalIgnoreCase)
+        || fieldTypeCode.Equals("BIT", StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsDateField(string fieldTypeCode)
+        => fieldTypeCode.Contains("DATE", StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsNumberField(string fieldTypeCode)
+        => fieldTypeCode.Contains("NUMBER", StringComparison.OrdinalIgnoreCase)
+        || fieldTypeCode.Contains("DECIMAL", StringComparison.OrdinalIgnoreCase)
+        || fieldTypeCode.Contains("NUMERIC", StringComparison.OrdinalIgnoreCase)
+        || fieldTypeCode.Contains("INT", StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsLongTextField(string fieldTypeCode, int? maxLength)
+        => fieldTypeCode.Contains("TEXTAREA", StringComparison.OrdinalIgnoreCase)
+        || fieldTypeCode.Contains("MEMO", StringComparison.OrdinalIgnoreCase)
+        || maxLength.GetValueOrDefault() > 255;
+
+    private static DateTime? ParseDateValue(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return null;
+
+        var formats = new[] { "yyyy-MM-dd", "dd-MM-yyyy", "yyyy/MM/dd", "dd/MM/yyyy" };
+        if (DateTime.TryParseExact(value.Trim(), formats, CultureInfo.InvariantCulture, DateTimeStyles.None, out var exact))
+            return exact;
+
+        return DateTime.TryParse(value, CultureInfo.InvariantCulture, DateTimeStyles.None, out var parsed)
+            ? parsed
+            : null;
+    }
+
+    private static decimal? ParseDecimalValue(string? value)
+        => decimal.TryParse(value, out var parsed) ? parsed : null;
+}
+
+@if (Model.Sections.Count > 0 || !string.IsNullOrWhiteSpace(Model.DebugMessage))
+{
+    <div class="ds-card mt-3" data-additional-form-id="@Model.FormId" data-form-session-id="@Model.FormSessionId" data-parent-form-session-id="@Model.ParentFormSessionId" data-target-id="@Model.TargetId">
+        <div class="ds-card-h d-flex align-items-center gap-2">
+            <i class="bi bi-ui-checks-grid"></i>
+            <span class="ds-card-title">@Model.Title</span>
+            <small class="text-muted ms-2">@Model.Description</small>
+            <button type="button"
+                    class="btn btn-sm btn-link ms-auto text-decoration-none p-0"
+                    data-bs-toggle="collapse"
+                    data-bs-target="#additionalFormBody_@Model.FormId"
+                    aria-expanded="true"
+                    aria-controls="additionalFormBody_@Model.FormId">
+                <i class="bi bi-chevron-down"></i>
+            </button>
+        </div>
+        <div id="additionalFormBody_@Model.FormId" class="collapse show">
+            <div class="ds-card-b">
+                @if (!string.IsNullOrWhiteSpace(Model.DebugMessage))
+                {
+                    <div class="alert alert-warning py-2 px-3 mb-3">@Model.DebugMessage</div>
+                }
+
+                <input type="hidden" name="AdditionalForm.FormId" value="@Model.FormId" />
+                <input type="hidden" name="AdditionalForm.FormSessionId" value="@Model.FormSessionId" />
+                <input type="hidden" name="AdditionalForm.TargetId" value="@Model.TargetId" />
+
+                <div class="row g-3">
+                    @foreach (var card in Model.Sections)
+                    {
+                        var sectionCollapseId = $"additionalSectionBody_{Model.FormId}_{card.FormId}";
+                        var layoutColumnCss = GetLayoutColumnCss(card.RowWidth);
+                        var layoutIconClass = string.IsNullOrWhiteSpace(card.IconClass) ? "bi bi-grid-1x2" : card.IconClass;
+                        <div class="@layoutColumnCss">
+                        <div class="ds-card h-100" data-additional-section-form-id="@card.FormId" data-section-form-session-id="@card.FormSessionId">
+                        <div class="ds-card-h d-flex align-items-center gap-2">
+                            <i class="@layoutIconClass"></i>
+                            <span class="ds-card-title">@card.LayoutTitle</span>
+                            <button type="button"
+                                    class="btn btn-sm btn-link ms-auto text-decoration-none p-0"
+                                    data-bs-toggle="collapse"
+                                    data-bs-target="#@sectionCollapseId"
+                                    aria-expanded="true"
+                                    aria-controls="@sectionCollapseId">
+                                <i class="bi bi-chevron-down"></i>
+                            </button>
+                        </div>
+                        <div id="@sectionCollapseId" class="collapse show">
+                            <div class="ds-card-b">
+                                @foreach (var rowGroup in card.Fields.GroupBy(x => x.ViewRowNo ?? 1).OrderBy(x => x.Key))
+                                {
+                                    <div class="row g-3 mb-3">
+                                        @foreach (var field in rowGroup.OrderBy(x => x.FieldOrder).ThenBy(x => x.AdditionalFieldId))
+                                        {
+                                            var fieldName = $"additional_{card.FormId}_{field.AdditionalFieldId}";
+                                            var fieldPrefix = $"AdditionalForm.Sections[{card.FormId}].Fields[{field.AdditionalFieldId}]";
+                                    <div class="@GetColumnCss(field.ViewColumnWidth)">
+                                        <div class="ds-additional-field"
+                                             data-additional-field-id="@field.AdditionalFieldId"
+                                             data-value-id="@(field.ValueId?.ToString() ?? string.Empty)"
+                                             data-field-type="@field.FieldTypeCode">
+                                                <input type="hidden" name="@($"{fieldPrefix}.AdditionalFieldId")" value="@field.AdditionalFieldId" />
+                                                <input type="hidden" name="@($"{fieldPrefix}.ValueId")" value="@field.ValueId" />
+
+                                                @if (field.ForeignKeyAttribute != null && field.ForeignKeyRows != null)
+                                                {
+                                                    var hiddenFkId = $"{fieldName}_hidden";
+                                                    var foreignKeyOptions = field.ForeignKeyRows
+                                                        .Select(option => new
+                                                        {
+                                                            Value = ResolveOptionValue(option, field.ForeignKeyAttribute.Name),
+                                                            Text = ResolveOptionText(option, field.ForeignKeyAttribute.ColumnName)
+                                                        })
+                                                        .ToList();
+                                                    <input type="hidden"
+                                                           class="ds-additional-input"
+                                                           id="@hiddenFkId"
+                                                           name="@($"{fieldPrefix}.ValueText")"
+                                                           value="@field.ValueText" />
+                                                    <ejs-dropdownlist id="@fieldName"
+                                                                      dataSource="@foreignKeyOptions"
+                                                                      value="@field.ValueText"
+                                                                      placeholder="@field.DisplayName"
+                                                                      floatLabelType="Always"
+                                                                      allowFiltering="true"
+                                                                      change="function(args){ document.getElementById('@hiddenFkId').value = args.value ?? ''; }">
+                                                        <e-dropdownlist-fields value="Value" text="Text"></e-dropdownlist-fields>
+                                                    </ejs-dropdownlist>
+                                                }
+                                                else if (field.EnumOptions.Count > 0)
+                                                {
+                                                    var hiddenEnumId = $"{fieldName}_hidden";
+                                                    var enumOptions = field.EnumOptions
+                                                        .Select(option => new
+                                                        {
+                                                            Value = option.Key,
+                                                            Text = option.Value
+                                                        })
+                                                        .ToList();
+                                                    <input type="hidden"
+                                                           class="ds-additional-input"
+                                                           id="@hiddenEnumId"
+                                                           name="@($"{fieldPrefix}.ValueText")"
+                                                           value="@field.ValueText" />
+                                                    <ejs-dropdownlist id="@fieldName"
+                                                                      dataSource="@enumOptions"
+                                                                      value="@field.ValueText"
+                                                                      placeholder="@field.DisplayName"
+                                                                      floatLabelType="Always"
+                                                                      change="function(args){ document.getElementById('@hiddenEnumId').value = args.value ?? ''; }">
+                                                        <e-dropdownlist-fields value="Value" text="Text"></e-dropdownlist-fields>
+                                                    </ejs-dropdownlist>
+                                                }
+                                                else if (IsBooleanField(field.FieldTypeCode))
+                                                {
+                                                    var hiddenBoolId = $"{fieldName}_hidden";
+                                                    var boolChecked = string.Equals(field.ValueText, "true", StringComparison.OrdinalIgnoreCase) || field.ValueText == "1";
+                                                    <div class="pt-4">
+                                                        <input type="hidden"
+                                                               class="ds-additional-input"
+                                                               id="@hiddenBoolId"
+                                                               name="@($"{fieldPrefix}.ValueText")"
+                                                               value="@(boolChecked ? "true" : "")" />
+                                                        <label class="form-label d-block">@field.DisplayName</label>
+                                                        <ejs-switch id="@fieldName"
+                                                                    checked="@boolChecked"
+                                                                    change="function(args){ document.getElementById('@hiddenBoolId').value = args.checked ? 'true' : ''; }">
+                                                        </ejs-switch>
+                                                    </div>
+                                                }
+                                                else if (IsLongTextField(field.FieldTypeCode, field.ValueMaxLength))
+                                                {
+                                                    var hiddenTextAreaId = $"{fieldName}_hidden";
+                                                    <input type="hidden"
+                                                           class="ds-additional-input"
+                                                           id="@hiddenTextAreaId"
+                                                           name="@($"{fieldPrefix}.ValueText")"
+                                                           value="@field.ValueText" />
+                                                    <ejs-textbox id="@fieldName"
+                                                                 multiline="true"
+                                                                 floatLabelType="Always"
+                                                                 placeholder="@field.DisplayName"
+                                                                 input="function(args){ document.getElementById('@hiddenTextAreaId').value = args.value ?? ''; }">@field.ValueText</ejs-textbox>
+                                                }
+                                                else if (IsDateField(field.FieldTypeCode))
+                                                {
+                                                    var hiddenDateId = $"{fieldName}_hidden";
+                                                    var dateValue = ParseDateValue(field.ValueText);
+                                                    <input type="hidden"
+                                                           class="ds-additional-input"
+                                                           id="@hiddenDateId"
+                                                           name="@($"{fieldPrefix}.ValueText")"
+                                                           value="@field.ValueText" />
+                                                    <ejs-datepicker id="@fieldName"
+                                                                    format="dd-MM-yyyy"
+                                                                    valueFormat="yyyy-MM-dd"
+                                                                    enableMask="true"
+                                                                    value="@dateValue"
+                                                                    placeholder="@field.DisplayName"
+                                                                    floatLabelType="Always"
+                                                                    change="function(args){ if(args.value){ const d=args.value; document.getElementById('@hiddenDateId').value=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); } else { document.getElementById('@hiddenDateId').value=''; } }">
+                                                    </ejs-datepicker>
+                                                }
+                                                else if (IsNumberField(field.FieldTypeCode))
+                                                {
+                                                    var hiddenNumberId = $"{fieldName}_hidden";
+                                                    var numberValue = ParseDecimalValue(field.ValueText);
+                                                    <input type="hidden"
+                                                           class="ds-additional-input"
+                                                           id="@hiddenNumberId"
+                                                           name="@($"{fieldPrefix}.ValueText")"
+                                                           value="@field.ValueText" />
+                                                    <ejs-numerictextbox id="@fieldName"
+                                                                        placeholder="@field.DisplayName"
+                                                                        floatLabelType="Always"
+                                                                        format="n2"
+                                                                        min="@field.MinValueDecimal"
+                                                                        max="@field.MaxValueDecimal"
+                                                                        value="@numberValue"
+                                                                        change="function(args){ document.getElementById('@hiddenNumberId').value = (args.value ?? ''); }">
+                                                    </ejs-numerictextbox>
+                                                }
+                                                else
+                                                {
+                                                    var hiddenTextId = $"{fieldName}_hidden";
+                                                    <input type="hidden"
+                                                           class="ds-additional-input"
+                                                           id="@hiddenTextId"
+                                                           name="@($"{fieldPrefix}.ValueText")"
+                                                           value="@field.ValueText" />
+                                                    <ejs-textbox id="@fieldName"
+                                                                 value="@field.ValueText"
+                                                                 floatLabelType="Always"
+                                                                 placeholder="@field.DisplayName"
+                                                                 input="function(args){ document.getElementById('@hiddenTextId').value = args.value ?? ''; }">
+                                                    </ejs-textbox>
+                                                }
+                                        </div>
+                                            </div>
+                                        }
+                                    </div>
+                                }
+                            </div>
+                        </div>
+                    </div>
+                        </div>
+                    }
+                </div>
+                <div class="d-flex justify-content-end pt-2">
+                    <button type="button"
+                            class="btn btn-primary"
+                            id="additionalFormSaveBtn_@Model.FormId"
+                            data-form-id="@Model.FormId"
+                            onclick="saveAdditionalForm(this)">
+                        <i class="bi bi-save me-1"></i>Save Additional Fields
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script>
+        window.saveAdditionalForm = function (buttonEl) {
+            const formId = buttonEl?.getAttribute('data-form-id');
+            const root = document.querySelector('[data-additional-form-id="' + formId + '"]');
+            if (!root) return;
+            const parentFormSessionId = root.getAttribute('data-parent-form-session-id');
+            const formSessionId = parentFormSessionId && parentFormSessionId.trim().length > 0
+                ? parentFormSessionId
+                : '@Model.FormSessionId';
+
+            const fields = Array.from(root.querySelectorAll('.ds-additional-field'))
+                .map(function (fieldEl) {
+                    const input = fieldEl.querySelector('.ds-additional-input');
+                    if (!input) return null;
+
+                    let valueText = "";
+                    if (input.type === "checkbox") {
+                        valueText = input.checked ? "true" : "";
+                    } else {
+                        valueText = input.value ?? "";
+                    }
+
+                    const fieldId = Number(fieldEl.getAttribute('data-additional-field-id') || "0");
+                    const valueIdRaw = fieldEl.getAttribute('data-value-id') || "";
+                    const valueId = valueIdRaw ? Number(valueIdRaw) : null;
+
+                    return {
+                        additionalFieldId: fieldId,
+                        valueId: valueId,
+                        valueText: valueText
+                    };
+                })
+                .filter(x => x && x.additionalFieldId > 0);
+
+            fetch('/Common/CRUD/BatchUpdateAdditionalForm', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'FormSessionId': formSessionId
+                },
+                body: JSON.stringify({
+                    formId: Number(formId),
+                    foreignKeyPropertyName: '@Model.ForeignKeyPropertyName',
+                    targetId: '@Model.TargetId',
+                    fields: fields
+                })
+            })
+            .then(response => response.json())
+            .then(result => {
+                if (result?.success) {
+                    if (window.notify?.success) window.notify.success(result.message || 'Saved successfully.');
+                    else alert(result.message || 'Saved successfully.');
+                    return;
+                }
+
+                if (window.notify?.error) window.notify.error(result?.message || 'Save failed.');
+                else alert(result?.message || 'Save failed.');
+            })
+            .catch(error => {
+                console.error('Additional field batch save failed:', error);
+                if (window.notify?.error) window.notify.error('Save failed.');
+                else alert('Save failed.');
+            });
+        };
+    </script>
+}

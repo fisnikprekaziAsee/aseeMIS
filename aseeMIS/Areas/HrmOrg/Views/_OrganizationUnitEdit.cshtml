@@ -1,0 +1,109 @@
+﻿@model dsHrmOrg.Core.ViewModels.HrmOrgOrganizationUnitViewModel
+@using Newtonsoft.Json
+
+@{
+    var formSessionId = ViewBag.FormSessionId ?? "";
+    var formId = ViewBag.FormId;
+
+    var types = ViewBag.OrganizationTypes;
+    var parents = ViewBag.ParentOrganizationUnits;
+    var costCenters = ViewBag.CostCenters;
+
+    // Auto-select parent when adding new
+    var parentId = Model.OrganizationUnitId == 0
+        ? (ViewBag.ParentId ?? Model.OrganizationUnitParentId)
+        : Model.OrganizationUnitParentId;
+}
+
+<div class="p-3 form-container" data-form-session-id="@formSessionId" data-form-id="@formId">
+    <div class="mb-3">
+        <ejs-numerictextbox id="OrganizationUnitId"
+                            ejs-for="OrganizationUnitId"
+                            floatLabelType="Always"
+                            readonly="true">
+        </ejs-numerictextbox>
+    </div>
+
+    <div class="mb-3">
+        <ejs-dropdownlist id="OrganizationUnitParentId"
+                          ejs-for="OrganizationUnitParentId"
+                          dataSource="parents"
+                          allowFiltering="true"
+                          floatLabelType="Always"
+                          placeholder="Select parent"
+                          cssClass="e-outline"
+                          value="@parentId">
+            <e-dropdownlist-fields text="OrganizationUnitName"
+                                   value="OrganizationUnitId"></e-dropdownlist-fields>
+        </ejs-dropdownlist>
+    </div>
+
+    <div class="mb-3">
+        <ejs-textbox id="OrganizationUnitName"
+                     ejs-for="OrganizationUnitName"
+                     floatLabelType="Always"
+                     placeholder="Enter unit name"
+                     cssClass="e-outline"
+                     value="@Model.OrganizationUnitName">
+        </ejs-textbox>
+    </div>
+
+    <div class="mb-3">
+        <ejs-dropdownlist id="OrganizationUnitTypeCode"
+                          ejs-for="OrganizationUnitTypeCode"
+                          dataSource="types"
+                          allowFiltering="true"
+                          floatLabelType="Always"
+                          placeholder="Select type"
+                          cssClass="e-outline"
+                          value="@Model.OrganizationUnitTypeCode">
+            <e-dropdownlist-fields text="OrganizationUnitTypeName"
+                                   value="OrganizationUnitTypeCode"></e-dropdownlist-fields>
+        </ejs-dropdownlist>
+    </div>
+
+    <div class="mb-3">
+        <ejs-dropdownlist id="CostCenterId"
+                          ejs-for="CostCenterId"
+                          dataSource="costCenters"
+                          allowFiltering="true"
+                          floatLabelType="Always"
+                          placeholder="Select cost center"
+                          cssClass="e-outline"
+                          value="@Model.CostCenterId">
+            <e-dropdownlist-fields text="CostCenterName"
+                                   value="CostCenterId"></e-dropdownlist-fields>
+        </ejs-dropdownlist>
+    </div>
+
+    <div class="mb-3">
+        <ejs-textbox id="OrganizationUnitDescription"
+                     ejs-for="OrganizationUnitDescription"
+                     floatLabelType="Always"
+                     multiline="true"
+                     placeholder="Enter description"
+                     cssClass="e-outline"
+                     value="@Model.OrganizationUnitDescription">
+        </ejs-textbox>
+    </div>
+
+    <div class="mb-3">
+        <label class="form-label fw-bold">Is Active</label>
+        <ejs-switch id="IsActive" ejs-for="IsActive"
+                    checked="@Model.IsActive"></ejs-switch>
+    </div>
+
+    <!-- SAVE BUTTON -->
+    <button type="button" class="btn btn-primary w-100" onclick="saveForm()">Save</button>
+
+</div>
+
+<ejs-scripts></ejs-scripts>
+<script src="~/js/entityDetailHelper.js" asp-append-version="true"></script>
+
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+        // Automatically check version, refresh if needed, and apply localized placeholders
+        formLocalizationDataBound("HrmOrg");
+    });
+</script>

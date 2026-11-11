@@ -1,0 +1,622 @@
+@model aseeMIS.Areas.Credit.ViewModels.CreditLoanAmortPlanTabViewModel
+@using dsLoanEngine.Core.Enums
+@{
+    var isCreditCaseContextLocked =
+        (Model.CreditCaseId.HasValue && Model.CreditCaseId.Value > 0) ||
+        !string.IsNullOrWhiteSpace(Model.CreditCaseNumber);
+
+    var effectiveAnnualRatePercent = Model.Result?.EffectiveAnnualRate.HasValue == true
+        ? Model.Result.EffectiveAnnualRate.Value * 100m
+        : (decimal?)null;
+
+    var enteredDisbursementFeePercent = Model.TotalDisbursementFeePercent ?? 0m;
+    var appliedDisbursementFeeAmount = 0m;
+    var minimumDisbursementFeeApplied = false;
+    var effectiveDisbursementFeePercent = enteredDisbursementFeePercent;
+
+    if (Model.Principal.HasValue && Model.Principal.Value > 0 && enteredDisbursementFeePercent > 0)
+    {
+        appliedDisbursementFeeAmount = Math.Round(
+            Model.Principal.Value * enteredDisbursementFeePercent / 100m,
+            2,
+            MidpointRounding.AwayFromZero);
+
+        if (appliedDisbursementFeeAmount < 10m)
+        {
+            appliedDisbursementFeeAmount = 10m;
+            minimumDisbursementFeeApplied = true;
+        }
+
+        effectiveDisbursementFeePercent = Math.Round(
+            appliedDisbursementFeeAmount * 100m / Model.Principal.Value,
+            4,
+            MidpointRounding.AwayFromZero);
+    }
+
+    var templateOptions = Model.TemplateOptions
+        .Select(x => new { Value = x.Key, Text = x.Value })
+        .ToList();
+
+    var indexOptions = new[]
+    {
+        new { Value = "EURIBOR_1M", Text = "EURIBOR 1M" },
+        new { Value = "EURIBOR_3M", Text = "EURIBOR 3M" },
+        new { Value = "EURIBOR_6M", Text = "EURIBOR 6M" },
+        new { Value = "EURIBOR_12M", Text = "EURIBOR 12M" },
+        new { Value = "SOFR_DAILY", Text = "SOFR Daily" },
+        new { Value = "PRIME", Text = "Prime Rate" }
+    };
+
+    var frequencyOptions = Enum.GetValues<FrequencyCode>()
+        .Select(x => new { Value = (int)x, Text = x.ToString() })
+        .ToList();
+
+    var dueDayPolicyOptions = Enum.GetValues<DueDayPolicy>()
+        .Select(x => new { Value = (int)x, Text = x.ToString() })
+        .ToList();
+
+    var dayCountOptions = Enum.GetValues<EnumDayCountCalculationType>()
+        .Select(x => new { Value = (int)x, Text = x.ToString() })
+        .ToList();
+
+    var principalMethodOptions = Enum.GetValues<PrincipalCalculationMethod>()
+        .Select(x => new { Value = (int)x, Text = x.ToString() })
+        .ToList();
+
+    var graceTypeOptions = Enum.GetValues<GraceType>()
+        .Select(x => new { Value = (int)x, Text = x.ToString() })
+        .ToList();
+
+    string FormatDisplayDate(DateTime? value)
+        => value?.ToString("dd/MM/yyyy") ?? "-";
+
+    var termsCardIcon = Model.IsApprovedTerms ? "bi-check2-circle" : "bi-pencil";
+    var termsCardTitle = Model.IsApprovedTerms ? "Approved Terms" : "Requested Terms";
+}
+
+<style>
+    .credit-loan-amortplan-tab .loan-amortization-thead th {
+        background: #3f6f94;
+        color: #fff;
+        border-color: #345c7c;
+    }
+</style>
+
+<div class="credit-loan-amortplan-tab">
+    <form id="creditLoanAmortPlanForm" method="post" novalidate>
+        <input type="hidden" id="LoanAmort_FixedDayOfMonth" name="FixedDayOfMonth" value="@Model.FixedDayOfMonth" />
+        @Html.AntiForgeryToken()
+        <input asp-for="BankPartyId" id="LoanAmort_BankPartyId" type="hidden" />
+        <input asp-for="CreditCaseId" id="LoanAmort_CreditCaseId" type="hidden" />
+        <input asp-for="CreditCaseNumber" id="LoanAmort_CreditCaseNumber" type="hidden" />
+        <input asp-for="ProductCode" id="LoanAmort_ProductCode" type="hidden" />
+        <input asp-for="TemplateName" id="LoanAmort_TemplateName" type="hidden" />
+        <input asp-for="TemplateDescription" id="LoanAmort_TemplateDescription" type="hidden" />
+        <input asp-for="TemplateAmortizationMethodCode" id="LoanAmort_TemplateAmortizationMethodCode" type="hidden" />
+        <input asp-for="TemplatePaymentMethodCode" id="LoanAmort_TemplatePaymentMethodCode" type="hidden" />
+        <input asp-for="InterestPostingFrequencyCode" id="LoanAmort_InterestPostingFrequencyCode" type="hidden" />
+        <input asp-for="AllowSeasonal" id="LoanAmort_AllowSeasonal" type="hidden" />
+        <input asp-for="InstallmentMonthsMask" id="LoanAmort_InstallmentMonthsMask" type="hidden" />
+        <input asp-for="GraceMonthsMaskPrincipal" id="LoanAmort_GraceMonthsMaskPrincipal" type="hidden" />
+        <input asp-for="GraceMonthsMaskInterest" id="LoanAmort_GraceMonthsMaskInterest" type="hidden" />
+        <input asp-for="RateTypeCode" id="LoanAmort_RateTypeCode" type="hidden" />
+        <input asp-for="RateResetFrequency" id="LoanAmort_RateResetFrequency" type="hidden" />
+        <input asp-for="RateMarginBps" id="LoanAmort_RateMarginBps" type="hidden" />
+        <input asp-for="LastInstallmentAdjustCode" id="LoanAmort_LastInstallmentAdjustCode" type="hidden" />
+        <input asp-for="AccrueInterestDuringFullGrace" id="LoanAmort_AccrueInterestDuringFullGrace" type="hidden" />
+        <input asp-for="CurrencyDecimals" id="LoanAmort_CurrencyDecimals" type="hidden" />
+        <input asp-for="RoundingMode" id="LoanAmort_RoundingMode" type="hidden" />
+        <input asp-for="TermsEditMode" id="LoanAmort_TermsEditMode" type="hidden" />
+        <input type="hidden" id="LoanAmort_Principal" name="Principal" value="@Model.Principal" />
+        <input type="hidden" id="LoanAmort_BaseAnnualRate" name="BaseAnnualRate" value="@Model.BaseAnnualRate" />
+        <input type="hidden" id="LoanAmort_TermMonths" name="TermMonths" value="@Model.TermMonths" />
+        <input type="hidden" id="LoanAmort_StartDate" name="StartDate" value="@Model.StartDate?.ToString("yyyy-MM-dd")" />
+        <input type="hidden" id="LoanAmort_EndDate" name="EndDate" value="@Model.EndDate?.ToString("yyyy-MM-dd")" />
+        <input type="hidden" id="LoanAmort_TotalDisbursementFeePercent" name="TotalDisbursementFeePercent" value="@Model.TotalDisbursementFeePercent" />
+        <input type="hidden" id="LoanAmort_GraceMonthsCount" name="GraceMonthsCount" value="@Model.GraceMonthsCount" />
+
+        @if (!string.IsNullOrWhiteSpace(Model.SuccessMessage))
+        {
+            <div class="alert alert-success alert-dismissible fade show" role="alert">
+                <i class="bi bi-check-circle me-1"></i>@Model.SuccessMessage
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        }
+
+        @if (!string.IsNullOrWhiteSpace(Model.ErrorMessage))
+        {
+            <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                <i class="bi bi-exclamation-triangle me-1"></i>@Model.ErrorMessage
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        }
+
+        @if (!Model.CreditCaseId.HasValue || Model.CreditCaseId.Value <= 0)
+        {
+            <div class="alert alert-info py-2">
+                <i class="bi bi-info-circle me-1"></i>
+                Offer mode: generate and print the plan now, then save the loan application to persist the amortization plan.
+            </div>
+        }
+
+        <div class="ds-card mb-3">
+            <div class="ds-card-h d-flex align-items-center gap-2">
+                <i class="bi bi-diagram-3"></i>
+                <span class="ds-card-title">Loan Context</span>
+            </div>
+            <div class="ds-card-b">
+                <div class="row g-3">
+                    <div class="col-md-4">
+                        <label class="form-label">Credit Case Number</label>
+                        <input class="form-control"
+                               id="LoanAmort_CreditCaseNumberDisplay"
+                               value="@Model.CreditCaseNumber"
+                               readonly />
+                    </div>
+
+                    <div class="col-md-4">
+                        <label class="form-label">Product</label>
+                        <input class="form-control"
+                               id="LoanAmort_ProductCodeDisplay"
+                               value="@Model.ProductCode"
+                               placeholder="Product Code"
+                               autocomplete="off"
+                               readonly="@(isCreditCaseContextLocked ? "readonly" : null)" />
+                        @if (!isCreditCaseContextLocked)
+                        {
+                            <small class="text-muted">Editable in offer mode. It locks after the credit case is saved.</small>
+                        }
+                    </div>
+
+                    <div class="col-md-4">
+                        <ejs-dropdownlist ejs-for="SelectedTemplateCode"
+                                          id="LoanAmort_SelectedTemplateCode"
+                                          dataSource="@(templateOptions)"
+                                          placeholder="Template"
+                                          floatLabelType="Always"
+                                          allowFiltering="true">
+                            <e-dropdownlist-fields text="Text" value="Value"></e-dropdownlist-fields>
+                        </ejs-dropdownlist>
+                    </div>
+
+                    <div class="col-12">
+                        <div id="LoanAmort_TemplateSummary"
+                             class="alert alert-secondary py-2 px-3 small mb-0 @(string.IsNullOrWhiteSpace(Model.SelectedTemplateCode) ? "d-none" : string.Empty)">
+                            <div class="fw-semibold" id="LoanAmort_TemplateNameDisplay">
+                                @(string.IsNullOrWhiteSpace(Model.TemplateName) ? Model.SelectedTemplateCode : Model.TemplateName)
+                            </div>
+                            <div id="LoanAmort_TemplateDescriptionDisplay">@Model.TemplateDescription</div>
+                            <div class="mt-1">
+                                <strong>Interest Posting:</strong>
+                                <span id="LoanAmort_InterestPostingFrequencyDisplay">@(string.IsNullOrWhiteSpace(Model.InterestPostingFrequencyCode) ? "-" : Model.InterestPostingFrequencyCode)</span>
+                                <span class="ms-3"><strong>Rate Reset:</strong> <span id="LoanAmort_RateResetFrequencyDisplay">@(string.IsNullOrWhiteSpace(Model.RateResetFrequency) ? "-" : Model.RateResetFrequency)</span></span>
+                                <span class="ms-3"><strong>Installment Mask:</strong> <span id="LoanAmort_InstallmentMonthsMaskDisplay">@(string.IsNullOrWhiteSpace(Model.InstallmentMonthsMask) ? "-" : Model.InstallmentMonthsMask)</span></span>
+                            </div>
+                            <div class="mt-1">
+                                <strong>Principal Grace Mask:</strong>
+                                <span id="LoanAmort_GraceMonthsMaskPrincipalDisplay">@(string.IsNullOrWhiteSpace(Model.GraceMonthsMaskPrincipal) ? "-" : Model.GraceMonthsMaskPrincipal)</span>
+                                <span class="ms-3"><strong>Interest Grace Mask:</strong> <span id="LoanAmort_GraceMonthsMaskInterestDisplay">@(string.IsNullOrWhiteSpace(Model.GraceMonthsMaskInterest) ? "-" : Model.GraceMonthsMaskInterest)</span></span>
+                                <span class="ms-3"><strong>Seasonal:</strong> <span id="LoanAmort_AllowSeasonalDisplay">@(Model.AllowSeasonal ? "Yes" : "No")</span></span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="ds-card mb-3">
+            <div class="ds-card-h d-flex align-items-center gap-2">
+                <i class="bi @termsCardIcon"></i>
+                <span class="ds-card-title" id="LoanAmort_TermsCardTitle">@termsCardTitle</span>
+            </div>
+            <div class="ds-card-b">
+                <div class="row g-2">
+                    <div class="col-5">
+                        <label class="form-label">Start Date</label>
+                        <input type="text"
+                               class="form-control"
+                               id="LoanAmort_DisplayStartDate"
+                               value="@FormatDisplayDate(Model.StartDate)"
+                               readonly />
+                    </div>
+                    <div class="col-2">
+                        <label class="form-label">Months</label>
+                        <input type="text"
+                               class="form-control"
+                               id="LoanAmort_DisplayTermMonths"
+                               value="@(Model.TermMonths?.ToString() ?? "-")"
+                               readonly />
+                    </div>
+                    <div class="col-5">
+                        <label class="form-label">Maturity Date</label>
+                        <input type="text"
+                               class="form-control"
+                               id="LoanAmort_DisplayMaturityDate"
+                               value="@FormatDisplayDate(Model.EndDate)"
+                               readonly />
+                    </div>
+                    <div class="col-5">
+                        <label class="form-label">Grace Period (Months)</label>
+                        <input type="text"
+                               class="form-control"
+                               id="LoanAmort_DisplayGracePeriod"
+                               value="@(Model.GraceMonthsCount?.ToString() ?? "0")"
+                               readonly />
+                    </div>
+                    <div class="col-7">
+                        <label class="form-label">Credit Amount</label>
+                        <input type="text"
+                               class="form-control"
+                               id="LoanAmort_DisplayCreditAmount"
+                               value="@(Model.Principal?.ToString("N2") ?? "-")"
+                               readonly />
+                    </div>
+                    <div class="col-6">
+                        <label class="form-label">Interest Rate (%)</label>
+                        <input type="text"
+                               class="form-control"
+                               id="LoanAmort_DisplayInterestRate"
+                               value="@(Model.BaseAnnualRate?.ToString("N2") ?? "-")"
+                               readonly />
+                    </div>
+                    <div class="col-6">
+                        <label class="form-label">Effective Interest Rate (%)</label>
+                        <input type="text"
+                               class="form-control"
+                               id="LoanAmort_DisplayEffectiveInterestRate"
+                               value="@(Model.DisplayEffectiveInterestRate?.ToString("N4") ?? "-")"
+                               readonly />
+                    </div>
+                    <div class="col-6">
+                        <label class="form-label">Charge Rate (%)</label>
+                        <input type="text"
+                               class="form-control"
+                               id="LoanAmort_DisplayChargeRate"
+                               value="@(Model.TotalDisbursementFeePercent?.ToString("N2") ?? "-")"
+                               readonly />
+                    </div>
+                    <div class="col-6">
+                        <label class="form-label">Charge Amount</label>
+                        <input type="text"
+                               class="form-control"
+                               id="LoanAmort_DisplayChargeAmount"
+                               value="@(Model.DisplayChargeAmount?.ToString("N2") ?? "-")"
+                               readonly />
+                    </div>
+                    @if (Model.IsApprovedTerms)
+                    {
+                        <div class="col-6">
+                            <label class="form-label">Penalty Interest (%)</label>
+                            <input type="text"
+                                   class="form-control"
+                                   id="LoanAmort_DisplayPenaltyInterest"
+                                   value="@(Model.DisplayPenaltyInterest?.ToString("N2") ?? "-")"
+                                   readonly />
+                        </div>
+                    }
+                </div>
+                <small class="text-muted d-block mt-2">
+                    Termat lexohen nga tab-i Loan (@termsCardTitle). Përdor <strong>Sync From Loan</strong> ose ruaj loan-in për t’i rifreskuar.
+                </small>
+            </div>
+        </div>
+
+        <div class="ds-card mb-3">
+            <div class="ds-card-h d-flex align-items-center gap-2">
+                <i class="bi bi-calculator"></i>
+                <span class="ds-card-title">Amortization Engine Settings</span>
+            </div>
+            <div class="ds-card-b">
+                <div class="row g-3">
+                    <div class="col-md-3">
+                        <label class="form-label small text-muted mb-1">Effective Annual Interest Rate (%)</label>
+                        <input type="text"
+                               class="form-control form-control-sm"
+                               id="LoanAmort_EffectiveAnnualRateDisplay"
+                               value="@(effectiveAnnualRatePercent.HasValue ? $"{effectiveAnnualRatePercent.Value:N4}%" : "-")"
+                               readonly />
+                        <small class="text-muted">Updates after Generate Plan.</small>
+                    </div>
+
+                    <div class="col-md-3">
+                        <label class="form-label small text-muted mb-1">Disbursement Fee (% / Value)</label>
+                        <input type="text"
+                               class="form-control form-control-sm"
+                               id="LoanAmort_DisbursementFeeDisplay"
+                               value="@($"{enteredDisbursementFeePercent:N2}% / {appliedDisbursementFeeAmount:N2} EUR")"
+                               readonly />
+                        <small class="text-muted @(minimumDisbursementFeeApplied ? string.Empty : "d-none")"
+                               id="LoanAmort_DisbursementFeeNote">
+                            Minimum 10.00 EUR applied. Effective fee on principal: @effectiveDisbursementFeePercent.ToString("N4")%
+                        </small>
+                    </div>
+
+                    <div class="col-md-3">
+                        <ejs-dropdownlist ejs-for="DayCountMethod"
+                                          id="LoanAmort_DayCountMethod"
+                                          dataSource="@(dayCountOptions)"
+                                          placeholder="Day Count Convention"
+                                          floatLabelType="Always">
+                            <e-dropdownlist-fields text="Text" value="Value"></e-dropdownlist-fields>
+                        </ejs-dropdownlist>
+                    </div>
+
+                    <div class="col-md-3">
+                        <ejs-dropdownlist ejs-for="PrincipalCalcMethod"
+                                          id="LoanAmort_PrincipalCalcMethod"
+                                          dataSource="@(principalMethodOptions)"
+                                          placeholder="Principal Calculation Method"
+                                          floatLabelType="Always">
+                            <e-dropdownlist-fields text="Text" value="Value"></e-dropdownlist-fields>
+                        </ejs-dropdownlist>
+                    </div>
+
+                    <div class="col-md-3" id="LoanAmort_FixedInstallmentWrap">
+                        <ejs-numerictextbox ejs-for="FixedInstallmentAmount"
+                                            id="LoanAmort_FixedInstallmentAmount"
+                                            placeholder="Fixed Installment Amount"
+                                            floatLabelType="Always"
+                                            format="n2"
+                                            min="0">
+                        </ejs-numerictextbox>
+                        <span asp-validation-for="FixedInstallmentAmount" class="text-danger small"></span>
+                    </div>
+
+                    <div class="col-md-3" id="LoanAmort_FixedPrincipalWrap">
+                        <ejs-numerictextbox ejs-for="FixedPrincipalAmount"
+                                            id="LoanAmort_FixedPrincipalAmount"
+                                            placeholder="Fixed Principal Amount"
+                                            floatLabelType="Always"
+                                            format="n2"
+                                            min="0">
+                        </ejs-numerictextbox>
+                        <span asp-validation-for="FixedPrincipalAmount" class="text-danger small"></span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="ds-card mb-3">
+            <div class="ds-card-h d-flex align-items-center gap-2">
+                <i class="bi bi-percent"></i>
+                <span class="ds-card-title">Rate Components</span>
+            </div>
+            <div class="ds-card-b">
+                <div class="row g-3">
+                    <div class="col-md-3 d-flex align-items-center">
+                        <ejs-checkbox ejs-for="UseIndexedRate"
+                                      id="LoanAmort_UseIndexedRate"
+                                      label="Use Indexed Rate">
+                        </ejs-checkbox>
+                    </div>
+
+                    <div class="col-md-3" id="LoanAmort_IndexCodeWrap">
+                        <ejs-dropdownlist ejs-for="IndexCode"
+                                          id="LoanAmort_IndexCode"
+                                          dataSource="@(indexOptions)"
+                                          placeholder="Index Code"
+                                          floatLabelType="Always">
+                            <e-dropdownlist-fields text="Text" value="Value"></e-dropdownlist-fields>
+                        </ejs-dropdownlist>
+                    </div>
+
+                    <div class="col-md-3" id="LoanAmort_IndexRateWrap">
+                        <ejs-numerictextbox ejs-for="IndexRatePercent"
+                                            id="LoanAmort_IndexRatePercent"
+                                            placeholder="Current Index Rate (%)"
+                                            floatLabelType="Always"
+                                            format="n4">
+                        </ejs-numerictextbox>
+                    </div>
+
+                    <div class="col-md-3">
+                        <label class="form-label">Total Nominal Rate (Base + Index)</label>
+                        <input type="text" class="form-control" id="LoanAmort_TotalRateDisplay" readonly />
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="ds-card mb-3">
+            <div class="ds-card-h d-flex align-items-center gap-2">
+                <i class="bi bi-calendar3"></i>
+                <span class="ds-card-title">Schedule &amp; Grace</span>
+            </div>
+            <div class="ds-card-b">
+                <div class="row g-3">
+                    <div class="col-md-3">
+                        <ejs-dropdownlist ejs-for="FrequencyCode"
+                                          id="LoanAmort_FrequencyCode"
+                                          dataSource="@(frequencyOptions)"
+                                          placeholder="Frequency"
+                                          floatLabelType="Always">
+                            <e-dropdownlist-fields text="Text" value="Value"></e-dropdownlist-fields>
+                        </ejs-dropdownlist>
+                    </div>
+
+                    <div class="col-md-3">
+                        <ejs-dropdownlist ejs-for="DueDayPolicy"
+                                          id="LoanAmort_DueDayPolicy"
+                                          dataSource="@(dueDayPolicyOptions)"
+                                          placeholder="Due Day Policy"
+                                          floatLabelType="Always">
+                            <e-dropdownlist-fields text="Text" value="Value"></e-dropdownlist-fields>
+                        </ejs-dropdownlist>
+                    </div>
+
+                    <div class="col-md-3">
+                        <ejs-datepicker ejs-for="NextInstallmentDate"
+                                        id="LoanAmort_NextInstallmentDate"
+                                        format="dd-MM-yyyy"
+                                        valueFormat="yyyy-MM-dd"
+                                        showClearButton="true"
+                                        enableMask="true"
+                                        placeholder="Next Installment Date"
+                                        floatLabelType="Always">
+                        </ejs-datepicker>
+                    </div>
+
+                    <div class="col-md-2">
+                        <ejs-dropdownlist ejs-for="GraceType"
+                                          id="LoanAmort_GraceType"
+                                          dataSource="@(graceTypeOptions)"
+                                          placeholder="Grace Type"
+                                          floatLabelType="Always">
+                            <e-dropdownlist-fields text="Text" value="Value"></e-dropdownlist-fields>
+                        </ejs-dropdownlist>
+                    </div>
+
+                    <div class="col-md-3">
+                        <ejs-datepicker ejs-for="GraceUntilDate"
+                                        id="LoanAmort_GraceUntilDate"
+                                        format="dd-MM-yyyy"
+                                        valueFormat="yyyy-MM-dd"
+                                        showClearButton="true"
+                                        enableMask="true"
+                                        placeholder="Grace Until Date"
+                                        floatLabelType="Always">
+                        </ejs-datepicker>
+                    </div>
+
+                    <div class="col-md-3 d-flex align-items-center">
+                        <ejs-checkbox ejs-for="CapitalizeDuringFullGrace"
+                                      id="LoanAmort_CapitalizeDuringFullGrace"
+                                      label="Capitalize At Grace End">
+                        </ejs-checkbox>
+                    </div>
+
+                    <div class="col-md-3 d-flex align-items-center">
+                        <ejs-checkbox ejs-for="AddFinalBalloonAll"
+                                      id="LoanAmort_AddFinalBalloonAll"
+                                      label="Balloon At Maturity">
+                        </ejs-checkbox>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="d-flex gap-2 flex-wrap mb-3">
+            <button type="button" class="btn btn-outline-secondary" id="btnLoanAmortSync">
+                <i class="bi bi-arrow-repeat me-1"></i>Sync From Loan
+            </button>
+            <button type="button" class="btn btn-primary" id="btnLoanAmortGenerate">
+                <i class="bi bi-play-circle me-1"></i>Generate Plan
+            </button>
+            <button type="button" class="btn btn-success" id="btnLoanAmortSave">
+                <i class="bi bi-save me-1"></i>Save Plan
+            </button>
+            <button type="button" class="btn btn-outline-secondary" id="btnLoanAmortPrint">
+                <i class="bi bi-printer me-1"></i>Print
+            </button>
+        </div>
+
+        <div class="mb-2">
+            <div asp-validation-summary="ModelOnly" class="text-danger small"></div>
+        </div>
+    </form>
+
+    @if (Model?.Result != null && Model.Result.Rows.Count > 0)
+    {
+        <div id="creditLoanAmortPrintArea">
+            <div class="d-flex justify-content-between align-items-start flex-wrap gap-3 mb-3">
+                <div>
+                    <h5 class="mb-1">Amortization Schedule</h5>
+                    <div class="text-muted small">Generated from Loan360 amortization tab</div>
+                </div>
+                <div class="small text-muted">
+                    <div><strong>Case Number:</strong> @(string.IsNullOrWhiteSpace(Model.CreditCaseNumber) ? "-" : Model.CreditCaseNumber)</div>
+                    <div><strong>Product:</strong> @(string.IsNullOrWhiteSpace(Model.ProductCode) ? "-" : Model.ProductCode)</div>
+                </div>
+            </div>
+
+            <div class="row mb-3">
+                <div class="col-md-6">
+                    <ul class="list-unstyled small mb-0">
+                        <li><strong>Principal:</strong> @Model.Principal?.ToString("N2")</li>
+                        <li><strong>Nominal Annual Interest Rate:</strong> @Model.BaseAnnualRate?.ToString("N4")%</li>
+                        <li><strong>Effective Annual Interest Rate:</strong> @(effectiveAnnualRatePercent.HasValue ? $"{effectiveAnnualRatePercent.Value:N4}%" : "-")</li>
+                        <li><strong>Term:</strong> @Model.TermMonths months</li>
+                        <li><strong>Start Date:</strong> @Model.StartDate?.ToString("yyyy-MM-dd")</li>
+                        <li><strong>End Date:</strong> @Model.EndDate?.ToString("yyyy-MM-dd")</li>
+                    </ul>
+                </div>
+                <div class="col-md-6">
+                    <ul class="list-unstyled small mb-0">
+                        <li><strong>Total Interest:</strong> @Model.Result.TotalInterest.ToString("N2")</li>
+                        <li><strong>Total Principal:</strong> @Model.Result.TotalPrincipal.ToString("N2")</li>
+                        <li><strong>Total Payment:</strong> @Model.Result.TotalPayment.ToString("N2")</li>
+                        <li><strong>Disbursement Fee (% / Value):</strong> @($"{enteredDisbursementFeePercent:N2}% / {Model.Result.TotalDisbursementFees:N2} EUR")</li>
+                        <li><strong>Net Disbursed:</strong> @Model.Result.NetDisbursedAmount.ToString("N2")</li>
+                        @if (minimumDisbursementFeeApplied)
+                        {
+                            <li><strong>Minimum Fee Rule:</strong> 10.00 EUR minimum applied</li>
+                        }
+                    </ul>
+                </div>
+            </div>
+
+            <div class="table-responsive">
+                <table class="table table-sm table-striped align-middle">
+                    <thead class="loan-amortization-thead">
+                        <tr>
+                            <th>#</th>
+                            <th>From</th>
+                            <th>To (Due)</th>
+                            <th>Days</th>
+                            @if (Model.UseIndexedRate)
+                            {
+                                <th class="text-end">Base %</th>
+                                <th class="text-end">Index %</th>
+                                <th class="text-end">Total %</th>
+                            }
+                            else
+                            {
+                                <th class="text-end">Rate %</th>
+                            }
+                            <th class="text-end">Interest</th>
+                            <th class="text-end">Principal</th>
+                            <th class="text-end">Total</th>
+                            <th class="text-end">Balance</th>
+                            <th>Notes</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var row in Model.Result.Rows)
+                        {
+                            <tr>
+                                <td>@row.Index</td>
+                                <td>@row.FromDate.ToString("yyyy-MM-dd")</td>
+                                <td>@row.ToDate.ToString("yyyy-MM-dd")</td>
+                                <td>@row.AccruedDays</td>
+                                @if (Model.UseIndexedRate)
+                                {
+                                    <td class="text-end">@row.BaseRate.ToString("N4")</td>
+                                    <td class="text-end">@row.IndexRate.ToString("N4")</td>
+                                    <td class="text-end">@row.TotalRate.ToString("N4")</td>
+                                }
+                                else
+                                {
+                                    <td class="text-end">@row.TotalRate.ToString("N4")</td>
+                                }
+                                <td class="text-end">@row.Interest.ToString("N2")</td>
+                                <td class="text-end">@row.Principal.ToString("N2")</td>
+                                <td class="text-end">@row.Total.ToString("N2")</td>
+                                <td class="text-end">@row.BalanceAfter.ToString("N2")</td>
+                                <td class="small text-muted">@row.Notes</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    }
+    else
+    {
+        <div class="alert alert-light border">
+            <i class="bi bi-calendar3 me-1"></i>
+            Generate the amortization plan to preview the printable schedule here.
+        </div>
+    }
+</div>
+
+<ejs-scripts></ejs-scripts>

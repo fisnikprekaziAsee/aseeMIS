@@ -1,0 +1,42 @@
+@model aseeMIS.Areas.BankParty.ViewModels.BankClientSectionViewModel.AccountSummaryViewModel?
+
+@functions {
+    string Money(decimal v) => "$" + v.ToString("#,0.##");
+}
+
+<div class="card card-soft p-4 h-100">
+    <div class="d-flex align-items-center gap-2 mb-3">
+        <i class="bi bi-graph-up-arrow fs-5 text-primary"></i>
+        <h5 class="mb-0">Account Activity</h5>
+    </div>
+
+    @if (Model != null)
+    {
+        <div class="vstack gap-3 metric-row">
+            <div class="d-flex justify-content-between">
+                <div class="label">Total Balance</div>
+                <div class="val">@Money(Model.TotalBalance)</div>
+            </div>
+            <div class="d-flex justify-content-between">
+                <div class="label">Monthly Turnover</div>
+                <div class="val">@Money(Model.MonthlyTurnover)</div>
+            </div>
+            <div class="d-flex justify-content-between">
+                <div class="label">Transactions This Month</div>
+                <div class="val">@Model.TransactionsThisMonth</div>
+            </div>
+            <div class="d-flex justify-content-between">
+                <div class="label">Average Transaction</div>
+                <div class="val">@Money(Model.AverageTransaction)</div>
+            </div>
+            <div class="d-flex justify-content-between">
+                <div class="label">Largest Transaction</div>
+                <div class="val">@Money(Model.LargestTransaction)</div>
+            </div>
+        </div>
+    }
+    else
+    {
+        <div class="text-muted small">No activity summary.</div>
+    }
+</div>

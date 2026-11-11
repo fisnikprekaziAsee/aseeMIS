@@ -1,0 +1,130 @@
+@using System.ComponentModel
+@using dsMIS.Core.Attributes
+@using System.ComponentModel.DataAnnotations
+@using System.ComponentModel.DataAnnotations.Schema
+@{
+    var formId = ViewBag.FormId; // Retrieve the form ID
+    var modelType = (Type)ViewBag.Type; // Retrieve the model type
+    var gridName = ViewBag.Type + "_Grid"; // Retrieve the model type
+    var properties = modelType.GetProperties(); // Get the properties of the model
+    var primaryKeys = properties.Where(p => p.GetCustomAttributes(typeof(KeyAttribute), true).Any()).Select(p => p.Name).ToList(); // Identify primary keys
+    var identityKeys = properties.Where(p => p.GetCustomAttributes(typeof(DatabaseGeneratedAttribute), true).Any()).Select(p => p.Name).ToList(); // Identify database generated
+    var foreignKeys = properties.Where(p => p.GetCustomAttributes(typeof(ForeignKeyAttribute), true).Any()).Select(p => p.Name).ToList(); // Identify foreign keys
+    var readOnlyProperties = properties.Where(p => p.GetCustomAttributes(typeof(ReadOnlyAttribute), true).Cast<ReadOnlyAttribute>().Any(a => a.IsReadOnly)).Select(p => p.Name).ToList();
+}
+
+<!-- Datagrid messages -->
+<div class="col-lg-12 control-section msg-default-section">
+    <div class="content-section">
+        <ejs-message id="Grid_MSG" visible="false" showCloseIcon="true"></ejs-message>
+    </div>
+</div>
+
+
+<!-- Datagrid initialization -->
+<ejs-grid id="Grid" TValue="@modelType" dataSource="@Model" gridLines="Both"
+          AllowReordering="true" allowSorting="true" allowFiltering="true" allowPdfExport="true" allowExcelExport="true" allowGrouping="true" allowResizing="true" allowPaging="true"
+          showColumnChooser="true" toolbarClick="toolbarClick" toolbar="@ViewBag.ToolbarItems" contextMenuItems="@ViewBag.ContextMenuItems"
+          contextMenuClick="contextMenuClick">
+    <e-grid-editSettings allowAdding="false" allowEditing="false" mode="Normal" showDeleteConfirmDialog="true"></e-grid-editSettings>
+    <e-grid-pagesettings pageCount="10" pageSizes="true"></e-grid-pagesettings>
+    <e-grid-filterSettings type="Excel"></e-grid-filterSettings>
+
+    <e-grid-columns>
+        @foreach (var property in properties)
+        {
+            var fieldType = property.PropertyType.Name.ToLower(); // Determine property type
+            var isPrimaryKey = primaryKeys.Contains(property.Name); // Check if it is a primary key
+            var isIdentityKey = identityKeys.Contains(property.Name); // Check if it is a identity
+
+
+
+            // Check for the ExtendedForeignKeyAttribute on the property
+            var extendedFkAttribute = property.GetCustomAttributes(typeof(ExtendedForeignKeyAttribute), false)
+            .FirstOrDefault() as ExtendedForeignKeyAttribute;
+            bool isForeignKey = extendedFkAttribute != null;
+            var headerText = property.Name; // Use property name as header
+
+            // Special template column for "IsApproved"
+            if (property.Name == "IsApproved")
+            {
+                <e-grid-column field="@property.Name" headerText="Is Approved" type="boolean" template="#statusTemplate"
+                               textAlign="Center" allowEditing="false" allowResizing="true">
+                </e-grid-column>
+            }
+            // Handle foreign key columns as dropdowns using a generic lookup from ViewData
+            else if (isForeignKey)
+            {
+                // Declare variables in a code block that persists for the markup below.
+                string fkField = "";
+                string fkValue = "";
+                var fkData = ViewData["FK_" + property.Name];
+
+                // If fkData exists and has at least one element, use reflection to pick the first two properties.
+                if (fkData is IEnumerable<dynamic> dataEnum && dataEnum.Any())
+                {
+                    // Get the first item in the collection.
+                    var firstItem = dataEnum.First();
+                    var props = firstItem.GetType().GetProperties();
+                    if (props.Length >= 2)
+                    {
+                        fkField = props[0].Name;  // First column/property name (the key)
+                        fkValue = props[1].Name;  // Second column/property name (the display value)
+                    }
+                }
+                <e-grid-column field="@fkField" headerText="@headerText" type="string"
+                               allowResizing="true" textAlign="Left"
+                               dataSource="@(ViewData["FK_" + property.Name])"
+                               foreignKeyField="@fkField" foreignKeyValue="@fkValue" editType="dropdownedit">
+                </e-grid-column>
+
+            }
+            // Handle boolean fields as checkboxes
+            else if (fieldType == "boolean")
+            {
+                <e-grid-column field="@property.Name" headerText="@headerText" type="boolean"
+                               editType="booleanedit" displayAsCheckBox="true" textAlign="Center"
+                               allowResizing="true">
+                </e-grid-column>
+            }
+            else
+            {
+                // Determine the editor template based on the data type
+                string editType = fieldType switch
+                {
+                    "datetime" => "DatePicker",
+                    "string" => "TextBox",
+                    "int32" or "int64" or "decimal" or "double" => "NumericTextBox",
+                    _ => "Default"
+                };
+
+                <e-grid-column field="@property.Name" headerText="@headerText" type="@fieldType"
+                               editType="@editType" textAlign="Left" isPrimaryKey="@isPrimaryKey" isIdentity="@isIdentityKey"
+                               allowEditing="@(isPrimaryKey || readOnlyProperties.Contains(property.Name) ? false : true)" allowResizing="true">
+                </e-grid-column>
+            }
+        }
+
+    </e-grid-columns>
+</ejs-grid>
+
+
+<script>
+    var serverFormId = '@ViewBag.FormId';
+    var controllerName = '@ViewBag.ControllerName';
+    var serverArea = '@ViewBag.Area';
+    sessionStorage.setItem("FormId", serverFormId);
+
+    document.addEventListener("DOMContentLoaded", function () {
+        gridDataBound(document.getElementById("Grid").ej2_instances[0], "lbl" + serverArea);
+    });
+
+
+</script>
+<script src="~/js/gridHelperLog.js" asp-append-version="true"></script>
+
+<style>
+    #Grid_Inline {
+        background-color: #86b7fe;
+    }
+</style>

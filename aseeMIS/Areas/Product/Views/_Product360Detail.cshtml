@@ -1,0 +1,558 @@
+@model dsProduct.Core.ViewModels.ProductViewModel
+
+@{
+    var request = ViewData["EntityDetailRequest"] as aseeMIS.Areas.Common.DTOs.EntityDetailRequest
+        ?? throw new InvalidOperationException("EntityDetailRequest is required.");
+    var formSessionId = request.FormSessionId;
+    var formId = request.FormId;
+    var isAdd = request.IsAdd;
+
+    var categories = ViewData["FK_ProductCategoryId"] as IEnumerable<object>;
+    var types = ViewData["FK_ProductTypeId"] as IEnumerable<object>;
+    var uoms = ViewData["FK_UnitofMeasure"] as IEnumerable<object>;
+    var countries = ViewData["FK_CountryCode"] as IEnumerable<object>;
+}
+
+<div class="form-container" data-form-session-id="@formSessionId" data-form-id="@formId">
+
+    <ejs-toast id="appToast"></ejs-toast>
+
+    <!-- ================= PRODUCT IDENTITY ================= -->
+    <div class="card section">
+        <div class="card-header py-2">
+            <h6><i class="bi bi-box-seam me-2"></i>Product Identity</h6>
+        </div>
+
+        <div class="card-body">
+            <div class="row g-3">
+
+                <div class="col-md-3">
+                    <ejs-numerictextbox ejs-for="ProductId" id="ProductId"
+                                        placeholder="Product Id"
+                                        readonly="true"
+                                        floatLabelType="Always">
+                    </ejs-numerictextbox>
+                </div>
+
+                <div class="col-md-4">
+                    <ejs-textbox ejs-for="ProductCode" id="ProductCode"
+                                 placeholder="Product Code" floatLabelType="Always">
+                    </ejs-textbox>
+                </div>
+
+                <div class="col-md-5">
+                    <ejs-textbox ejs-for="ProductName" id="ProductName"
+                                 placeholder="Product Name" floatLabelType="Always">
+                    </ejs-textbox>
+                </div>
+
+                <div class="col-md-6">
+                    <ejs-dropdownlist ejs-for="ProductCategoryId" id="ProductCategoryId"
+                                      dataSource="@(categories)"
+                                      placeholder="Product Category"
+                                      floatLabelType="Always">
+                        <e-dropdownlist-fields value="ProductCategoryId" text="ProductCategoryName"></e-dropdownlist-fields>
+                    </ejs-dropdownlist>
+                </div>
+
+                <div class="col-md-6">
+                    <ejs-dropdownlist ejs-for="ProductTypeId" id="ProductTypeId"
+                                      dataSource="@(types)"
+                                      placeholder="Product Type"
+                                      floatLabelType="Always">
+                        <e-dropdownlist-fields value="ProductTypeId" text="ProductTypeName"></e-dropdownlist-fields>
+                    </ejs-dropdownlist>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <!-- ================= PRODUCT DETAILS ================= -->
+    <div class="card section mt-3">
+        <div class="card-header py-2">
+            <h6><i class="bi bi-card-list me-2"></i>Product Details</h6>
+        </div>
+
+        <div class="card-body">
+            <div class="row g-3">
+
+                <div class="col-md-6">
+                    <ejs-textbox ejs-for="ProductDescription" id="ProductDescription"
+                                 placeholder="Description"
+                                 multiline="true"
+                                 rows="3"
+                                 floatLabelType="Always">
+                    </ejs-textbox>
+                </div>
+
+                <div class="col-md-3">
+                    <label class="form-label">Upload Image</label>
+                    <ejs-uploader id="ProductImageUploader"
+                                  autoUpload="false"
+                                  multiple="false"
+                                  allowedExtensions=".jpg,.jpeg,.png"
+                                  selected="onImageChosen">
+                    </ejs-uploader>
+
+                    <ejs-textbox id="ImagePath" ejs-for="ImagePath"
+                                 placeholder="Image Path"
+                                 floatLabelType="Always">
+                    </ejs-textbox>
+                </div>
+
+                <div class="col-md-3">
+                    <ejs-textbox ejs-for="Barcode" id="Barcode"
+                                 placeholder="Barcode"
+                                 floatLabelType="Always">
+                    </ejs-textbox>
+                </div>
+
+           @*      <div class="col-md-4">
+                    <ejs-dropdownlist ejs-for="UnitofMeasure" id="UnitofMeasure"
+                                      dataSource="@(uoms)"
+                                      placeholder="Unit of Measure"
+                                      floatLabelType="Always">
+                        <e-dropdownlist-fields value="UnitId" text="UnitName"></e-dropdownlist-fields>
+                    </ejs-dropdownlist>
+
+                </div> *@
+
+                <div class="col-md-4">
+                    <ejs-textbox ejs-for="BrandName" id="BrandName"
+                                 placeholder="Brand Name"
+                                 floatLabelType="Always">
+                    </ejs-textbox>
+                </div>
+
+                <div class="col-md-4">
+                    <ejs-textbox ejs-for="Manufacturer" id="Manufacturer"
+                                 placeholder="Manufacturer"
+                                 floatLabelType="Always">
+                    </ejs-textbox>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <!-- ================= ORIGIN / DIMENSIONS ================= -->
+    <div class="card section mt-3">
+        <div class="card-header py-2">
+            <h6><i class="bi bi-globe-europe-africa me-2"></i>Origin & Dimensions</h6>
+        </div>
+
+        <div class="card-body">
+            <div class="row g-3">
+
+                <div class="col-md-4">
+                    <ejs-dropdownlist ejs-for="CountryCode" id="CountryCode"
+                                      dataSource="@(countries)"
+                                      placeholder="Origin Country"
+                                      floatLabelType="Always">
+                        <e-dropdownlist-fields value="CountryCode" text="CountryName"></e-dropdownlist-fields>
+                    </ejs-dropdownlist>
+                </div>
+
+                <div class="col-md-4">
+                    <ejs-numerictextbox ejs-for="Weight" id="Weight"
+                                        placeholder="Weight"
+                                        floatLabelType="Always">
+                    </ejs-numerictextbox>
+                </div>
+
+                <div class="col-md-4">
+                    <ejs-textbox ejs-for="HSCode" id="HSCode"
+                                 placeholder="HS Code"
+                                 floatLabelType="Always">
+                    </ejs-textbox>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <!-- ================= PRICING ================= -->
+    <div class="card section mt-3">
+        <div class="card-header py-2">
+            <h6><i class="bi bi-currency-euro me-2"></i>Pricing</h6>
+        </div>
+
+        <div class="card-body">
+            <div class="row g-3">
+
+                <div class="col-md-4">
+                    <ejs-numerictextbox ejs-for="CostPrice" id="CostPrice"
+                                        placeholder="Cost Price"
+                                        floatLabelType="Always">
+                    </ejs-numerictextbox>
+                </div>
+
+                <div class="col-md-4">
+                    <ejs-numerictextbox ejs-for="BasePrice" id="BasePrice"
+                                        placeholder="Base Price"
+                                        floatLabelType="Always">
+                    </ejs-numerictextbox>
+                </div>
+
+                <div class="col-md-4">
+                    <ejs-numerictextbox ejs-for="VATRate" id="VATRate"
+                                        placeholder="VAT Rate (%)"
+                                        floatLabelType="Always">
+                    </ejs-numerictextbox>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <!-- ================= PRODUCT FLAGS ================= -->
+    <div class="card section mt-3">
+        <div class="card-header py-2">
+            <h6><i class="bi bi-toggles me-2"></i>Product Options</h6>
+        </div>
+
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-md-3" id="assembled-wrap">
+                    <ejs-checkbox ejs-for="IsAssembled" id="IsAssembled" label="Assembled"></ejs-checkbox>
+                </div>
+
+                <div class="col-md-3" id="configurable-wrap">
+                    <ejs-checkbox ejs-for="IsConfigurable" id="IsConfigurable" label="Configurable"></ejs-checkbox>
+                </div>
+
+
+                <div class="col-md-3">
+                    <ejs-checkbox ejs-for="IsActive" id="IsActive" label="Active"></ejs-checkbox>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ================= GRID SECTIONS ================= -->
+    <div id="configurable-section" style="display:none;" class="mt-4"></div>
+    <div id="assembled-section" style="display:none;" class="mt-4"></div>
+
+    <div class="text-end mt-3">
+        <button class="btn btn-primary" onclick="saveForm()">
+            <i class="bi bi-save me-1"></i> @(isAdd ? "Create Product" : "Save Changes")
+        </button>
+    </div>
+
+</div>
+
+<script>
+    // =========================
+    // Globals
+    // =========================
+    window.isAdd = @(isAdd.ToString().ToLowerInvariant());
+    console.log("🔵 isAdd =", window.isAdd);
+
+    // =========================
+    // IMAGE PATH BUILDER
+    // =========================
+    function onImageChosen(args) {
+      let fileName = args.filesData[0].name;
+      let categoryName = document.getElementById("ProductCategoryId").ej2_instances[0].text;
+      let code = document.getElementById("ProductCode").ej2_instances[0].value;
+
+      let output = `product/${categoryName}/${code}/${fileName}`;
+      document.getElementById("ImagePath").ej2_instances[0].value = output;
+    }
+
+    // =========================
+    // Product Type Capabilities
+    // =========================
+    function applyProductTypeLogic(productTypeId) {
+
+      // if nothing selected -> hide both options + force off
+      if (!productTypeId) {
+        $("#assembled-wrap").hide();
+        $("#configurable-wrap").hide();
+
+        const assembledCb = document.getElementById("IsAssembled").ej2_instances[0];
+        const configurableCb = document.getElementById("IsConfigurable").ej2_instances[0];
+        assembledCb.checked = false;
+        configurableCb.checked = false;
+
+        toggleProductGrids();
+        return;
+      }
+
+      $.get("/Product/GetProductTypeCapabilities", { productTypeId })
+        .done(res => {
+          // support different JSON casing
+          const allowBom =
+            (res.allowsBOM === true) || (res.allowsBom === true) || (res.AllowsBOM === true);
+
+          const allowCfg =
+            (res.allowsConfiguration === true) || (res.allowsConfiguration === true) || (res.AllowsConfiguration === true);
+
+          // show/hide checkbox areas
+          $("#assembled-wrap").toggle(allowBom);
+          $("#configurable-wrap").toggle(allowCfg);
+
+          // force off if not allowed
+          const assembledCb = document.getElementById("IsAssembled").ej2_instances[0];
+          const configurableCb = document.getElementById("IsConfigurable").ej2_instances[0];
+
+          if (!allowBom) assembledCb.checked = false;
+          if (!allowCfg) configurableCb.checked = false;
+
+          toggleProductGrids();
+        })
+        .fail(err => console.error("❌ GetProductTypeCapabilities failed", err));
+    }
+
+    // =========================
+    // Grids
+    // =========================
+    function loadConfigurableGrid() {
+      console.log("🟢 Loading CONFIGURABLE grid");
+
+      $.get("/Product/ConfigurableGrid", {
+        sessionId: "@formSessionId",
+        pk: "@Model.ProductId"
+      })
+      .done(html => {
+        console.log("🟢 Configurable Grid Loaded (HTML length:", html.length, ")");
+        $("#configurable-section").html(html);
+      })
+      .fail(err => console.error("❌ Error loading configurable grid", err));
+    }
+
+    function loadAssembledGrid() {
+      console.log("🟣 Loading ASSEMBLED grid");
+
+      $.get("/Product/AssembledGrid", {
+        sessionId: "@formSessionId",
+        pk: "@Model.ProductId"
+      })
+      .done(html => {
+        console.log("🟣 Assembled Grid Loaded (HTML length:", html.length, ")");
+        $("#assembled-section").html(html);
+      })
+      .fail(err => console.error("❌ Error loading assembled grid", err));
+    }
+
+    function toggleProductGrids() {
+      console.log("🔵 toggleProductGrids() called");
+
+      // Add mode: hide grids + options
+      if (window.isAdd === true) {
+        console.log("🔒 Add mode → Hiding grids + options");
+        $("#configurable-section").hide();
+        $("#assembled-section").hide();
+        $("#assembled-wrap").hide();
+        $("#configurable-wrap").hide();
+        return;
+      }
+
+      let isConfigurable = document.getElementById("IsConfigurable").ej2_instances[0].checked;
+      let isAssembled = document.getElementById("IsAssembled").ej2_instances[0].checked;
+
+      console.log("🔍 isConfigurable =", isConfigurable);
+      console.log("🔍 isAssembled =", isAssembled);
+
+      $("#configurable-section").hide();
+      $("#assembled-section").hide();
+
+      if (isConfigurable) {
+        console.log("🟢 Showing CONFIGURABLE grid");
+        $("#configurable-section").show();
+        loadConfigurableGrid();
+      }
+
+      if (isAssembled) {
+        console.log("🟣 Showing ASSEMBLED grid");
+        $("#assembled-section").show();
+        loadAssembledGrid();
+      }
+    }
+
+
+    // ---------- GLOBAL TOAST helpers (layout-scoped) ----------
+
+    function getToastInstance() {
+        return document.getElementById("appToast")?.ej2_instances?.[0] || null;
+    }
+
+    function showToast(message, severity = "Success", title = "") {
+        const toast = getToastInstance();
+        if (!toast) return false;
+
+        const sev = (severity || "Info").toString().toLowerCase();
+
+        // Syncfusion default toast classes: e-toast-success / e-toast-danger / e-toast-warning / e-toast-info
+        const cssClass =
+            sev === "success" ? "e-toast-success" :
+            sev === "error" || sev === "danger" ? "e-toast-danger" :
+            sev === "warning" ? "e-toast-warning" :
+            "e-toast-info";
+
+        toast.show({
+            title: title || (sev === "success" ? "Success" : sev === "warning" ? "Warning" : sev === "error" ? "Error" : "Info"),
+            content: message,
+            cssClass
+        });
+
+        return true;
+    }
+
+    function showMessage(message, severity = "Success", arg, opts) {
+        // opts: { toast: true/false, inline: true/false }
+        // default: try toast if exists, still show inline message if grid message exists
+        const options = Object.assign({ toast: true, inline: true }, opts || {});
+
+        // 1) Toast (global)
+        if (options.toast) {
+            // if toast exists, show it
+            const shown = showToast(message, severity);
+            // if you want toast-only, you can return here when shown
+            if (shown && options.inline === false) return;
+        }
+
+        // 2) Inline grid message (existing behavior)
+        if (options.inline) {
+            const mi = getMsgInstance(arg);
+            if (mi) {
+                try {
+                    // Syncfusion Message severity usually expects: "Success" / "Info" / "Warning" / "Error"
+                    mi.severity = severity;
+                    mi.content = message;
+                    mi.visible = true;
+                    return;
+                } catch (_) { /* ignore */ }
+            }
+        }
+
+        // 3) Fallback
+        (severity === "Error" ? console.error : console.log)("[MSG]", message);
+    }
+
+
+    // =========================
+    // SAVE (UPDATE ONLY)
+    // =========================
+     function saveForm() {
+
+      const model = {};
+
+      // Only elements that actually have Syncfusion instances
+      document.querySelectorAll("[id]").forEach(el => {
+        const inst = el.ej2_instances?.[0];
+        if (!inst) return;
+
+        const field = el.getAttribute("id");
+
+        // checkbox => checked
+        if (inst.getModuleName && inst.getModuleName() === "checkbox") {
+          model[field] = inst.checked === true;
+          return;
+        }
+
+        // textbox/numeric/dropdown => value
+        if ("value" in inst) {
+          model[field] = inst.value;
+        }
+      });
+
+      const container = document.querySelector(".form-container");
+      const formSessionId = container.dataset.formSessionId;
+
+      const isAdd = window.isAdd === true;
+
+      // ✅ choose endpoint
+      const url = isAdd ? "/Common/CRUD/Add" : "/Common/CRUD/Update";
+
+      const ajax = new ej.base.Ajax({
+        url,
+        type: "POST",
+        data: JSON.stringify(model),
+        contentType: "application/json",
+        beforeSend: function (xhr) {
+          xhr.httpRequest.setRequestHeader("FormSessionId", formSessionId);
+        }
+      });
+
+      ajax.send()
+        .then(response => {
+          let result = response;
+          try { result = JSON.parse(response); } catch {}
+
+          console.log("✅ Save result:", result);
+
+          if (result?.success === true) {
+            // ✅ toast success
+            showMessage(isAdd ? "✅ Product created" : "✅ Changes saved", "Success", null, { inline: false });
+
+            // OPTIONAL (recommended): when Add returns the created row, update the UI / redirect to edit
+            // Many aseeMIS CRUD endpoints return updatedRow
+            const created = result.updatedRow || result.data || result.row;
+
+            // If we got ProductId back, set it in the form so grids can work
+            if (isAdd && created?.ProductId) {
+              // Set the numeric textbox value properly
+              const prodIdInst = document.getElementById("ProductId")?.ej2_instances?.[0];
+              if (prodIdInst) prodIdInst.value = created.ProductId;
+
+              // flip client state to "edit mode"
+              window.isAdd = false;
+
+              // show options according to product type
+              const typeDdl = document.getElementById("ProductTypeId")?.ej2_instances?.[0];
+              if (typeDdl) applyProductTypeLogic(typeDdl.value);
+
+              // If you have an Edit route, redirect is even cleaner:
+              // window.location.href = `/Product/Edit/${created.ProductId}`;
+            }
+
+          } else {
+            showMessage(result?.message || (isAdd ? "Create failed" : "Update failed"), "Error", null, { inline: false });
+          }
+        })
+        .catch(xhr => {
+          console.error("Save failed", xhr);
+          showMessage(isAdd ? "Create failed" : "Update failed", "Error", null, { inline: false });
+        });
+    }
+
+    // =========================
+    // One-time initialization
+    // =========================
+    document.addEventListener("DOMContentLoaded", function () {
+      console.log("🔵 DOM Loaded → Initializing form");
+
+      formLocalizationDataBound("Product");
+
+      // ProductType change -> apply rules
+      const typeDdl = document.getElementById("ProductTypeId").ej2_instances[0];
+      typeDdl.change = function (args) {
+        applyProductTypeLogic(args.value);
+      };
+
+      // Checkbox events -> toggle grids
+      document.getElementById("IsConfigurable").ej2_instances[0].change = function (args) {
+        console.log("🟡 IsConfigurable changed →", args.checked);
+        toggleProductGrids();
+      };
+
+      document.getElementById("IsAssembled").ej2_instances[0].change = function (args) {
+        console.log("🟡 IsAssembled changed →", args.checked);
+        toggleProductGrids();
+      };
+
+      // initial
+      applyProductTypeLogic(typeDdl.value);
+    });
+</script>
+
+<!-- ================= SCRIPT ================= -->
+@* @section Scripts {
+
+
+}
+ *@
+
+@* [5310,5309,5311,5306] *@

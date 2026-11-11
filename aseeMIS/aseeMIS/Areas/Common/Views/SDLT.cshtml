@@ -1,0 +1,300 @@
+﻿
+
+
+<div class="card shadow-sm mb-3">
+    <div class="card-header bg-white border-bottom py-1">
+        <a class="text-blue text-decoration-none small fw-semibold"
+           data-bs-toggle="collapse"
+           href="#filterSection"
+           role="button"
+           aria-expanded="true"
+           aria-controls="filterSection">
+            <i class="bi bi-funnel"></i> Filter
+        </a>
+    </div>
+
+    <div class="collapse show" id="filterSection">
+        <div class="card-body py-2">
+            <div class="row align-items-end">
+
+                <!-- Source Language -->
+                <div class="col-md-3 pe-1">
+                    <label for="StartDate" class="form-label small mb-1">Start Date</label>
+                    <ejs-datetimepicker id="StartDate" placeholder="Select Start Date" format="yyyy-MM-dd HH:mm" showClearButton="true" step="1">
+                    </ejs-datetimepicker>
+                </div>
+
+                <!-- Swap Icon -->
+                <div class="col-auto px-1 d-flex align-items-end pb-1">
+                    <i class="bi bi-dash"></i>
+                </div>
+
+                <!-- Destination Language -->
+                <div class="col-md-3 ps-1">
+                    <label for="EndDate" class="form-label small mb-1">End Date</label>
+                    <ejs-datetimepicker id="EndDate" placeholder="Select Start Date" format="yyyy-MM-dd HH:mm" showClearButton="true" step="1">
+                    </ejs-datetimepicker>
+                </div>
+
+                <!-- Show Data -->
+                <div class="col-auto ps-2 d-flex align-items-end">
+                    <button type="button" class="btn btn-sm btn-outline-primary d-flex align-items-center custom-btn"
+                            onclick="onDateRangeChange()" title="Show Data">
+                        <i class="bi bi-search fs-6"></i>
+
+                    </button>
+                </div>
+
+            </div>
+        </div>
+    </div>
+</div>
+<ejs-dialog id="ApprovalDialog" isModal="true" width="90%" height="80%" showCloseIcon="true" visible="false">
+    <e-content-template>
+        <div id="dialogContent"><!-- SDLT content injected dynamically --></div>
+    </e-content-template>
+</ejs-dialog>
+
+<div class="col-lg-12 control-section msg-default-section">
+    <div class="content-section">
+        <ejs-message id="SDLT_Grid_MSG" visible="false" showCloseIcon="true"></ejs-message>
+    </div>
+</div>
+
+<!--datagrid initialization-->
+<ejs-grid id="SDLT_Grid" dataSource="@Model" gridLines="Both"
+          AllowReordering="true" allowSorting="true" allowFiltering="true" allowPdfExport="true" allowExcelExport="true" allowGrouping="true" allowResizing="true" allowPaging="true"
+          showColumnChooser="true" toolbarClick="toolbarClick" toolbar="@ViewBag.ToolbarItems" contextMenuItems="@ViewBag.ContextMenuItems"
+          contextMenuClick="contextMenuClick" enableStickyHeader="true" height="45vh"
+          data-form-session-id="@ViewBag.FormSessionId" data-form-is-sdlt="true" >
+
+    <e-grid-editSettings allowAdding="false" allowEditing="false" mode="Normal" showDeleteConfirmDialog="true"></e-grid-editSettings>
+    <e-grid-pagesettings pageCount="10" pageSizes="true"></e-grid-pagesettings>
+    <e-grid-filterSettings type="Excel"></e-grid-filterSettings>
+    <e-grid-editsettings allowAdding="false" allowEditing="false" allowDeleting="false"></e-grid-editsettings>
+   
+
+    <e-grid-columns>
+        <!-- StagingDataLogId column -->
+        <e-grid-column field="StagingDataLogId" headerText="Log ID" isPrimaryKey="true" allowResizing="true" textAlign="Left"></e-grid-column>
+        <e-grid-column field="FormId" headerText="Form Id" allowResizing="true"></e-grid-column>
+        <!-- FormTitle column -->
+        <e-grid-column field="FormTitle" headerText="Form Title" allowResizing="true" textAlign="Left"></e-grid-column>
+        <!-- OperationTypeCode column -->
+        <e-grid-column field="OperationTypeCode" headerText="Operation Type" allowResizing="true" textAlign="Left"></e-grid-column>
+        <!-- TargetId column -->
+        <e-grid-column field="TargetId" headerText="Target ID" allowResizing="true" textAlign="Left"></e-grid-column>
+        <!-- RequestedBy column -->
+        <e-grid-column field="RequestedBy" headerText="Requested By" allowResizing="true" textAlign="Left"></e-grid-column>
+        <!-- RequestedAt column -->
+        <e-grid-column field="RequestedAt" headerText="Requested At" format="yMd" type="date" allowResizing="true" textAlign="Left"></e-grid-column>
+        <!-- ReviewedBy column -->
+        <e-grid-column field="ReviewedBy" headerText="Reviewed By" allowResizing="true" textAlign="Left"></e-grid-column>
+        <!-- ReviewedAt column -->
+        <e-grid-column field="ReviewedAt" headerText="Reviewed At" format="yMd" type="date" allowResizing="true" textAlign="Left"></e-grid-column>
+        <!-- Rejection Type column -->
+        <e-grid-column field="RejectionTypeValue" headerText="RejectionTypeValue" allowResizing="true" textAlign="Left"></e-grid-column>
+        <!-- Comments column -->
+        <e-grid-column field="Comments" headerText="Comments" allowResizing="true" textAlign="Left"></e-grid-column>
+
+        <!-- OldDataJSON column -->
+
+        <e-grid-column field="OldDataJSON" headerText="Old Data" allowResizing="true" textAlign="Left" template="#oldjsonTemplate"></e-grid-column>
+
+        <!-- NewDataJSON column -->
+        <e-grid-column field="NewDataJSON" headerText="New Data" allowResizing="true" textAlign="Left" template="#newjsonTemplate"></e-grid-column>
+
+
+
+        <!-- IsApproved column -->
+        <e-grid-column field="IsApproved" headerText="Is Approved" type="boolean" template="#statusTemplate" textAlign="Center" allowEditing="false"></e-grid-column>
+
+
+    </e-grid-columns>
+</ejs-grid>
+<input type="hidden" id="FormId" value="@ViewBag.FormId" />
+<input type="hidden" id="FormSessionId" value="@ViewBag.FormSessionId" />
+
+
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+
+
+<!-- Scripts -->
+<script type="text/x-jsrender" id="statusTemplate">
+    ${statusDetail(data)}
+</script>
+
+<script id="oldjsonTemplate" type="text/x-jsrender">
+    ${oldJSONDetail(data)}
+</script>
+
+<script id="newjsonTemplate" type="text/x-jsrender">
+    ${newJSONDetail(data)}
+</script>
+
+
+
+<script>
+
+
+         function onDateRangeChange() {
+
+        // Get the values from the regular datetime-local inputs
+        var startDate = document.getElementById("StartDate").value;
+        var endDate = document.getElementById("EndDate").value;
+         var formId = document.getElementById("FormId").value;
+        if (startDate && endDate) {
+            // Get the grid instance
+            var grid = document.getElementById("SDLT_Grid").ej2_instances[0];
+                const formSessionId = $("#FormSessionId").val();
+
+            // Make the AJAX call to fetch data for the selected date range
+            var url = '@Url.Action("GetData", "SDLT")';  // Replace with your actual URL
+            $.ajax({
+                url: url,
+                type: 'GET',
+                data: {
+                    formid: formId,
+                    startDate: startDate,
+                    endDate: endDate
+                },
+              beforeSend: function (xhr) {
+            xhr.setRequestHeader("FormSessionId", formSessionId);
+        },
+                success: function (data) {
+                    grid.dataSource = data;
+                    grid.refresh();
+                },
+                error: function (xhr) {
+                    // Display error message if the AJAX call fails
+                    changeErrorMessage.content = "Error while fetching data for the selected date range.";
+                    changeErrorMessage.visible = true;
+                }
+            });
+        } else {
+            alert("Please select both start and end dates.");
+        }
+    }
+
+        function oldJSONDetail(e) {
+        var div = document.createElement('div');
+        div.style.padding = '5px';
+        div.style.border = '1px solid #ddd';
+        div.style.borderRadius = '4px';
+        div.style.backgroundColor = '#f9f9f9';
+        div.style.fontFamily = 'monospace';
+        div.style.whiteSpace = 'pre-wrap'; // Ensures the JSON wraps properly
+        div.style.wordWrap = 'break-word';
+        div.style.maxHeight = '200px'; // Optional: Limit height for large JSON
+        div.style.overflowY = 'auto'; // Scroll if JSON is too large
+
+        try {
+            // Parse and format the JSON
+            const json = JSON.parse(e.OldDataJSON);
+            const formattedJson = JSON.stringify(json, null, 2); // Indent with 2 spaces
+            div.textContent = formattedJson; // Safely add the formatted JSON
+        } catch (error) {
+            // If the input is not valid JSON, display it as raw text
+            div.textContent = e;
+            div.style.color = 'red'; // Highlight invalid JSON in red
+            div.style.fontWeight = 'bold';
+        }
+
+        return div.outerHTML; // Return the HTML string
+    }
+
+     function newJSONDetail(e) {
+        var div = document.createElement('div');
+        div.style.padding = '5px';
+        div.style.border = '1px solid #ddd';
+        div.style.borderRadius = '4px';
+        div.style.backgroundColor = '#f9f9f9';
+        div.style.fontFamily = 'monospace';
+        div.style.whiteSpace = 'pre-wrap'; // Ensures the JSON wraps properly
+        div.style.wordWrap = 'break-word';
+        div.style.maxHeight = '200px'; // Optional: Limit height for large JSON
+        div.style.overflowY = 'auto'; // Scroll if JSON is too large
+
+        try {
+            // Parse and format the JSON
+            const json = JSON.parse(e.NewDataJSON);
+            const formattedJson = JSON.stringify(json, null, 2); // Indent with 2 spaces
+            div.textContent = formattedJson; // Safely add the formatted JSON
+        } catch (error) {
+            // If the input is not valid JSON, display it as raw text
+            div.textContent = e;
+            div.style.color = 'red'; // Highlight invalid JSON in red
+            div.style.fontWeight = 'bold';
+        }
+
+        return div.outerHTML; // Return the HTML string
+    }
+
+
+
+
+
+    function statusDetail(e) {
+        var div = document.createElement('div');
+        var span = document.createElement('span');
+        // Apply styles dynamically
+        if (e.IsApproved === true) {
+            // Approved (Green Background)
+            span.textContent = '\u2713'; // Optional text for True
+            span.style.color = 'green';
+            span.style.fontWeight = 'bold'; // Make the text bold
+        } else if (e.IsApproved === false) {
+            // Not Approved (Gray Background)
+            span.textContent = 'x'; // Optional text for True
+            span.style.color = 'red';
+            span.style.fontWeight = 'bold'; // Make the text bold
+        } else if (e.IsApproved === null) {
+            span.textContent = '...'; // Optional text for True
+            span.style.color = 'orange';
+            span.style.fontWeight = 'bold'; // Make the text bold
+        }
+        div.appendChild(span);
+        return div.outerHTML;
+    }
+
+
+    function toolbarClick(args) {
+        // Get the grid instance
+            var grid = document.getElementById("SDLT_Grid").ej2_instances[0];
+         if (args.item.id === 'SDLT_Grid_pdfexport') {
+
+            let columns = grid.columns;
+            columns.forEach(column => {
+                if (column.type === 'datetime') {
+                    column.format = 'long'; // Set a simpler format for PDF export
+                }
+            });
+
+            grid.pdfExport();
+        }
+        else if (args.item.id === 'SDLT_Grid_excelexport') {
+            let columns = grid.columns;
+            columns.forEach(column => {
+                if (column.type === 'datetime') {
+                    column.format = "yyyy.MM.dd HH:mm:ss"; // Set a simpler format for PDF export
+                }
+            });
+            grid.excelExport();
+        }
+        else if (args.item.id === 'SDLT_Grid_csvexport') {
+            grid.csvExport();
+        }
+
+    }
+    function contextMenuClick(args) {
+        /* Enabling copy with header */
+        if (this.getSelectedRecords().length > 0) {
+            if (args.item.id === "Copy") {
+                this.copy();
+            } else if (args.item.id === "copyWithHeader") {
+                this.copy(true);
+            }
+        }
+    }
+</script>
+

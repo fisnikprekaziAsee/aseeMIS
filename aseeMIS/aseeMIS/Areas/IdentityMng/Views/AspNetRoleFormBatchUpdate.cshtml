@@ -1,0 +1,304 @@
+@using Syncfusion.EJ2.DropDowns
+
+@* Add CSRF token for AJAX requests *@
+<form id="batchUpdateTokenForm">
+    @Html.AntiForgeryToken()
+</form>
+
+<div class="col-lg-12 control-section msg-default-section">
+    <div class="content-section">
+        <ejs-message id="BatchUpdate_MSG" visible="false" showCloseIcon="true"></ejs-message>
+    </div>
+</div>
+
+<br />
+
+<div class="row">
+    <!-- Left Column: Dropdowns + Button -->
+    <div class="col-md-4">
+        <div class="mb-3">
+            <label for="roleDropdown">Select Role:</label>
+            <ejs-dropdownlist id="roleDropdown"
+                              dataSource="@ViewBag.Roles"
+                              placeholder="Select Role"
+                              fields="@(new DropDownListFieldSettings { Value = "Id", Text = "Name" })">
+            </ejs-dropdownlist>
+        </div>
+
+        <div class="mb-3">
+            <label for="actionDropdown">Select Permission:</label>
+            <ejs-dropdownlist id="actionDropdown"
+                              dataSource="@ViewBag.Actions"
+                              placeholder="Select Permission"
+                              fields="@(new DropDownListFieldSettings { Value = "ConstantKey", Text = "ConstantValue" })">
+            </ejs-dropdownlist>
+        </div>
+
+        <div class="mb-3">
+            <button type="button" class="e-btn e-primary" onclick="loadBatchUpdateData()">Load Forms</button>
+        </div>
+    </div>
+
+    <div class="col-md-8" id="formsSection" style="display: none;">
+        <h4>Batch Update Role Forms</h4>
+        <p class="text-muted" id="permissionDescription">
+            Select forms to grant the permission for this role.
+        </p>
+
+        <!-- Filter/Search Section -->
+        <div class="mb-3">
+            <label for="filterTextbox">Filter Forms:</label>
+            <div class="input-group">
+                <input type="text" id="filterTextbox" class="form-control" 
+                       placeholder="Search by FormId or FormTitle..." 
+                       onkeyup="filterForms()">
+                <button type="button" class="btn btn-secondary" onclick="clearFilter()">
+                    <i class="e-icons e-clear"></i> Clear
+                </button>
+            </div>
+            <small class="text-muted">Type to filter by FormId or FormTitle (e.g., "1", "11", or form name)</small>
+        </div>
+
+        <div id="BatchUpdateCheckboxHost">
+            <ejs-listbox id="FormCheckboxList"
+                         height="450"
+                         sortOrder="SortOrder.Ascending">
+                <e-listbox-fields text="FormTitle" value="FormId"></e-listbox-fields>
+                <e-listbox-selectionsettings showCheckbox="true" mode="Multiple"></e-listbox-selectionsettings>
+            </ejs-listbox>
+        </div>
+
+        <div class="mt-3">
+            <button type="button" class="e-btn e-success" onclick="saveBatchUpdate()">
+                <i class="e-icons e-save"></i> Save Permissions
+            </button>
+            <button type="button" class="e-btn e-secondary ms-2" onclick="clearSelection()">
+                <i class="e-icons e-clear"></i> Clear Selection
+            </button>
+        </div>
+    </div>
+
+    <div class="col-md-8" id="instructionsSection">
+        <div class="alert alert-info mt-4">
+            <strong>Instructions:</strong>
+            <ul class="mb-0">
+                <li>Select a Role from the dropdown</li>
+                <li>Select a Permission type (e.g., IsInsertable, IsReadable)</li>
+                <li>Click "Load Forms" to see all available forms</li>
+                <li>Check the forms you want to grant permission to</li>
+                <li>Click "Save Permissions" to apply changes</li>
+            </ul>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        // Store original data for filtering
+        let originalFormData = [];
+        let filteredFormData = [];
+
+        // -------------------- Message helpers --------------------
+        function showSuccessMessage(message) {
+            var msg = document.getElementById("BatchUpdate_MSG").ej2_instances[0];
+            msg.severity = 'Success';
+            msg.content = message;
+            msg.visible = true;
+            setTimeout(function () { msg.visible = false; }, 5000);
+        }
+
+        function showErrorMessage(message) {
+            var msg = document.getElementById("BatchUpdate_MSG").ej2_instances[0];
+            msg.severity = 'Error';
+            msg.content = message;
+            msg.visible = true;
+        }
+
+        // -------------------- Filter Functions --------------------
+        function filterForms() {
+            const filterText = document.getElementById("filterTextbox").value.toLowerCase().trim();
+            const listBox = document.getElementById("FormCheckboxList").ej2_instances[0];
+            
+            if (!filterText) {
+                // If filter is empty, show all forms
+                filteredFormData = [...originalFormData];
+            } else {
+                // Filter by FormId or FormTitle
+                filteredFormData = originalFormData.filter(function(item) {
+                    const formIdStr = String(item.FormId).toLowerCase();
+                    const formTitle = (item.FormTitle || '').toLowerCase();
+                    const displayTitle = (item.DisplayTitle || '').toLowerCase();
+                    return formIdStr.includes(filterText) || formTitle.includes(filterText) || displayTitle.includes(filterText);
+                });
+            }
+            
+            // Get currently selected items before updating dataSource
+            const currentSelectedIds = listBox.value || [];
+            
+            // Update listbox with filtered data
+            listBox.dataSource = filteredFormData;
+            listBox.dataBind();
+            
+            // Re-apply selection after data binding - optimized with Set
+            if (currentSelectedIds.length > 0) {
+                const filteredIds = new Set(filteredFormData.map(item => item.FormId));
+                const validSelectedIds = currentSelectedIds.filter(id => filteredIds.has(id));
+                if (validSelectedIds.length > 0) {
+                    listBox.selectItems(validSelectedIds);
+                }
+            }
+        }
+
+        function clearFilter() {
+            document.getElementById("filterTextbox").value = '';
+            filterForms();
+        }
+
+        // -------------------- Load Forms via AJAX --------------------
+        function loadBatchUpdateData() {
+            const roleDropdown = document.getElementById("roleDropdown").ej2_instances[0];
+            const actionDropdown = document.getElementById("actionDropdown").ej2_instances[0];
+
+            const roleId = parseInt(roleDropdown.value, 10);
+            const formAction = actionDropdown.value;
+
+            console.log("roleId", roleId);
+            console.log("formAction", formAction);
+
+            if (roleId < 0 || !formAction) {
+                showErrorMessage("Please select both Role and Permission");
+                return;
+            }
+
+            showSuccessMessage("Loading forms...");
+
+            $.ajax({
+                url: '@Url.Action("LoadFormsForBatchUpdate", "AspNetRoleForm", new { area = "IdentityMng" })',
+                type: 'POST',
+                contentType: 'application/json',
+                headers: {
+                    'RequestVerificationToken': $('input[name="__RequestVerificationToken"]').val()
+                },
+                data: JSON.stringify({
+                    roleId: roleId,
+                    formAction: formAction
+                }),
+                success: function (result) {
+                    if (result.success && result.data) {
+                        // Format data to include FormId - FormTitle for display
+                        const formattedData = result.data.map(function(item) {
+                            return {
+                                ...item,
+                                // Use DisplayTitle for display while preserving FormTitle
+                                DisplayTitle: item.FormId + ' - ' + (item.FormTitle || '[Untitled]'),
+                                FormTitle: item.FormTitle // Keep original for reference
+                            };
+                        });
+                        
+                        // Store original data for filtering
+                        originalFormData = formattedData;
+                        filteredFormData = [...originalFormData];
+                        
+                        // Clear any existing filter
+                        document.getElementById("filterTextbox").value = '';
+                        
+                        // Update ListBox with data
+                        const listBox = document.getElementById("FormCheckboxList").ej2_instances[0];
+                        
+                        // Update field mapping to use DisplayTitle for text
+                        listBox.fields = { text: 'DisplayTitle', value: 'FormId' };
+                        listBox.dataSource = filteredFormData;
+                        listBox.dataBind();
+
+                        // Get pre-selected items based on the formAction property
+                        const preSelectedIds = [];
+                        result.data.forEach(function(item) {
+                            // Check the specific action property that matches the formAction
+                            if (item[formAction] === true) {
+                                preSelectedIds.push(item.FormId);
+                            }
+                        });
+
+                        // Set pre-selected items
+                        if (preSelectedIds.length > 0) {
+                            listBox.selectItems(preSelectedIds);
+                        }
+
+                        // Update description
+                        const actionText = actionDropdown.text || formAction;
+                        document.getElementById("permissionDescription").innerHTML = 
+                            `Select forms to grant the <strong>${actionText}</strong> permission for this role.`;
+
+                        // Show forms section, hide instructions
+                        document.getElementById("formsSection").style.display = "block";
+                        document.getElementById("instructionsSection").style.display = "none";
+
+                        showSuccessMessage("Forms loaded successfully (" + result.data.length + " forms available)");
+                    } else {
+                        showErrorMessage("Failed to load forms: " + (result.error || "Unknown error"));
+                    }
+                },
+                error: function (xhr) {
+                    var errorMsg = "An error occurred while loading forms.";
+                    if (xhr.responseJSON && xhr.responseJSON.error) {
+                        errorMsg = xhr.responseJSON.error;
+                    }
+                    showErrorMessage(errorMsg);
+                }
+            });
+        }
+
+        // -------------------- Save --------------------
+        function saveBatchUpdate() {
+            const roleDropdown = document.getElementById("roleDropdown").ej2_instances[0];
+            const actionDropdown = document.getElementById("actionDropdown").ej2_instances[0];
+            const listBox = document.getElementById("FormCheckboxList").ej2_instances[0];
+
+            const roleId = parseInt(roleDropdown.value, 10);
+            const formAction = actionDropdown.value;
+
+            if (isNaN(roleId) || roleId <= 0 || !formAction) {
+                showErrorMessage("Please select both Role and Permission");
+                return;
+            }
+
+            // Get selected form IDs
+            const selectedIds = listBox.value || [];
+            const checkedIds = Array.isArray(selectedIds) ? 
+                selectedIds.map(x => parseInt(x, 10)).filter(x => !isNaN(x)) :
+                [];
+
+            showSuccessMessage("Saving permissions...");
+
+            $.ajax({
+                url: '@Url.Action("BatchUpdateSave", "AspNetRoleForm", new { area = "IdentityMng" })',
+                type: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify({
+                    selectedFormIds: checkedIds,
+                    roleId: roleId,
+                    formAction: formAction
+                }),
+                success: function (result) {
+                    showSuccessMessage((result && result.message ? result.message : "Saved") + " (" + checkedIds.length + " forms selected)");
+                },
+                error: function (xhr) {
+                    var errorMsg = "An error occurred while saving.";
+                    if (xhr.responseJSON && xhr.responseJSON.error) {
+                        errorMsg = xhr.responseJSON.error;
+                    }
+                    showErrorMessage(errorMsg);
+                }
+            });
+        }
+
+        // -------------------- Clear --------------------
+        function clearSelection() {
+            const listBox = document.getElementById("FormCheckboxList").ej2_instances[0];
+            if (listBox) {
+                listBox.selectItems([]);
+                showSuccessMessage("Selection cleared");
+            }
+        }
+    </script>
+}

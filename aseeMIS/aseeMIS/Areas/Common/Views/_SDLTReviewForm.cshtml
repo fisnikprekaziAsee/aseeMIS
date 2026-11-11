@@ -1,0 +1,244 @@
+﻿@using Newtonsoft.Json
+@model dsAppMng.Core.ViewModels.StagingDataLogTableViewModel
+
+@{
+    var constantValues = ViewBag.ConstantValues as IEnumerable<dynamic>;
+
+    var oldData = !string.IsNullOrWhiteSpace(Model.OldDataJSON)
+        ? JsonConvert.DeserializeObject<Dictionary<string, object>>(Model.OldDataJSON)
+        : new Dictionary<string, object>();
+
+    var newData = !string.IsNullOrWhiteSpace(Model.NewDataJSON)
+        ? JsonConvert.DeserializeObject<Dictionary<string, object>>(Model.NewDataJSON)
+        : new Dictionary<string, object>();
+
+    var allKeys = oldData.Keys.Concat(newData.Keys).Distinct().ToList();
+    int changeCount = allKeys.Count(k => (oldData.ContainsKey(k) ? oldData[k]?.ToString() : null)
+                                      != (newData.ContainsKey(k) ? newData[k]?.ToString() : null));
+}
+
+<div class="container-fluid p-0">
+    <div class="review-card card border-0">
+        <div class="card-header bg-white border-0 pb-0">
+            <div class="d-flex align-items-center justify-content-between">
+                <div>
+                    <p class="text-muted mb-0">Review the data modifications and approve or reject the changes</p>
+                </div>
+                <span class="badge rounded-pill bg-light text-dark border small">
+                    @changeCount changes detected
+                </span>
+            </div>
+        </div>
+
+        <div class="card-body">
+
+            <!-- Data Changes Table -->
+            <div class="data-changes card border-0">
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table mb-0 align-middle">
+                            <thead>
+                                <tr class="bg-light">
+                                    <th class="text-muted fw-semibold small">Field Name</th>
+                                    <th class="text-muted fw-semibold small">Previous Value</th>
+                                    <th class="text-muted fw-semibold small">New Value</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var key in allKeys)
+                                {
+                                    var oldValue = oldData.ContainsKey(key) ? oldData[key]?.ToString() : null;
+                                    var newValue = newData.ContainsKey(key) ? newData[key]?.ToString() : null;
+                                    bool modified = oldValue != newValue;
+
+                                    <tr class="@(modified ? "row-modified" : "")">
+                                        <td class="fw-semibold">
+                                            @key
+                                            @if (modified)
+                                            {
+                                                <span class="badge bg-danger-subtle text-danger-emphasis ms-2">Modified</span>
+                                            }
+                                        </td>
+                                        <td class="text-muted">
+                                            @if (modified)
+                                            {
+                                                <span class="text-decoration-line-through text-muted">
+                                                    @(string.IsNullOrEmpty(oldValue) ? "—" : oldValue)
+                                                </span>
+                                            }
+                                            else
+                                            {
+                                                @(string.IsNullOrEmpty(oldValue) ? "—" : oldValue)
+                                            }
+                                        </td>
+                                        <td class="@(modified ? "fw-semibold" : "")">
+                                            @(string.IsNullOrEmpty(newValue) ? "—" : newValue)
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Hidden Fields -->
+            <input type="hidden" id="StagingDataLogFormId" value="@Model.FormId" />
+            <input type="hidden" id="StagingDataLogId" value="@Model.StagingDataLogId" />
+            <input type="hidden" id="TargetId" value="@Model.TargetId" />
+            <input type="hidden" id="OperationTypeCode" value="@Model.OperationTypeCode" />
+            <input type="hidden" id="FormSessionId" value="@ViewBag.FormSessionId" />
+            <input type="hidden" id="IsReviewAll" value="@ViewBag.IsReviewAll" />
+
+            <!-- Rejection Controls -->
+            <div class="row g-3 pt-4 mt-2 border-top">
+                <div class="col-md-4">
+                    <label for="RejectionTypeCode" class="form-label fw-semibold small text-muted">Rejection Type</label>
+                    <select id="RejectionTypeCode" class="form-select">
+                        <option value="">Select type...</option> <!-- clearable -->
+                        @if (constantValues != null)
+                        {
+                            foreach (var cv in constantValues)
+                            {
+                                <option value="@cv.ConstantKey">@cv.ConstantValue</option>
+                            }
+                        }
+                    </select>
+                </div>
+                <div class="col-md-8">
+                    <label for="Comments" class="form-label fw-semibold small text-muted">Comments</label>
+                    <textarea id="Comments" class="form-control" placeholder="Enter your comments here..."></textarea>
+                </div>
+            </div>
+
+            <!-- Actions -->
+            <div class="d-flex justify-content-end gap-2 pt-4">
+                <button type="button" class="btn btn-success bi bi-check px-4" id="btnApprove" onclick="submitReview(true)">
+                    Approve
+                </button>
+                <button type="button" class="btn btn-danger bi bi-x px-4" id="btnReject" onclick="submitReview(false)">
+                    Reject
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Syncfusion Toast: page-level, centered, ERROR style -->
+
+
+
+
+<script>
+      // Holds the instance once available
+  
+
+    function setButtonsDisabled(disabled) {
+        $('#btnApprove, #btnReject').prop('disabled', disabled);
+    }
+
+    function submitReview(isApproved) {
+        const comments = ($('#Comments').val() || '').toString().trim();
+        const rejectionTypeCode = $('#RejectionTypeCode').val();
+        const formSessionId = $("#FormSessionId").val();
+        const isReviewAll = $("#IsReviewAll").val();
+
+           if (!isApproved) {
+      if (!comments || !comments.trim()) {
+        // either of these two lines is fine:
+        notify.error('Comments are required for rejection.');
+        // showToastMessage('error', 'Comments are required for rejection.', 'Error');
+        return;
+      }
+      if (!rejectionTypeCode) {
+        notify.error('Rejection type must be selected.');
+        // showToastMessage('error', 'Rejection type must be selected.', 'Error');
+        return;
+      }
+    }
+
+        const stagingDataLogTableDto = {
+            StagingDataLogId: parseInt($('#StagingDataLogId').val(), 10),
+            FormId: parseInt($('#StagingDataLogFormId').val(), 10),
+            TargetId: $('#TargetId').val(),
+            OperationTypeCode: $('#OperationTypeCode').val(),
+            IsApproved: isApproved,
+            RejectionTypeCode: isApproved ? null : rejectionTypeCode,
+            Comments: isApproved ? null : comments
+        };
+
+        setButtonsDisabled(true);
+
+        $.ajax({
+            url: "/Common/SDLT/Review",
+            type: "POST",
+            data: { stagingDataLogTableDto },
+            beforeSend: function (xhr) {
+                xhr.setRequestHeader("FormSessionId", formSessionId);
+                xhr.setRequestHeader("IsReviewAll", isReviewAll);
+            },
+            success: function (response) {
+                if (response?.success) {
+                    const dialog = document.getElementById("ApprovalDialog")?.ej2_instances?.[0];
+                    if (dialog) {
+                        dialog.hide();
+                        dialog.element.setAttribute("data-isApproved", response.isApproved);
+                        dialog.element.setAttribute("data-message", response.message);
+                        dialog.element.setAttribute("data-isDeleted", response.isDeleted);
+                        notify.info("Success");
+                    }
+                } else {
+                    notify.error(response?.message || "Submission failed.");
+                }
+            },
+            error: function () {
+                notify.error("Error submitting review.");
+            },
+            complete: function () { setButtonsDisabled(false); }
+        });
+    }
+</script>
+
+<style>
+
+
+    /* Card shell */
+    .review-card .card-body {
+        padding: 1.25rem 1.25rem 1.5rem 1.25rem;
+    }
+
+    /* Table look */
+    .table thead th {
+        font-size: .78rem;
+        letter-spacing: .02em;
+    }
+
+    .table tbody td {
+        padding-top: .35rem;
+        padding-bottom: .35rem;
+    }
+
+    /* Modified rows */
+    .row-modified {
+        background: #fdeaea;
+    }
+
+    .bg-danger-subtle {
+        background-color: #f8d7da !important;
+    }
+
+    .text-danger-emphasis {
+        color: #842029 !important;
+    }
+
+    /* Inputs */
+    #Comments {
+        min-height: 80px;
+        resize: none;
+    }
+
+    /* “changes detected” chip */
+    .badge.bg-light.text-dark.border {
+        border: 1px solid #e6e6e6 !important;
+    }
+</style>

@@ -1,0 +1,124 @@
+﻿@using Syncfusion.EJ2.Grids
+@{
+    var htmlAttributes = new Dictionary<string, object> { { "controllerName", "/IdentityMng/UserClaim" } };
+}
+
+<div class="row justify-content-center">
+    <!-- Language 2 Dropdown -->
+    <div class="col-lg-3 control-section">
+        <ejs-dropdownlist id="userDropdowm" allowFiltering="true" dataSource="@ViewBag.Users" placeholder="Select User" popupHeight="220px">
+            <e-dropdownlist-fields text="UserName" value="UserId"></e-dropdownlist-fields>
+        </ejs-dropdownlist>
+    </div>
+
+    <!-- Button to trigger onLanguageChange -->
+    <div class="col-lg-2 text-center d-flex align-items-center">
+        <button type="button" class="btn btn-primary custom-btn" onclick="onUserChange()">Show Claims</button>
+    </div>
+</div>
+<br />
+
+<div class="col-lg-12 control-section msg-default-section">
+    <div class="content-section">
+        <ejs-message id="UserClaimModify_Grid_MSG" visible="false" showCloseIcon="true"></ejs-message>
+    </div>
+</div>
+
+<!-- Datagrid Initialization -->
+<ejs-grid id="UserClaimModify_Grid" gridLines="Both" beforeBatchSave="beforeBatchSave" dataSource="@Model"
+          AllowReordering="true" allowSorting="true" allowFiltering="true" allowPdfExport="true" allowExcelExport="true" allowGrouping="true" allowResizing="true" allowPaging="true"
+          showColumnChooser="true" toolbar="@ViewBag.ToolbarItems" contextMenuItems="@ViewBag.ContextMenuItems" HtmlAttributes="htmlAttributes">
+    <e-grid-editSettings allowAdding="true" allowDeleting="true" allowEditing="true" mode="Batch" showConfirmDialog="true" showDeleteConfirmDialog="true"></e-grid-editSettings>
+    <e-grid-pagesettings pageCount="10" pageSizes="true"></e-grid-pagesettings>
+    <e-grid-filterSettings type="Excel"></e-grid-filterSettings> 
+
+ 
+    <e-grid-columns>
+        <e-grid-column field="AutoNumber" headerText="Id" allowEditing="false" isPrimaryKey="true" allowResizing="true" textAlign="Left"></e-grid-column>
+        <e-grid-column field="FormId" headerText="Form ID" allowEditing="false" allowResizing="true" textAlign="Left"></e-grid-column>
+        <e-grid-column field="FormTitle" headerText="Form Title" allowEditing="false" allowResizing="true" textAlign="Left"></e-grid-column>
+        <e-grid-column field="ConstantValue" headerText="Constant Value" allowEditing="false" allowResizing="true" textAlign="Left"></e-grid-column>
+        <e-grid-column field="ClaimType" headerText="Claim Type" allowEditing="false" allowResizing="true" textAlign="Left"></e-grid-column>
+        <e-grid-column field="ClaimValue" headerText="Claim Value" allowEditing="false" allowResizing="true" textAlign="Left"></e-grid-column>
+
+        <e-grid-column field="UserId" headerText="User Id" allowEditing="false" allowResizing="true" textAlign="Left"></e-grid-column>
+
+        <e-grid-column field="HasClaim" headerText="Has Claim" type="boolean" displayAsCheckBox="true" editType="booleanedit" textAlign="Center"></e-grid-column>
+    </e-grid-columns>
+
+</ejs-grid>
+
+<script src="~/js/identityMngGridHelper.js" asp-append-version="true"></script>
+
+<script>
+    function onUserChange() {
+        // Get the selected language codes and names
+        var userDropdown = document.getElementById("userDropdowm").ej2_instances[0];
+        var selectedUser = userDropdown.value;
+
+        if (selectedUser) {
+            var grid = document.getElementById("UserClaimModify_Grid").ej2_instances[0];
+            var changeErrorMessage = document.getElementById("UserClaimModify_Grid_MSG").ej2_instances[0];
+
+            var url = '@Url.Action("GetClaims", "UserClaim")';
+            $.ajax({
+                url: url,
+                type: 'GET',
+                data: {
+                    user: selectedUser
+                },
+                success: function (data) {
+                    grid.dataSource = data;
+                    grid.refresh();
+                },
+                error: function (xhr) {
+                    //Error Messages
+                    changeErrorMessage.content = "Error while generating constants";
+                    changeErrorMessage.visible = true;
+                }
+            });
+        }
+    }
+    function beforeBatchSave() { //beforeBatchSave event of Grid
+
+        var grid = document.getElementById("UserClaimModify_Grid").ej2_instances[0];
+        var gridMSG = this.element.id + "_MSG";
+
+        console.log(gridMSG);
+
+        var batchChanges = grid.getBatchChanges();
+        
+        console.log(batchChanges.changedRecords);
+
+        var ajax = new ej.base.Ajax({ url: "/IdentityMng/UserClaim/Modify", type: "POST", data: JSON.stringify(batchChanges.changedRecords), contentType: "application/json" });
+        /* Assigning input data to a variable for adding */
+
+
+        /*  Ajax call for adding new line */
+        ajax.send().then(function (response) {
+            var result = JSON.parse(response);
+            if (result.success) {
+                /* Displaying success message */
+                showSuccessMessage(gridMSG, result.message);
+                //grid.refresh();
+                // console.log("Success", result.message);
+            } else {
+                /* Displaying error message */
+                showErrorMessage(gridMSG, result.message); 
+                // console.log("Error", result.message);
+                // var originalData = args.previousData;
+
+            }
+        }).catch(function (xhr) {
+            /* Displaying error message */
+            showErrorMessage(gridMSG, xhr.message);
+            // console.log("Catch", xhr.message);
+        });
+    }
+</script>
+
+<style>
+    #Grid_Inline {
+        background-color: #86b7fe;
+    }
+</style>

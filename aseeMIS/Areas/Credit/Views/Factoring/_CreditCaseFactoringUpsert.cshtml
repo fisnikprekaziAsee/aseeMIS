@@ -1,0 +1,905 @@
+@model dsCredit.Core.ViewModels.CreditCaseFactoringApplicationViewModel
+
+@{
+    var factoringFormSessionId = ViewBag.FormSessionId ?? "";
+    var formId = ViewBag.FormId;
+    var formDomId = "entityForm_" + factoringFormSessionId;
+
+    var products = ViewData["FK_ProductCode"] ?? Enumerable.Empty<object>();
+    var caseStatuses = ViewData["FK_StatusCode"] ?? Enumerable.Empty<object>();
+    var caseWorkflowSteps = ViewData["CaseWorkflowSteps"] ?? Enumerable.Empty<object>();
+    var factoringTypes = ViewData["FK_FactoringTypeCode"] ?? Enumerable.Empty<object>();
+    var decisionReasons = ViewData["FK_DecisionReasonCode"] ?? Enumerable.Empty<object>();
+    var factoringPolicies = ViewData["FK_FactoringPolicyCode"] ?? Enumerable.Empty<object>();
+    var recoursePolicies = ViewData["FK_RecoursePolicyCode"] ?? Enumerable.Empty<object>();
+
+    DateTime? ToDatePickerValue(DateOnly? value)
+        => value.HasValue && value.Value != default
+            ? value.Value.ToDateTime(TimeOnly.MinValue)
+            : null;
+
+    var requestedStartDate = ToDatePickerValue(Model?.CreditCase?.StartDateRequested);
+    var requestedMaturityDate = ToDatePickerValue(Model?.CreditCase?.MaturityDateRequested);
+    var approvedStartDate = ToDatePickerValue(Model?.CreditCase?.StartDateApproved);
+    var approvedMaturityDate = ToDatePickerValue(Model?.CreditCase?.MaturityDateApproved);
+
+    int? requestedTermMonths = null;
+    if (Model?.CreditCase?.StartDateRequested is { } requestedFrom &&
+        requestedFrom != default &&
+        Model.CreditCase.MaturityDateRequested is { } requestedTo &&
+        requestedTo != default)
+    {
+        requestedTermMonths = ((requestedTo.Year - requestedFrom.Year) * 12) +
+            requestedTo.Month - requestedFrom.Month;
+        if (requestedTo.Day > requestedFrom.Day)
+            requestedTermMonths++;
+        requestedTermMonths = Math.Max(1, requestedTermMonths.Value);
+    }
+
+    int? approvedTermMonths = null;
+    if (Model?.CreditCase?.StartDateApproved is { } approvedFrom &&
+        approvedFrom != default &&
+        Model.CreditCase.MaturityDateApproved is { } approvedTo &&
+        approvedTo != default)
+    {
+        approvedTermMonths = ((approvedTo.Year - approvedFrom.Year) * 12) +
+            approvedTo.Month - approvedFrom.Month;
+        if (approvedTo.Day > approvedFrom.Day)
+            approvedTermMonths++;
+        approvedTermMonths = Math.Max(1, approvedTermMonths.Value);
+    }
+}
+
+<form id="@formDomId" onsubmit="return false;">
+    <div class="form-container"
+         data-form-session-id="@factoringFormSessionId"
+         data-form-id="@formId"
+         data-primary-key="CreditCaseId"
+         data-credit-case-id="@(Model?.CreditCase?.CreditCaseId ?? 0)">
+
+        <div class="d-none">
+            <input type="hidden" id="BankPartyId" value="@Model?.CreditCase?.BankPartyId" />
+            <input type="hidden" id="WorkflowCode" value="@Model?.CreditCase?.WorkflowCode" />
+            <input type="hidden" id="FrameworkId" value="@Model?.CreditCase?.FrameworkId" />
+            <input type="hidden" id="CurrencyCode" value="@(Model?.CreditCase?.CurrencyCode ?? "EUR")" />
+            <input type="hidden" id="StageCode" value="@(Model?.CreditCase?.StageCode ?? "A0")" />
+            <input type="hidden" id="CurrentStatusCode" value="@(Model?.CreditCase?.CreditStatusCode ?? string.Empty)" />
+            <input type="hidden" id="CurrentDecisionReasonCode" value="@(Model?.CreditCase?.CreditDecisionReasonCode ?? string.Empty)" />
+            <input type="hidden" id="CreditCaseIdValue" value="@(Model?.CreditCase?.CreditCaseId ?? 0)" />
+            <input type="hidden" id="ProductTypeCode" value="@Model?.CreditCase?.ProductTypeCode" />
+        </div>
+
+        <div class="row g-3">
+        <div class="col-xl-4">
+        <div class="ds-card h-100">
+            <div class="ds-card-h d-flex align-items-center gap-2">
+                <i class="bi bi-info-circle"></i>
+                <span class="ds-card-title">Case Info</span>
+            </div>
+
+            <div class="ds-card-b">
+                <div class="row g-2">
+                    <div class="col-4">
+                        <ejs-numerictextbox ejs-for="CreditCase.CreditCaseId"
+                                            id="CreditCaseId"
+                                            placeholder="Case Id"
+                                            format="n0"
+                                            decimals="0"
+                                            enabled="false"
+                                            showSpinButton="false"
+                                            floatLabelType="Always" />
+                    </div>
+
+                    <div class="col-8">
+                        <ejs-textbox ejs-for="CreditCase.CaseNumber"
+                                     id="CaseNumber"
+                                     placeholder="Case Number"
+                                     enabled="false"
+                                     floatLabelType="Always" />
+                    </div>
+
+                    <div class="col-12 ds-required-empty">
+                        <ejs-dropdownlist ejs-for="CreditCase.ProductCode"
+                                          id="ProductCode"
+                                          dataSource="@products"
+                                          placeholder="Product"
+                                          required="true"
+                                          change="onFactoringProductChange"
+                                          floatLabelType="Always">
+                            <e-dropdownlist-fields text="ProductName" value="ProductCode"></e-dropdownlist-fields>
+                        </ejs-dropdownlist>
+                    </div>
+
+                    <div class="col-12">
+                        <ejs-textbox ejs-for="CreditCase.CaseDescription"
+                                     id="CaseDescription"
+                                     placeholder="Case Description"
+                                     multiline="true"
+                                     floatLabelType="Always" />
+                    </div>
+
+
+                </div>
+            </div>
+        </div>
+
+        </div>
+            <div class="col-xl-4">
+                <div class="ds-card h-100">
+                    <div class="ds-card-h d-flex align-items-center gap-2">
+                        <i class="bi bi-pencil"></i>
+                        <span class="ds-card-title">Requested Terms</span>
+                    </div>
+
+                    <div class="ds-card-b">
+                        <div class="row g-2">
+                            <div class="col-4">
+                                <ejs-datepicker id="RequestedStartDate"
+                                                value="@requestedStartDate"
+                                                placeholder="Start Date"
+                                                change="onFactoringRequestedStartDateChange"
+                                                format="dd/MM/yyyy"
+                                                data-dateonly="true"
+                                                floatLabelType="Always" />
+                            </div>
+
+                            <div class="col-4">
+                                <ejs-numerictextbox id="TermMonths"
+                                                    value="@requestedTermMonths"
+                                                    placeholder="Months"
+                                                    change="calculateFactoringRequestedEndDate"
+                                                    floatLabelType="Always"
+                                                    showSpinButton="false"
+                                                    decimals="0"
+                                                    format="N0"
+                                                    min="1"
+                                                    max="240"
+                                                    validateDecimalOnType="true" />
+                            </div>
+
+                            <div class="col-4">
+                                <ejs-datepicker id="RequestedMaturityDate"
+                                                value="@requestedMaturityDate"
+                                                placeholder="Maturity Date"
+                                                change="onFactoringRequestedMaturityDateChange"
+                                                format="dd/MM/yyyy"
+                                                data-dateonly="true"
+                                                floatLabelType="Always" />
+                            </div>
+
+                            <div class="col-12 ds-required-empty">
+                                <ejs-numerictextbox ejs-for="CreditCase.CreditAmountRequested"
+                                                    id="RequestedCreditAmount"
+                                                    placeholder="Requested Limit Amount"
+                                                    format="n2"
+                                                    floatLabelType="Always" />
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-xl-4">
+                <div class="ds-card h-100">
+                    <div class="ds-card-h d-flex align-items-center gap-2">
+                        <i class="bi bi-check2-circle"></i>
+                        <span class="ds-card-title">Approved Terms</span>
+                    </div>
+
+                    <div class="ds-card-b">
+                        <div class="row g-2">
+                            <div class="col-4">
+                                <ejs-datepicker id="ApprovedStartDate"
+                                                value="@approvedStartDate"
+                                                placeholder="Start Date"
+                                                change="onFactoringApprovedStartDateChange"
+                                                format="dd/MM/yyyy"
+                                                data-dateonly="true"
+                                                enabled="false"
+                                                floatLabelType="Always" />
+                            </div>
+
+                            <div class="col-4">
+                                <ejs-numerictextbox id="ApprovedTermMonths"
+                                                    value="@approvedTermMonths"
+                                                    placeholder="Months"
+                                                    change="calculateFactoringApprovedEndDate"
+                                                    floatLabelType="Always"
+                                                    showSpinButton="false"
+                                                    decimals="0"
+                                                    format="N0"
+                                                    min="1"
+                                                    max="240"
+                                                    validateDecimalOnType="true"
+                                                    enabled="false" />
+                            </div>
+
+                            <div class="col-4">
+                                <ejs-datepicker id="ApprovedMaturityDate"
+                                                value="@approvedMaturityDate"
+                                                placeholder="Maturity Date"
+                                                change="onFactoringApprovedMaturityDateChange"
+                                                format="dd/MM/yyyy"
+                                                data-dateonly="true"
+                                                enabled="false"
+                                                floatLabelType="Always" />
+                            </div>
+
+                            <div class="col-12 ds-required-empty">
+                                <ejs-numerictextbox ejs-for="CreditCase.CreditAmountApproved"
+                                                    id="ApprovedCreditAmount"
+                                                    placeholder="Approved Limit Amount"
+                                                    format="n2"
+                                                    enabled="false"
+                                                    floatLabelType="Always" />
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="ds-card mt-3">
+            <div class="ds-card-h d-flex align-items-center gap-2">
+                <i class="bi bi-diagram-2"></i>
+                <span class="ds-card-title">Factoring Details</span>
+            </div>
+
+            <div class="ds-card-b">
+                <div class="row g-2">
+                    <div class="col-md-3">
+                        <ejs-dropdownlist ejs-for="FactoringDetails.FactoringTypeCode"
+                                          id="FactoringTypeCode"
+                                          dataSource="@factoringTypes"
+                                          placeholder="Factoring Type"
+                                          change="onFactoringTypeChange"
+                                          floatLabelType="Always">
+                            <e-dropdownlist-fields text="FactoringTypeName" value="FactoringTypeCode"></e-dropdownlist-fields>
+                        </ejs-dropdownlist>
+                    </div>
+
+                    <div class="col-md-3">
+                        <ejs-dropdownlist ejs-for="FactoringDetails.FactoringPolicyCode"
+                                          id="FactoringPolicyCode"
+                                          change="onFactoringPolicyChange"
+                                          dataSource="@factoringPolicies"
+                                          placeholder="Factoring Policy"
+                                          floatLabelType="Always">
+                            <e-dropdownlist-fields text="FactoringPolicyName" value="FactoringPolicyCode"></e-dropdownlist-fields>
+                        </ejs-dropdownlist>
+                    </div>
+
+                    <div class="col-md-3">
+                        <ejs-dropdownlist ejs-for="FactoringDetails.RecoursePolicyCode"
+                                          id="RecoursePolicyCode"
+                                          dataSource="@recoursePolicies"
+                                          placeholder="Risk Bearer"
+                                          enabled="false"
+                                          floatLabelType="Always">
+                            <e-dropdownlist-fields text="RiskBearerName" value="RiskBearerCode"></e-dropdownlist-fields>
+                        </ejs-dropdownlist>
+                    </div>
+
+                    <div class="col-md-3">
+                        <ejs-numerictextbox ejs-for="FactoringDetails.MaxInvoiceTenorDays"
+                                            id="MaxInvoiceTenorDays"
+                                            placeholder="Max Invoice Tenor (Days)"
+                                            format="n0"
+                                            floatLabelType="Always" />
+                    </div>
+
+                    <div class="col-md-3">
+                        <ejs-numerictextbox ejs-for="FactoringDetails.ApprovedConcentrationLimitPercent"
+                                            id="ApprovedConcentrationLimitPercent"
+                                            placeholder="Concentration Limit (%)"
+                                            format="n2"
+                                            floatLabelType="Always" />
+                    </div>
+
+                    <div class="col-md-3">
+                        <ejs-numerictextbox ejs-for="FactoringDetails.ApprovedAdvanceRatePercent"
+                                            id="ApprovedAdvanceRatePercent"
+                                            placeholder="Advance Rate (%)"
+                                            format="n2"
+                                            floatLabelType="Always" />
+                    </div>
+
+                    <div class="col-md-3">
+                        <ejs-numerictextbox ejs-for="FactoringDetails.ApprovedRetentionRatePercent"
+                                            id="ApprovedRetentionRatePercent"
+                                            placeholder="Retention Rate (%)"
+                                            format="n2"
+                                            floatLabelType="Always" />
+                    </div>
+
+                    <div class="col-md-3">
+                        <ejs-numerictextbox ejs-for="FactoringDetails.ApprovedDilutionReservePercent"
+                                            id="ApprovedDilutionReservePercent"
+                                            placeholder="Dilution Reserve (%)"
+                                            format="n2"
+                                            floatLabelType="Always" />
+                    </div>
+
+                    <div class="col-md-3">
+                        <ejs-numerictextbox ejs-for="FactoringDetails.MaxSingleDebtorExposurePercent"
+                                            id="MaxSingleDebtorExposurePercent"
+                                            placeholder="Single Debtor Exposure (%)"
+                                            format="n2"
+                                            floatLabelType="Always" />
+                    </div>
+
+                    <div class="col-md-3">
+                        <ejs-numerictextbox ejs-for="FactoringDetails.MaxSingleDebtorExposureAmount"
+                                            id="MaxSingleDebtorExposureAmount"
+                                            placeholder="Single Debtor Exposure Amount"
+                                            format="n2"
+                                            enabled="false"
+                                            floatLabelType="Always" />
+                    </div>
+
+                    <div class="col-md-3">
+                        <ejs-numerictextbox ejs-for="FactoringDetails.OutstandingPrincipalTotalAmount"
+                                            id="OutstandingPrincipalTotalAmount"
+                                            placeholder="Outstanding Principal"
+                                            format="n2"
+                                            enabled="false"
+                                            floatLabelType="Always" />
+                    </div>
+
+                    <div class="col-md-3">
+                        <ejs-numerictextbox ejs-for="FactoringDetails.OutstandingDiscountTotalAmount"
+                                            id="OutstandingDiscountTotalAmount"
+                                            placeholder="Outstanding Discount"
+                                            format="n2"
+                                            enabled="false"
+                                            floatLabelType="Always" />
+                    </div>
+
+                    <div class="col-auto">
+                        <ejs-checkbox ejs-for="FactoringDetails.CrossAgingAllowed"
+                                      id="CrossAgingAllowed"
+                                      label="Cross Aging Allowed" />
+                    </div>
+
+                    <div class="col-auto">
+                        <ejs-checkbox ejs-for="FactoringDetails.CollectionAccountRequired"
+                                      id="CollectionAccountRequired"
+                                      label="Collection Account Required" />
+                    </div>
+
+                    <div class="col-auto">
+                        <ejs-checkbox ejs-for="FactoringDetails.RetentionAccountRequired"
+                                      id="RetentionAccountRequired"
+                                      label="Retention Account Required" />
+                    </div>
+
+                    <div class="col-auto">
+                        <ejs-checkbox ejs-for="FactoringDetails.SellerRepurchaseRequired"
+                                      id="SellerRepurchaseRequired"
+                                      label="Seller Repurchase Required" />
+                    </div>
+
+                    <div class="col-auto">
+                        <ejs-checkbox id="HasInterestSubsidy"
+                                      checked="@(Model?.CreditCase?.HasInterestSubsidy ?? false)"
+                                      label="Has Interest Subsidy" />
+                    </div>
+                    <div class="col-12">
+                        <ejs-textbox ejs-for="FactoringDetails.Notes"
+                                     id="FactoringNotes"
+                                     placeholder="Notes"
+                                     multiline="true"
+                                     floatLabelType="Always" />
+                    </div>
+
+                </div>
+            </div>
+        </div>
+        <div class="ds-card mt-3">
+            <div class="ds-card-h"><i class="bi bi-shield-check me-2"></i><span class="ds-card-title">STATUS</span></div>
+            <div class="ds-card-b"><div class="row g-2">
+                    <div class="col-md-4">
+                        <ejs-dropdownlist ejs-for="CreditCase.CreditStatusCode"
+                                          id="StatusCode"
+                                          dataSource="@caseStatuses"
+                                          placeholder="Case Status"
+                                          change="onFactoringStatusChange"
+                                          floatLabelType="Always">
+                            <e-dropdownlist-fields text="CaseStatusName" value="CaseStatusCode"></e-dropdownlist-fields>
+                        </ejs-dropdownlist>
+                    </div>
+
+                <div class="col-md-4">
+                    <ejs-dropdownlist ejs-for="CreditCase.CreditDecisionReasonCode" id="CreditDecisionReasonCode" placeholder="Decision Reason" dataSource="@decisionReasons" floatLabelType="Always">
+                        <e-dropdownlist-fields text="CreditDecisionReasonName" value="CreditDecisionReasonCode"></e-dropdownlist-fields>
+                    </ejs-dropdownlist>
+                </div>
+                <div class="col-md-4">
+                    <ejs-textbox ejs-for="CreditCase.DecisionReasonNotes" id="FactoringDecisionReasonNotes" placeholder="Decision Notes" floatLabelType="Always" />
+                </div>
+            </div></div>
+        </div>
+        <div class="mt-3 pt-3 border-top">
+                    <div class="col-12 text-end">
+                        <button type="submit" class="btn btn-primary btn-sm" onclick="factoringPreSave(this)">
+                            <i class="bi bi-save me-1"></i>Save
+                        </button>
+                    </div>
+            </div>
+    </div>
+</form>
+
+<ejs-scripts></ejs-scripts>
+
+<script>
+    (function () {
+        window.factoringPolicyOptions = @Html.Raw(Json.Serialize(factoringPolicies));
+        window.factoringRiskBearers = @Html.Raw(Json.Serialize(recoursePolicies));
+        window.factoringDecisionReasons = @Html.Raw(Json.Serialize(decisionReasons));
+        const initialWorkflowSteps = @Html.Raw(Json.Serialize(caseWorkflowSteps));
+        const requestedFieldIds = [
+            "RequestedStartDate",
+            "TermMonths",
+            "RequestedMaturityDate",
+            "RequestedCreditAmount",
+        ];
+        const approvedFieldIds = [
+            "ApprovedStartDate",
+            "ApprovedTermMonths",
+            "ApprovedMaturityDate",
+            "ApprovedCreditAmount",
+        ];
+        const factoringDetailFieldIds = [
+            "FactoringTypeCode",
+            "RecoursePolicyCode",
+            "FactoringPolicyCode",
+            "MaxInvoiceTenorDays",
+            "ApprovedConcentrationLimitPercent",
+            "ApprovedAdvanceRatePercent",
+            "ApprovedRetentionRatePercent",
+            "ApprovedDilutionReservePercent",
+            "MaxSingleDebtorExposurePercent",
+            "CrossAgingAllowed",
+            "CollectionAccountRequired",
+            "RetentionAccountRequired",
+            "SellerRepurchaseRequired",
+            "FactoringNotes"
+        ];
+        const caseInfoFieldIds = [
+            "ProductCode",
+            "CaseDescription",
+            "HasInterestSubsidy"
+        ];
+        const requestedToApprovedFieldMap = [
+            ["RequestedStartDate", "ApprovedStartDate"],
+            ["TermMonths", "ApprovedTermMonths"],
+            ["RequestedMaturityDate", "ApprovedMaturityDate"],
+            ["RequestedCreditAmount", "ApprovedCreditAmount"],
+        ];
+
+        function getFormContainer(btn) {
+            return btn.closest(".form-container");
+        }
+
+        function normalizeStatusCode(value) {
+            return (value || "").toString().trim().toUpperCase();
+        }
+
+        function hasMeaningfulValue(value) {
+            return !(value === undefined || value === null || value === "");
+        }
+
+        function getValue(container, id) {
+            const el = container.querySelector("#" + id);
+            if (!el) {
+                return null;
+            }
+
+            const ej2 = el.ej2_instances?.[0];
+            if (ej2 && ds.entity?.normalizeValue) {
+                return ds.entity.normalizeValue(ej2, el);
+            }
+
+            if (ej2) {
+                if (typeof ej2.checked !== "undefined") {
+                    return ej2.checked;
+                }
+
+                return ej2.value;
+            }
+
+            if (el.matches("input, select, textarea")) {
+                return el.value;
+            }
+
+            const input = el.querySelector("input, select, textarea");
+            return input ? input.value : null;
+        }
+
+        function getChecked(container, id) {
+            const el = container.querySelector("#" + id);
+            const ej2 = el?.ej2_instances?.[0];
+            return ej2 ? ej2.checked : (el?.checked ?? false);
+        }
+
+        function toNullableInt(value) {
+            if (value === undefined || value === null || value === "") {
+                return null;
+            }
+
+            const parsed = parseInt(value, 10);
+            return Number.isNaN(parsed) ? null : parsed;
+        }
+
+        function toNullableLong(value) {
+            return toNullableInt(value);
+        }
+
+        function toNullableDecimal(value) {
+            if (value === undefined || value === null || value === "") {
+                return null;
+            }
+
+            const parsed = parseFloat(value);
+            return Number.isNaN(parsed) ? null : parsed;
+        }
+
+        function toDateOnly(value) {
+            if (!value) return null;
+            if (value instanceof Date && !Number.isNaN(value.getTime())) {
+                const yyyy = value.getFullYear();
+                const mm = String(value.getMonth() + 1).padStart(2, "0");
+                const dd = String(value.getDate()).padStart(2, "0");
+                return `${yyyy}-${mm}-${dd}`;
+            }
+
+            const text = String(value).trim();
+            const eu = text.match(/^(\d{1,2})[./-](\d{1,2})[./-](\d{4})$/);
+            if (eu) {
+                return `${eu[3]}-${eu[2].padStart(2, "0")}-${eu[1].padStart(2, "0")}`;
+            }
+
+            return text.substring(0, 10);
+        }
+
+        function resolveCreditCaseId(container) {
+            return toNullableLong(getValue(container, "CreditCaseId"))
+                || toNullableLong(getValue(container, "CreditCaseIdValue"))
+                || toNullableLong(container?.dataset.creditCaseId)
+                || toNullableLong(container?.closest("#ccMasterTabsContent > .tab-pane")?.dataset.creditCaseId)
+                || 0;
+        }
+
+        function setValue(id, value) {
+            const el = document.getElementById(id);
+            if (!el) {
+                return;
+            }
+
+            const ej2 = el.ej2_instances?.[0];
+            if (ej2) {
+                if (typeof ej2.checked !== "undefined") {
+                    ej2.checked = !!value;
+                } else {
+                    ej2.value = value ?? "";
+                }
+
+                ej2.dataBind?.();
+                return;
+            }
+
+            if (el.type === "checkbox") {
+                el.checked = !!value;
+                return;
+            }
+
+            el.value = value ?? "";
+        }
+
+        function setEnabled(id, enabled) {
+            const element = document.getElementById(id);
+            if (!element) {
+                return;
+            }
+
+            const instance = element.ej2_instances?.[0];
+            if (instance) {
+                if (typeof instance.enabled !== "undefined") {
+                    instance.enabled = enabled;
+                }
+
+                if (typeof instance.disabled !== "undefined") {
+                    instance.disabled = !enabled;
+                }
+
+                if (typeof instance.readonly !== "undefined") {
+                    instance.readonly = !enabled;
+                }
+
+                instance.dataBind?.();
+            }
+
+            element.disabled = !enabled;
+            element.readOnly = !enabled;
+
+            const inputElement = instance?.inputElement;
+            if (inputElement) {
+                inputElement.disabled = !enabled;
+                inputElement.readOnly = !enabled;
+            }
+        }
+
+        function getWorkflowStep(statusCode) {
+            const normalizedStatusCode = normalizeStatusCode(statusCode);
+            const steps = Array.isArray(window.factoringCaseWorkflowSteps) ? window.factoringCaseWorkflowSteps : [];
+
+            return steps.find(function (step) {
+                return normalizeStatusCode(step?.CaseStatusCode) === normalizedStatusCode;
+            }) || null;
+        }
+
+        function setFieldGroupEnabled(ids, enabled) {
+            ids.forEach(function (id) {
+                setEnabled(id, enabled);
+            });
+        }
+
+        function copyRequestedTermsToApprovedIfMissing() {
+            requestedToApprovedFieldMap.forEach(function (pair) {
+                const requestedValue = document.getElementById(pair[0])?.ej2_instances?.[0]?.value ?? document.getElementById(pair[0])?.value;
+                const approvedValue = document.getElementById(pair[1])?.ej2_instances?.[0]?.value ?? document.getElementById(pair[1])?.value;
+
+                if (!hasMeaningfulValue(approvedValue) && hasMeaningfulValue(requestedValue)) {
+                    setValue(pair[1], requestedValue);
+                }
+            });
+        }
+
+        function resolveFactoringEditMode(statusCode) {
+            const normalizedStatusCode = normalizeStatusCode(statusCode);
+            if (!normalizedStatusCode) {
+                const container = document.querySelector("#@formDomId .form-container");
+                return resolveCreditCaseId(container) === 0 ? "requested" : "locked";
+            }
+
+            const step = getWorkflowStep(normalizedStatusCode);
+            if (step?.IsTerminal) {
+                return "locked";
+            }
+
+            if (step) {
+                return step.IsEditable ? "requested" : "approved";
+            }
+
+            return normalizedStatusCode === "DRAFT" ? "requested" : "approved";
+        }
+
+        function isCurrentStatusChangeAllowed() {
+            const currentStatusCode = normalizeStatusCode(document.getElementById("CurrentStatusCode")?.value);
+            if (!currentStatusCode) {
+                return true;
+            }
+
+            const workflowStep = getWorkflowStep(currentStatusCode);
+            return workflowStep ? !!workflowStep.AllowsStatusChange : true;
+        }
+
+        window.syncFactoringCaseFormMode = function (statusCode) {
+            const selectedStatusCode = normalizeStatusCode(
+                statusCode ||
+                document.getElementById("StatusCode")?.ej2_instances?.[0]?.value ||
+                document.getElementById("CurrentStatusCode")?.value);
+            const editMode = resolveFactoringEditMode(selectedStatusCode);
+            const statusChangeAllowed = isCurrentStatusChangeAllowed();
+            const step = getWorkflowStep(selectedStatusCode);
+            const isActiveEntity = step?.SetEntityActive === true;
+
+            if (editMode === "approved") {
+                copyRequestedTermsToApprovedIfMissing();
+            }
+
+            setFieldGroupEnabled(requestedFieldIds, editMode === "requested");
+            setFieldGroupEnabled(approvedFieldIds, editMode === "approved");
+            setFieldGroupEnabled(factoringDetailFieldIds, editMode !== "locked");
+            setFieldGroupEnabled(caseInfoFieldIds, editMode === "requested");
+            setEnabled("ProductCode", !resolveCreditCaseId(document.querySelector("#@formDomId .form-container")) || editMode === "requested");
+
+            if (isActiveEntity) {
+                setFieldGroupEnabled(requestedFieldIds, false);
+                setFieldGroupEnabled(approvedFieldIds, false);
+                setFieldGroupEnabled(factoringDetailFieldIds, false);
+                setFieldGroupEnabled(caseInfoFieldIds, false);
+                setEnabled("ProductCode", false);
+            }
+
+            setEnabled("StatusCode", statusChangeAllowed || isActiveEntity);
+            setEnabled("RecoursePolicyCode", false);
+            setEnabled("MaxSingleDebtorExposureAmount", false);
+            setEnabled("OutstandingPrincipalTotalAmount", false);
+            setEnabled("OutstandingDiscountTotalAmount", false);
+            setEnabled("CreditDecisionReasonCode", !isActiveEntity && (editMode !== "locked" || statusChangeAllowed));
+            setEnabled("FactoringDecisionReasonNotes", !isActiveEntity && (editMode !== "locked" || statusChangeAllowed));
+
+            const saveButton = document.querySelector("#@formDomId button[type='submit']");
+            if (saveButton) {
+                saveButton.disabled = !(editMode !== "locked" || statusChangeAllowed || isActiveEntity);
+            }
+        };
+
+        if (typeof window.setFactoringCaseWorkflowSteps === "function") {
+            window.setFactoringCaseWorkflowSteps(initialWorkflowSteps);
+        } else {
+            window.factoringCaseWorkflowSteps = initialWorkflowSteps;
+        }
+
+        window.factoringPreSave = function (btn) {
+            const container = getFormContainer(btn);
+            const statusControl = document.getElementById("StatusCode")?.ej2_instances?.[0];
+            const selectedStatus = (statusControl?.dataSource || []).find(x => x.CaseStatusCode === statusControl.value);
+            const currentStatusCode = normalizeStatusCode(document.getElementById("CurrentStatusCode")?.value);
+            const currentDecisionReasonCode = (document.getElementById("CurrentDecisionReasonCode")?.value || "").toString().trim();
+            const selectedStatusCode = normalizeStatusCode(statusControl?.value);
+            const selectedDecisionReasonCode = (
+                getValue(container, "CreditDecisionReasonCode") ||
+                (selectedStatusCode === currentStatusCode ? currentDecisionReasonCode : "")
+            ).toString().trim();
+
+            if (!selectedStatus) {
+                window.showToastMessage?.("error", "Select an available workflow status and its required decision reason.", "Validation");
+                return;
+            }
+
+            if (selectedStatus.RequiresDecisionReason && !selectedDecisionReasonCode) {
+                window.showToastMessage?.("error", "Select an available workflow status and its required decision reason.", "Validation");
+                return;
+            }
+            const bankPartyId = getValue(container, "BankPartyId") || document.getElementById("ccBankPartyBankPartyId")?.value;
+            const buildFactoringModel = function () {
+                const creditCaseId = resolveCreditCaseId(container);
+                const statusCode = (
+                    getValue(container, "StatusCode") ||
+                    document.getElementById("CurrentStatusCode")?.value ||
+                    "DRAFT"
+                ).toString().trim().toUpperCase();
+                const requestedStartDate = toDateOnly(getValue(container, "RequestedStartDate"));
+                const requestedMaturityDate = toDateOnly(getValue(container, "RequestedMaturityDate"));
+                const approvedStartDate = toDateOnly(getValue(container, "ApprovedStartDate"));
+                const approvedMaturityDate = toDateOnly(getValue(container, "ApprovedMaturityDate"));
+
+                ds.entity.setField("CreditCaseId", creditCaseId);
+                ds.entity.setField("CreditCaseIdValue", creditCaseId);
+                ds.entity.setField("StatusCode", statusCode);
+
+
+                return {
+                    CreditCaseId: creditCaseId,
+                    FactoringTypeCode: getValue(container, "FactoringTypeCode"),
+                    RecoursePolicyCode: (window.factoringPolicyOptions || []).find(x => x.FactoringPolicyCode === getValue(container, "FactoringPolicyCode"))?.RiskBearerCode ?? null,
+                    FactoringPolicyCode: getValue(container, "FactoringPolicyCode"),
+                    ApprovedAdvanceRatePercent: toNullableDecimal(getValue(container, "ApprovedAdvanceRatePercent")),
+                    ApprovedRetentionRatePercent: toNullableDecimal(getValue(container, "ApprovedRetentionRatePercent")),
+                    ApprovedDilutionReservePercent: toNullableDecimal(getValue(container, "ApprovedDilutionReservePercent")),
+                    ApprovedConcentrationLimitPercent: toNullableDecimal(getValue(container, "ApprovedConcentrationLimitPercent")),
+                    MaxInvoiceTenorDays: toNullableInt(getValue(container, "MaxInvoiceTenorDays")),
+                    MaxSingleDebtorExposurePercent: toNullableDecimal(getValue(container, "MaxSingleDebtorExposurePercent")),
+                    MaxSingleDebtorExposureAmount: toNullableDecimal(getValue(container, "MaxSingleDebtorExposureAmount")),
+                    OutstandingPrincipalTotalAmount: toNullableDecimal(getValue(container, "OutstandingPrincipalTotalAmount")),
+                    OutstandingDiscountTotalAmount: toNullableDecimal(getValue(container, "OutstandingDiscountTotalAmount")),
+                    CollectionAccountRequired: getChecked(container, "CollectionAccountRequired"),
+                    RetentionAccountRequired: getChecked(container, "RetentionAccountRequired"),
+                    SellerRepurchaseRequired: getChecked(container, "SellerRepurchaseRequired"),
+                    CrossAgingAllowed: getChecked(container, "CrossAgingAllowed"),
+                    Notes: getValue(container, "FactoringNotes"),
+                    IsActive: true,
+                    IsApproved: false,
+                    CreditCaseViewModel: {
+                        CreditCaseId: creditCaseId,
+                        CaseNumber: getValue(container, "CaseNumber") || "DRAFT",
+                        BankPartyId: bankPartyId,
+                        IsIndividual: @Html.Raw(Json.Serialize(Model.CreditCase.IsIndividual)),
+                        WorkflowCode: getValue(container, "WorkflowCode"),
+                        FrameworkId: toNullableLong(getValue(container, "FrameworkId")),
+                        ProductCode: getValue(container, "ProductCode"),
+                        ProductTypeCode: getValue(container, "ProductTypeCode"),
+                        CurrencyCode: getValue(container, "CurrencyCode") || "EUR",
+                        StageCode: getValue(container, "StageCode") || "A0",
+                        CreditStatusCode: statusCode,
+                        CreditDecisionReasonCode: selectedDecisionReasonCode || getValue(container, "CreditDecisionReasonCode"),
+                        DecisionReasonNotes: getValue(container, "FactoringDecisionReasonNotes"),
+                        StatusCode: statusCode,
+                        CaseDescription: getValue(container, "CaseDescription"),
+                        HasInterestSubsidy: getChecked(container, "HasInterestSubsidy"),
+                        StartDateRequested: requestedStartDate,
+                        RequestedStartDate: requestedStartDate,
+                        MaturityDateRequested: requestedMaturityDate,
+                        RequestedMaturityDate: requestedMaturityDate,
+                        CreditAmountRequested: toNullableDecimal(getValue(container, "RequestedCreditAmount")) ?? 0,
+                        RequestedCreditAmount: toNullableDecimal(getValue(container, "RequestedCreditAmount")) ?? 0,
+                        StartDateApproved: approvedStartDate,
+                        ApprovedStartDate: approvedStartDate,
+                        MaturityDateApproved: approvedMaturityDate,
+                        ApprovedMaturityDate: approvedMaturityDate,
+                        CreditAmountApproved: toNullableDecimal(getValue(container, "ApprovedCreditAmount")),
+                        ApprovedCreditAmount: toNullableDecimal(getValue(container, "ApprovedCreditAmount")),
+                        DayInDelayActual: 0,
+                        DayInDelayMaximum: 0
+                    }
+                };
+            };
+
+            const handleFactoringSaveSuccess = function (result, model) {
+                const updatedRow = result?.updatedRow || {};
+                const updatedCase = updatedRow.CreditCaseViewModel || {};
+                const resolvedCreditCaseId = updatedRow.CreditCaseId ?? updatedCase.CreditCaseId ?? model.CreditCaseId ?? "";
+                const resolvedCaseNumber = updatedCase.CaseNumber ?? updatedRow.CreditCaseName ?? model.CreditCaseViewModel?.CaseNumber ?? "";
+                const savedStatusCode = updatedCase.CreditStatusCode ?? updatedCase.StatusCode ?? model.CreditCaseViewModel?.CreditStatusCode ?? "DRAFT";
+                const formSessionId = container?.dataset.formSessionId || "";
+
+                ds.entity.setField("CreditCaseId", resolvedCreditCaseId);
+                ds.entity.setField("CreditCaseIdValue", resolvedCreditCaseId);
+                if (container) {
+                    container.dataset.creditCaseId = resolvedCreditCaseId;
+                }
+                ds.entity.setField("CaseNumber", resolvedCaseNumber);
+                ds.entity.setField("WorkflowCode", updatedCase.WorkflowCode ?? model.CreditCaseViewModel?.WorkflowCode ?? "");
+                ds.entity.setField("FrameworkId", updatedCase.FrameworkId ?? model.CreditCaseViewModel?.FrameworkId ?? "");
+                ds.entity.setField("CurrencyCode", updatedCase.CurrencyCode ?? model.CreditCaseViewModel?.CurrencyCode ?? "EUR");
+                ds.entity.setField("StageCode", updatedCase.StageCode ?? model.CreditCaseViewModel?.StageCode ?? "A0");
+                ds.entity.setField("StatusCode", savedStatusCode);
+                ds.entity.setField("CurrentStatusCode", savedStatusCode);
+                const savedDecisionReasonCode = updatedCase.CreditDecisionReasonCode ?? model.CreditCaseViewModel?.CreditDecisionReasonCode ?? "";
+                ds.entity.setField("CurrentDecisionReasonCode", savedDecisionReasonCode);
+                ds.entity.setField("CreditDecisionReasonCode", savedDecisionReasonCode);
+
+                if (typeof window.updateCreditHubCurrentCaseContext === "function") {
+                    window.updateCreditHubCurrentCaseContext(resolvedCreditCaseId, resolvedCaseNumber, formSessionId);
+                }
+
+                if (bankPartyId && typeof window.refreshCreditCasesGrid === "function") {
+                    window.refreshCreditCasesGrid(bankPartyId);
+                } else if (bankPartyId && typeof window.loadApplication === "function") {
+                    window.loadApplication(bankPartyId);
+                }
+
+                if (typeof window.refreshFactoringSupportingTabs === "function") {
+                    window.refreshFactoringSupportingTabs();
+                }
+            };
+
+            ds.entity.collectModel = buildFactoringModel;
+            ds.entity.prepareModel = function () {
+                return buildFactoringModel();
+            };
+            ds.entity.afterSave = handleFactoringSaveSuccess;
+
+            ds.entity.save(btn);
+        };
+
+        const initialProductDropdown = document.getElementById("ProductCode")?.ej2_instances?.[0];
+        const initialProductCode = initialProductDropdown?.value;
+        if (initialProductCode) {
+            const initialProduct = (initialProductDropdown?.dataSource || []).find(x => x.ProductCode === initialProductCode);
+            const productTypeCodeInput = document.getElementById("ProductTypeCode");
+            if (productTypeCodeInput && !productTypeCodeInput.value) {
+                productTypeCodeInput.value = initialProduct?.ProductTypeCode || "";
+            }
+        }
+
+        window.onFactoringPolicyChange({ value: document.getElementById("FactoringPolicyCode")?.ej2_instances?.[0]?.value });
+        const initialStatusCode = normalizeStatusCode(document.getElementById("CurrentStatusCode")?.value);
+
+        if (initialProductCode && !initialStatusCode && typeof window.refreshFactoringCaseWorkflowStatuses === "function") {
+            window.refreshFactoringCaseWorkflowStatuses("");
+        }
+
+        if (typeof window.initializeFactoringDecisionReasons === "function") {
+            window.initializeFactoringDecisionReasons(0);
+        } else if (typeof window.onFactoringCaseStatusChanged === "function") {
+            window.onFactoringCaseStatusChanged(document.getElementById("StatusCode")?.ej2_instances?.[0]?.value || "@(Model?.CreditCase?.CreditStatusCode ?? string.Empty)");
+        }
+
+        if (typeof window.initializeFactoringTerms === "function") {
+            window.initializeFactoringTerms(0);
+        }
+    })();
+</script>

@@ -1,0 +1,365 @@
+html, body {
+    height: 100%;
+    margin: 0;
+    overflow-x: hidden;
+}
+
+.wrapper {
+    display: flex;
+    width: 100%;
+    height: 100vh;
+}
+
+/* Sidebar container should take full height */
+#sidebar {
+    background-color: #0d9dda;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 1px 0 5px rgba(0,0,0,0.1);
+    transition: all 0.3s;
+}
+
+
+
+.toggle-sidebar {
+    color: #0d9dda;
+}
+
+.navbar-brand {
+    color: #0d9dda;
+}
+
+.navbar {
+    background-color: #0d9dda;
+    height: 50px;
+    border-bottom-color: #0d9dda;
+    border-bottom: 2px;
+}
+
+.sidebar-content {
+    padding: 20px;
+}
+
+#main-content {
+    flex-grow: 1;
+    transition: margin-left 0.3s ease-in-out;
+    overflow-x: hidden;
+    overflow-y: auto !important;
+    min-width: 0; /* Prevents overflow issues */
+    word-wrap: break-word; /* Prevents long words from causing overflow */
+}
+
+.content-wrapper {
+    width: 100%;
+    padding: 20px;
+    overflow-x: auto; /* Allows scrolling for long content */
+}
+
+.e-sidebar.e-open + #main-content {
+    margin-left: 250px;
+}
+
+.e-sidebar.e-close + #main-content {
+    margin-left: 0;
+}
+
+@media (max-width: 768px) {
+    #main-content {
+        margin-left: 0 !important;
+    }
+}
+
+/* Make dropdown appear outside navbar for all screen sizes */
+.custom-dropdown-menu {
+    position: absolute !important;
+    top: 60px; /* Adjust based on navbar height */
+    right: 10px;
+    z-index: 1050;
+    width: auto; /* Allow auto width for content */
+    min-width: 200px; /* Prevent too small dropdown */
+}
+
+/* Ensure parent allows positioning */
+.nav-item.dropdown {
+    position: relative;
+}
+
+/* Fix issue where dropdown goes inside navbar */
+.navbar {
+    overflow: visible !important; /* Ensure dropdown is not hidden */
+}
+
+/* Small screen close button */
+@media (max-width: 768px) {
+    .close-btn {
+        position: absolute;
+        top: 10px;
+        right: 15px;
+        font-size: 18px;
+        z-index: 1051;
+        background: none;
+        border: none;
+        color: white;
+    }
+
+        .close-btn:hover {
+            color: #ff4d4d;
+        }
+}
+
+/* Sidebar User Profile */
+.sidebar-user {
+    text-align: center;
+    padding: 30px;
+    color: white;
+}
+
+.user-img {
+    width: 100px;
+    height: 100px;
+    border-radius: 50%;
+    border: 3px solid white;
+    margin-bottom: 20px;
+}
+
+.user-name {
+    font-size: 19px;
+    font-weight: bold;
+}
+
+.user-role {
+    font-size: 14px;
+    opacity: 0.8;
+}
+
+/* Sidebar content should expand to fill available space */
+.sidebar-content {
+    flex-grow: 1;
+    overflow-y: auto;
+}
+
+/* Sidebar footer at the bottom */
+.sidebar-footer {
+    text-align: center;
+    padding: 10px;
+    font-size: 14px;
+    opacity: 0.8;
+}
+
+
+/* Divider Line */
+.sidebar-divider {
+    border: 0;
+    height: 2px;
+    background-color: white;
+    margin: 10px 15px;
+}
+
+/* Sidebar Links */
+.sidebar-item {
+    display: flex;
+    align-items: center;
+    padding: 10px 15px;
+    color: white;
+    text-decoration: none;
+    font-size: 19px;
+    transition: background 0.3s;
+}
+
+    .sidebar-item:hover {
+        background: rgba(255, 255, 255, 0.2);
+    }
+
+    .sidebar-item i {
+        margin-right: 10px;
+    }
+
+/* Default Log Out Button Style */
+.log-out-btn {
+    color: white; /* Default text & icon color */
+    font-size: 16px;
+}
+
+    /* Hover Effect */
+    .log-out-btn:hover {
+        color: red !important; /* Turns red when hovered */
+    }
+
+
+/* Dropdown Menu */
+.dropdown .dropdown-item {
+    padding: 8px 30px;
+    color: white;
+    font-size: 14px;
+}
+
+    .dropdown .dropdown-item:hover {
+        background: rgba(255, 255, 255, 0.2);
+    }
+
+
+.page-title {
+    position: relative; /* Required for positioning the pseudo-element */
+    font-size: 1.3rem; /* Adjust the size as needed */
+}
+
+    /* Pseudo-element to create the line with shadow */
+    .page-title::after {
+        content: ""; /* Necessary for the pseudo-element */
+        display: block; /* Make it a block element */
+        height: 2px; /* Adjust thickness */
+        width: 100%; /* Full width of the parent */
+        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2); /* Shadow effect */
+        margin-top: 10px; /* Adjust position if needed */
+    }
+
+.page-subtitle {
+    position: relative; /* Required for positioning the pseudo-element */
+    font-size: 1rem; /* Adjust the size as needed */
+}
+
+    /* Pseudo-element to create the line with shadow */
+    .page-subtitle::after {
+        content: ""; /* Necessary for the pseudo-element */
+        display: block; /* Make it a block element */
+        height: 2px; /* Adjust thickness */
+        width: 100%; /* Full width of the parent */
+        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2); /* Shadow effect */
+        margin-top: 10px; /* Adjust position if needed */
+    }
+
+#add-sidebar-item {
+    background: rgba(255, 255, 255, 0.1);
+    color: white;
+    border: 1px solid white;
+    border-radius: 5px;
+    transition: 0.3s;
+}
+
+    #add-sidebar-item:hover {
+        background: white;
+        color: #0d9dda;
+    }
+
+.nav-item .bi {
+    font-size: 1.2rem;
+    vertical-align: middle;
+}
+
+.nav-item img {
+    margin-left: 10px;
+}
+
+/* Navbar search box */
+/* Default styles for search container */
+.search-container {
+    display: flex;
+    align-items: center;
+    position: relative;
+}
+
+/* Search icon for SM & MD screens */
+.search-icon {
+    font-size: 1.4rem;
+    cursor: pointer;
+    color: #0d9dda;
+    display: block;
+}
+
+/* Hide search box by default in SM & MD */ 
+@media (max-width: 991px) {
+    #search-box-container {
+        display: none;
+        position: absolute;
+        top: 40px;
+        width: 180px;
+        background: white;
+        padding: 5px;
+        border-radius: 5px;
+        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+        z-index: 1050;
+    }
+        /* Show search box when activated */
+
+        #search-box-container.show {
+            display: block !important;
+        }
+}
+/* Always show search box in LG screens */
+
+@media (min-width: 992px) {
+    .search-icon {
+        display: none; /* Hide search icon */
+    }
+
+    #search-box-container {
+        width: 300px;
+        display: block !important;
+    }
+}
+
+/* Make the input text smaller */
+#topMenu .e-input-group input.e-input {
+    font-size: 12px;
+    height: 28px;
+    padding: 0 8px;
+    line-height: 1.2;
+}
+
+/* Make dropdown items smaller (the popup gets id topMenu_popup) */
+#topMenu_popup .e-list-item,
+#topMenu_popup .e-list-group-item,
+#topMenu_popup .e-nodata {
+    font-size: 12px;
+    line-height: 1.2;
+    padding: 2px 8px;
+    min-height: 24px; /* tighter rows */
+}
+
+/* Optional: tighten popup padding a bit */
+#topMenu_popup .e-content {
+    padding: 2px 0;
+}
+
+/* Navbar Dropdown Items */
+.custom-dropdown-menu .dropdown-item {
+    padding: 10px 20px; /* Adjust padding */
+    font-size: 14px; /* Text color */
+    transition: background-color 0.3s ease-in-out, color 0.3s ease-in-out;
+}
+
+    /* Hover effect for Navbar Dropdown */
+    .custom-dropdown-menu .dropdown-item:hover {
+        background-color: #0d9dda !important; /* Background color on hover */
+        color: white !important; /* Text color on hover */
+    }
+
+/* Divider in Navbar Dropdown */
+.custom-dropdown-menu .custom-divider {
+    border-color: #0d9dda !important; /* Divider color */
+}
+/* Specific styling for Log Out button */
+.custom-dropdown-menu .dropdown-item.text-danger {
+    color: red !important; /* Default color */
+}
+
+    /* Hover effect only for Log Out button */
+    .custom-dropdown-menu .dropdown-item.text-danger:hover {
+        background-color: red !important; /* Red background */
+        color: white !important; /* White text */
+    }
+
+.chart-container {
+    display: flex;
+    gap: 20px; /* Adds spacing between the charts */
+}
+/* Ensure Profile Image Looks Good */   
+.user-img {
+    border: 3px solid rgba(255, 255, 255, 0.2);
+    transition: transform 0.3s ease-in-out;
+}
+
+    .user-img:hover {
+        transform: scale(1.05);
+    }

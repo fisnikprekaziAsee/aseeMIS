@@ -1,0 +1,193 @@
+@model aseeMIS.Areas.Credit.ViewModels.CreditBankPartyProfilePageViewModel
+
+@{
+    ViewData["Title"] = "Customer 360 Profile";
+}
+
+<div class="ds-card mb-3 cbp-search-card">
+    <div class="ds-card-b">
+        <div class="d-flex align-items-center gap-2 mb-2">
+            <i class="bi bi-search cbp-title-icon"></i>
+            <span class="ds-card-title">Customer Search</span>
+        </div>
+        <div class="text-muted mb-3">Find an existing client to view their 360° profile</div>
+
+        <div class="row g-2 align-items-center">
+            <div class="col-12 col-xl-10">
+                <div class="input-group">
+                    <span class="input-group-text bg-white"><i class="bi bi-search text-muted"></i></span>
+                    <input type="text"
+                           id="creditProfileSearchText"
+                           class="form-control"
+                           placeholder="Search by full name, party code, or identification number" />
+                </div>
+            </div>
+            <div class="col-12 col-xl-2">
+                <button type="button" class="btn btn-primary w-100" id="creditProfileSearchButton">
+                    <i class="bi bi-search me-1"></i>Search
+                </button>
+            </div>
+        </div>
+
+        <div id="creditProfileSearchResults" class="list-group mt-2 d-none"></div>
+    </div>
+</div>
+
+<input type="hidden" id="creditProfileSelectedBankPartyId" value="@(Model.SelectedBankPartyId ?? 0)" />
+
+<div id="creditProfileContainer">
+    <div class="ds-card">
+        <div class="ds-card-b text-muted p-3">
+            <i class="bi bi-person-badge me-2"></i>
+            Search and select a customer to load the profile.
+        </div>
+    </div>
+</div>
+
+<script src="~/lib/jquery/dist/jquery.min.js"></script>
+
+<style>
+    .cbp-search-card {
+        background: #f8f9fb;
+        border-color: #d8e0ea;
+    }
+
+    .cbp-title-icon {
+        color: #0d6efd;
+        font-size: 1rem;
+    }
+
+    #creditProfileSearchResults .list-group-item {
+        border-color: #e4e9ef;
+        cursor: pointer;
+    }
+
+    #creditProfileSearchResults .list-group-item:hover {
+        background: #f4f8ff;
+    }
+</style>
+
+<script>
+    (function () {
+        const searchTextInput = document.getElementById("creditProfileSearchText");
+        const searchButton = document.getElementById("creditProfileSearchButton");
+        const resultsContainer = document.getElementById("creditProfileSearchResults");
+        const selectedBankPartyField = document.getElementById("creditProfileSelectedBankPartyId");
+        const loadUrl = '@Url.Action("LoadBankPartyProfile", "CreditCase", new { area = "Credit" })';
+        const searchUrl = '@Url.Action("SearchForProfile", "BankParty", new { area = "BankParty" })';
+
+        function renderProfileHtml(html) {
+            const container = $("#creditProfileContainer");
+            const nodes = $.parseHTML(html, document, true) || [];
+
+            container.empty();
+            nodes.forEach(node => container.append(node));
+        }
+
+        function setSearchResults(rows) {
+            if (!resultsContainer) {
+                return;
+            }
+
+            if (!rows || rows.length === 0) {
+                resultsContainer.innerHTML = `<div class="list-group-item text-muted">No customers found.</div>`;
+                resultsContainer.classList.remove("d-none");
+                return;
+            }
+
+            resultsContainer.innerHTML = rows.map(row => `
+                <button type="button"
+                        class="list-group-item list-group-item-action"
+                        data-bank-party-id="${row.bankPartyId || row.BankPartyId}">
+                    <div class="fw-semibold">${row.fullName || row.FullName || "-"}</div>
+                    <div class="small text-muted">${row.displayText || row.DisplayText || ""}</div>
+                </button>
+            `).join("");
+
+            resultsContainer.classList.remove("d-none");
+        }
+
+        function loadProfile(bankPartyId) {
+            if (!bankPartyId) {
+                return;
+            }
+
+            renderProfileHtml(`
+                <div class="ds-card">
+                    <div class="ds-card-b text-muted p-3">
+                        <i class="bi bi-arrow-repeat spin me-2"></i>
+                        Loading customer profile...
+                    </div>
+                </div>
+            `);
+
+            $.ajax({
+                url: loadUrl,
+                type: "GET",
+                data: { bankPartyId: bankPartyId },
+                success: function (html) {
+                    renderProfileHtml(html);
+                },
+                error: function () {
+                    renderProfileHtml(`
+                        <div class="ds-card">
+                            <div class="ds-card-b text-danger p-3">
+                                Failed to load selected customer.
+                            </div>
+                        </div>
+                    `);
+                }
+            });
+        }
+
+        function runSearch() {
+            const term = (searchTextInput?.value || "").trim();
+            if (!term) {
+                setSearchResults([]);
+                return;
+            }
+
+            $.ajax({
+                url: searchUrl,
+                type: "GET",
+                data: { searchText: term, take: 20 },
+                success: function (rows) {
+                    setSearchResults(rows || []);
+                },
+                error: function () {
+                    setSearchResults([]);
+                }
+            });
+        }
+
+        searchButton?.addEventListener("click", runSearch);
+
+        searchTextInput?.addEventListener("keydown", function (e) {
+            if (e.key === "Enter") {
+                e.preventDefault();
+                runSearch();
+            }
+        });
+
+        resultsContainer?.addEventListener("click", function (e) {
+            const button = e.target.closest("[data-bank-party-id]");
+            if (!button) {
+                return;
+            }
+
+            const bankPartyId = Number(button.getAttribute("data-bank-party-id") || 0);
+            if (!bankPartyId) {
+                return;
+            }
+
+            selectedBankPartyField.value = String(bankPartyId);
+            resultsContainer.classList.add("d-none");
+            loadProfile(bankPartyId);
+        });
+
+        const initialBankPartyId = Number(selectedBankPartyField?.value || 0);
+        if (initialBankPartyId > 0) {
+            loadProfile(initialBankPartyId);
+        }
+    })();
+</script>

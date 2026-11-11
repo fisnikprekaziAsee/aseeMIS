@@ -1,0 +1,376 @@
+﻿@{
+    // Layout = null;
+    var formId = ViewBag.FormId ?? "";
+    var entityPrimaryKeyValue = ViewBag.EntityPrimaryKeyValue ?? "";
+    var formSessionId = ViewBag.FormSessionId ?? "";
+    var templates = ViewBag.Templates ?? new List<dynamic>();
+}
+
+<style>
+    .template-item {
+        transition: background .12s;
+        cursor: pointer;
+    }
+
+        .template-item:hover {
+            background: #f8fbff !important;
+        }
+
+        .template-item.active {
+            background: #eef5ff !important;
+            border-left: 3px solid #0d6efd !important;
+        }
+
+            .template-item.active .doc-icon {
+                background: #0d6efd !important;
+                color: #fff !important;
+            }
+
+    .doc-icon {
+        width: 38px;
+        height: 38px;
+        min-width: 38px;
+    }
+</style>
+
+<div class="bg-light min-vh-100 p-3">
+    <div class="row g-3 align-items-start">
+
+        <!-- LEFT: DOCUMENT LIST -->
+        <div class="col-md-3">
+            <div class="card border rounded-3 shadow-sm">
+
+                <div class="card-header bg-white fw-semibold d-flex align-items-center gap-2 py-3">
+                    <i class="bi bi-file-earmark-text text-primary"></i>
+                    Available Documents
+                </div>
+
+                <div class="list-group list-group-flush" id="templateList">
+                    @foreach (var t in templates)
+                    {
+                        <button type="button"
+                                class="template-item list-group-item list-group-item-action border-start-0 border-end-0 d-flex align-items-center gap-3 px-3 py-3"
+                                data-id="@t.DocumentTemplateId">
+
+                            <div class="doc-icon rounded-2 bg-primary bg-opacity-10 text-primary d-flex align-items-center justify-content-center flex-shrink-0">
+                                <i class="bi @(t.DocumentIcon ?? "bi-file-earmark-text")"></i>
+                            </div>
+
+                            <div class="overflow-hidden">
+                                <div class="fw-semibold text-dark small text-truncate">@t.DocumentTemplateName</div>
+                                <div class="text-muted" style="font-size:11.5px;">
+                                    @(t.Notes != null ? $"{t.Notes}" : "Document template")
+                                </div>
+                            </div>
+
+                        </button>
+                    }
+                </div>
+
+            </div>
+        </div>
+
+        <!-- RIGHT -->
+        <div class="col-md-9 d-flex flex-column gap-3">
+
+            <!-- TEMPLATE HEADER + PARAMETERS -->
+            <div class="card border rounded-3 shadow-sm">
+
+                <div class="card-header bg-white d-flex align-items-center justify-content-between py-3">
+                    <div>
+                        <h6 id="selectedTemplateName" class="fw-bold mb-0 d-flex align-items-center gap-2">
+                            <i class="bi bi-file-earmark-text text-primary"></i>
+                            Select a document
+                        </h6>
+                        <small id="selectedTemplateDesc" class="text-muted">Choose a document from the left to get started.</small>
+                    </div>
+
+                    <div class="d-flex gap-2">
+                        <button class="btn btn-primary btn-sm" id="btnPreview" onclick="onGenerateDocument()" disabled>
+                            <i class="bi bi-eye"></i> Preview
+                        </button>
+                    </div>
+                </div>
+
+                <!-- PARAMETERS -->
+                <div id="manualInputSection" class="card-body" style="display:none;">
+                    <div class="row g-3" id="manualInputFields"></div>
+                    <small class="text-muted">Fill all parameters to enable preview and printing.</small>
+                </div>
+
+            </div>
+
+            <!-- DOCUMENT PREVIEW -->
+            <div class="card border rounded-3 shadow-sm" id="previewCard" style="display:none;">
+                <div class="card-body">
+
+                    <div class="fw-semibold mb-3 d-flex align-items-center gap-2">
+                        <i class="bi bi-eye text-primary"></i> Document Preview
+                    </div>
+
+                    <div id="docContainerWrap" class="border rounded position-relative" style="height:80vh;">
+                        <div id="globalLoader"
+                             class="position-absolute top-0 start-0 w-100 h-100 d-none justify-content-center align-items-center"
+                             style="background:rgba(255,255,255,.75); z-index:10;">
+                            <div class="spinner-border text-primary" role="status"></div>
+                        </div>
+
+                        <ejs-documenteditorcontainer id="docContainer"
+                                                     height="80vh"
+                                                     enableToolbar="true"
+                                                     isReadOnly="true">
+                        </ejs-documenteditorcontainer>
+                    </div>
+
+                </div>
+            </div>
+
+        </div>
+    </div>
+</div>
+
+<ejs-scripts></ejs-scripts>
+
+<script>
+    let selectedTemplateId = null;
+
+    function showLoader() {
+        const l = document.getElementById("globalLoader");
+        if (l) { l.classList.remove("d-none"); l.classList.add("d-flex"); }
+    }
+
+    function hideLoader() {
+        const l = document.getElementById("globalLoader");
+        if (l) { l.classList.remove("d-flex"); l.classList.add("d-none"); }
+    }
+
+    function clearDocumentViewer() {
+        const container = document.getElementById("docContainer")?.ej2_instances?.[0];
+        if (container?.documentEditor) container.documentEditor.open("");
+        document.getElementById("previewCard").style.display = "none";
+    }
+
+    document.querySelectorAll(".template-item").forEach(btn => {
+        btn.addEventListener("click", async function () {
+            document.querySelectorAll(".template-item").forEach(b => b.classList.remove("active"));
+            this.classList.add("active");
+
+            selectedTemplateId = this.dataset.id;
+
+            const name = this.querySelector(".fw-semibold").innerText;
+            const meta = this.querySelector(".text-muted").innerText;
+            document.getElementById("selectedTemplateName").innerHTML =
+                `<i class="bi bi-file-earmark-text text-primary"></i> ${name}`;
+            document.getElementById("selectedTemplateDesc").innerText = meta;
+
+            document.getElementById("btnPreview").disabled = false;
+
+            clearDocumentViewer();
+            showLoader();
+
+            try {
+                const response = await fetch(`/DocEng/DocEditor/GetManualInputFields?documentTemplateId=${selectedTemplateId}`);
+                const fieldData = await response.json();
+
+                const section = document.getElementById("manualInputSection");
+                const fieldContainer = document.getElementById("manualInputFields");
+
+                if (!fieldData?.hasManualInputs) {
+                    section.style.display = "none";
+                    fieldContainer.innerHTML = "";
+                    return;
+                }
+
+                const formHtml = fieldData.fields.map(f => {
+                    const type = (f.FieldTypeCode || "string").toLowerCase();
+                    const label = `<label class="form-label fw-semibold small">${f.FieldNameDescription || f.FieldName}</label>`;
+
+                    switch (type) {
+                        case "boolean":
+                            return `<div class="col-md-6">${label}<br><input type="checkbox" class="form-check-input" id="input_${f.FieldName}"></div>`;
+                        case "date":
+                            return `<div class="col-md-6">${label}<input type="date" class="form-control form-control-sm" id="input_${f.FieldName}"></div>`;
+                        case "datetime":
+                            return `<div class="col-md-6">${label}<input type="datetime-local" class="form-control form-control-sm" id="input_${f.FieldName}"></div>`;
+                        case "decimal":
+                        case "integer":
+                            return `<div class="col-md-6">${label}<input type="number" class="form-control form-control-sm" id="input_${f.FieldName}"></div>`;
+                        default:
+                            return `<div class="col-md-6">${label}<input type="text" class="form-control form-control-sm" id="input_${f.FieldName}"></div>`;
+                    }
+                }).join('');
+
+                fieldContainer.innerHTML = formHtml;
+                section.style.display = "block";
+            } catch (err) {
+                notify.error("Failed to load parameters.");
+            } finally {
+                hideLoader();
+            }
+        });
+    });
+
+    async function onGenerateDocument() {
+        const templateId = selectedTemplateId;
+        const formId = '@formId';
+        const entityPrimaryKeyValue = '@entityPrimaryKeyValue';
+        const formSessionId = '@formSessionId';
+        const container = document.getElementById("docContainer")?.ej2_instances?.[0];
+        const wrap = document.getElementById("docContainerWrap");
+
+        if (!templateId) return notify.warning("Please select a document.");
+
+        showLoader();
+        document.getElementById("previewCard").style.display = "block";
+
+        try {
+            let manualInputs = {};
+            document.querySelectorAll("[id^='input_']").forEach(input => {
+                const key = input.id.replace("input_", "");
+                manualInputs[key] = input.type === "checkbox" ? input.checked : input.value;
+            });
+            await generateDocument(templateId, formId, entityPrimaryKeyValue, formSessionId, manualInputs, container, wrap);
+        } catch (error) {
+            console.error("[DocEng] Document generation request failed before the viewer completed.", {
+                error,
+                templateId,
+                formId,
+                entityPrimaryKeyValue,
+                hasContainer: !!container,
+                hasDocumentEditor: !!container?.documentEditor
+            });
+            notify.error("Failed to generate document.");
+        } finally {
+            hideLoader();
+        }
+    }
+
+    async function generateDocument(templateId, formId, entityPrimaryKeyValue, formSessionId, manualInputs, container, wrap) {
+        const payload = { id: templateId, formId, entityPrimaryKeyValue, mode: "view", parameters: manualInputs };
+
+        try {
+            console.info("[DocEng] Starting document generation.", {
+                templateId,
+                formId,
+                entityPrimaryKeyValue,
+                hasContainer: !!container,
+                hasDocumentEditor: !!container?.documentEditor
+            });
+
+            const response = await fetch('/DocEng/DocEditor/LoadTemplate', {
+                method: 'POST',
+                headers: { "Content-Type": "application/json", "FormSessionId": formSessionId },
+                body: JSON.stringify(payload)
+            });
+
+            if (!response.ok) {
+                const errorText = await response.text();
+                console.error("[DocEng] LoadTemplate returned an unsuccessful response.", {
+                    status: response.status,
+                    statusText: response.statusText,
+                    errorText
+                });
+                throw new Error(`LoadTemplate failed with HTTP ${response.status}.`);
+            }
+
+            const result = await response.json();
+            console.info("[DocEng] LoadTemplate returned successfully.", {
+                hasSfdt: typeof result?.sfdt === "string",
+                sfdtLength: result?.sfdt?.length,
+                sfdtPrefix: result?.sfdt?.substring(0, 32),
+                hasContainer: !!container,
+                hasDocumentEditor: !!container?.documentEditor
+            });
+
+            if (!container?.documentEditor)
+                throw new Error("The Syncfusion document editor container is not initialized.");
+
+            const editor = container.documentEditor;
+            console.info("[DocEng] Opening SFDT in the Syncfusion document editor.");
+            editor.open(result.sfdt);
+            console.info("[DocEng] SFDT opened successfully.");
+            editor.isReadOnly = true;
+
+            configureDocumentToolbar(container);
+            console.info("[DocEng] Document viewer toolbar configured successfully.");
+        } catch (error) {
+            console.error("[DocEng] Document generation failed in the viewer.", {
+                error,
+                templateId,
+                formId,
+                entityPrimaryKeyValue,
+                hasContainer: !!container,
+                hasDocumentEditor: !!container?.documentEditor
+            });
+            notify.error("Failed to generate document.");
+        }
+    }
+
+    function configureDocumentToolbar(container) {
+        container.toolbarItems = [
+            { prefixIcon: 'e-de-ctnr-save', tooltipText: 'Download Word', text: 'Word', id: 'download-word-button' },
+            { prefixIcon: 'e-de-ctnr-save', tooltipText: 'Download PDF', text: 'PDF', id: 'download-pdf-button' },
+            'Find'
+        ];
+        container.dataBind();
+
+        // dataBind recreates the toolbar, so bind the newly rendered custom buttons.
+        setTimeout(() => {
+            document.getElementById('download-word-button')?.addEventListener('click', downloadWordDocument);
+            document.getElementById('download-pdf-button')?.addEventListener('click', downloadPdfDocument);
+        }, 0);
+    }
+
+    function getDocumentFileName(extension) {
+        const name = document.getElementById('selectedTemplateName')?.textContent?.trim() || 'document';
+        return `${name.replace(/[\\/:*?"<>|]/g, '_')}.${extension}`;
+    }
+
+    function downloadBlob(blob, fileName) {
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = fileName;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        URL.revokeObjectURL(url);
+    }
+
+    async function getCurrentDocumentBlob() {
+        const editor = document.getElementById('docContainer')?.ej2_instances?.[0]?.documentEditor;
+        if (!editor) throw new Error('The document preview is not available.');
+
+        return await editor.saveAsBlob('Docx');
+    }
+
+    async function downloadWordDocument() {
+        try {
+            downloadBlob(await getCurrentDocumentBlob(), getDocumentFileName('docx'));
+        } catch (error) {
+            console.error('[DocEng] Word download failed.', error);
+            notify.error('Failed to download the Word document.');
+        }
+    }
+
+    async function downloadPdfDocument() {
+        try {
+            const formData = new FormData();
+            formData.append('document', await getCurrentDocumentBlob(), getDocumentFileName('docx'));
+            formData.append('documentName', getDocumentFileName('pdf'));
+
+            const response = await fetch('/DocEng/DocEditorExport/ExportPdf', {
+                method: 'POST',
+                headers: { 'FormSessionId': '@formSessionId' },
+                body: formData
+            });
+
+            if (!response.ok) throw new Error(`ExportPdf failed with HTTP ${response.status}.`);
+
+            downloadBlob(await response.blob(), getDocumentFileName('pdf'));
+        } catch (error) {
+            console.error('[DocEng] PDF download failed.', error);
+            notify.error('Failed to download the PDF document.');
+        }
+    }
+</script>

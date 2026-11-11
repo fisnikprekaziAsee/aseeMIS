@@ -1,0 +1,220 @@
+﻿@{
+    var formSessionId = ViewBag.FormSessionId;
+}
+
+<!--datagrid messages-->
+<div class="col-lg-12 control-section msg-default-section">
+    <div class="content-section">
+        <ejs-message id="msg" visible="false" showCloseIcon="true"></ejs-message>
+    </div>
+</div>
+<br />
+
+<div class="row justify-content-center">
+    <div class="col-lg-3 control-section">
+        <ejs-dropdownlist id="jsonFilesDropdown" dataSource="@ViewBag.JsonFiles" placeholder="Select Language" popupHeight="220px">
+            <e-dropdownlist-fields text="LanguageName" value="LanguageCode"></e-dropdownlist-fields>
+        </ejs-dropdownlist>
+    </div>
+
+    <!-- Button to trigger grid update -->
+    <div class="col-lg-2 text-center d-flex align-items-center">
+        <button type="button" class="btn btn-primary custom-btn" onclick="onJsonFileChange()">Show Data</button>
+    </div>
+</div>
+<br />
+
+<!-- Grid initialization for Locale Grid -->
+<ejs-grid id="Grid" actionBegin="actionStart" dataSource="@Model" gridLines="Both"
+          AllowReordering="true" allowSorting="true" allowFiltering="true" allowPdfExport="true" allowExcelExport="true" allowGrouping="true" allowResizing="true" allowPaging="true"
+          showColumnChooser="true" toolbarClick="toolbarClick" toolbar="@ViewBag.ToolbarItems"
+          contextMenuClick="contextMenuClick" contextMenuItems="@ViewBag.ContextMenuItems">
+    <e-grid-editSettings allowEditing="true" mode="Normal" showDeleteConfirmDialog="true"></e-grid-editSettings>
+    <e-grid-pagesettings pageCount="10" pageSizes="true"></e-grid-pagesettings>
+    <e-grid-filterSettings type="Excel"></e-grid-filterSettings>
+
+
+    <e-grid-columns>
+        <e-grid-column field="LanguageCode" isPrimaryKey="true" headerText="Language Code" allowEditing="false" width="150"></e-grid-column>
+        <e-grid-column field="Component" headerText="Component" allowEditing="false" width="150"></e-grid-column>
+        <e-grid-column field="Key" headerText="Key" allowEditing="false" width="200"></e-grid-column>
+        <e-grid-column field="TranslatedValue" headerText="Translated Value" width="250"></e-grid-column>
+    </e-grid-columns>
+</ejs-grid>
+
+<script>
+    function onJsonFileChange() {
+        // Get the selected file name from the dropdown
+        var jsonDropdown = document.getElementById("jsonFilesDropdown").ej2_instances[0];
+        var selectedFile = jsonDropdown.value;
+        console.log(selectedFile);
+
+        if (selectedFile) {
+            var grid = document.getElementById("Grid").ej2_instances[0];
+            var changeErrorMessage = document.getElementById("msg").ej2_instances[0];
+
+            // AJAX request to fetch data for the selected JSON file
+            var url = '@Url.Action("GetJsonData", "AppLocalizationSyncfusion", new { area = "AppMng" })';
+            $.ajax({
+                url: url,
+                type: 'POST', // Change to POST if necessary
+                data: {
+                    fileName: selectedFile
+                },
+                success: function (data) {
+                    // Update the grid with the returned data
+                    grid.dataSource = data;
+                    grid.refresh();
+                },
+                error: function (xhr) {
+                    // Display an error message if something goes wrong
+                    changeErrorMessage.content = "Error while loading JSON data.";
+                    changeErrorMessage.visible = true;
+                }
+            });
+        } else {
+            alert("Please select a JSON file.");
+        }
+    }
+
+    /* Handle grid actions */
+    function actionStart(args) {
+        var grid = document.getElementById("Grid").ej2_instances[0];
+        var successMessage = document.getElementById("msg").ej2_instances[0];
+        var errorMessage = document.getElementById("msg").ej2_instances[0];
+        var jsonDropdown = document.getElementById("jsonFilesDropdown").ej2_instances[0];
+        var selectedFile = jsonDropdown.value;
+        var formSessionId = '@formSessionId';
+
+
+        hideMessages();
+        // Make visible all columns
+        if (args.requestType === 'beginEdit') {
+            hideMessages();
+            var columns = grid.columns;
+            for (var i = 0; i < columns.length; i++) {
+                if (!columns[i].visible) {
+                    grid.showColumns([columns[i].headerText]);
+                }
+            }
+        }
+        else if (args.requestType === 'save') {
+            /* Hiding messages on save (to handle enter button save) */
+            hideMessages();
+
+            // Only proceed for the "update" request, not add
+            if (args.action === 'edit') {
+                /* Canceling default behavior to ensure validation */
+                args.cancel = true;
+
+            var url = '@Url.Action("Update", "AppLocalizationSyncfusion", new { area = "AppMng" })' + '?fileName=' + encodeURIComponent(selectedFile);
+
+            const ajax = new ej.base.Ajax({
+                url: url,
+                type: "POST",
+                data: JSON.stringify(args.data), // raw JSON body for updatedRecord
+                contentType: "application/json",
+                beforeSend: function (xhr) {
+                    xhr.httpRequest.setRequestHeader("FormSessionId", formSessionId);
+                }
+            });
+
+
+                /* Perform the AJAX call to update the data */
+                ajax.send().then(function (response) {
+                    var result = JSON.parse(response);
+                    if (result.success) {
+                        // Refresh the grid with updated data
+                        grid.refresh();
+
+                        // Display success message
+                        successMessage.content = result.message;
+                        successMessage.visible = true;
+                    } else {
+                        // On failure, revert to the original data and show error message
+                        var originalData = args.previousData;
+                        var rowIndex = grid.getSelectedRowIndexes()[0];
+                        grid.updateRow(rowIndex, originalData);
+
+                        errorMessage.content = result.message;
+                        errorMessage.visible = true;
+                    }
+                }).catch(function (xhr) {
+                    // In case of an error, revert the changes and show error message
+                    var originalData = args.previousData;
+                    var rowIndex = grid.getSelectedRowIndexes()[0];
+                    grid.updateRow(rowIndex, originalData);
+
+                    errorMessage.content = xhr.statusText; // Or any custom error message
+                    errorMessage.visible = true;
+                });
+            }
+        }
+    }
+
+    function copyJsonFile() {
+        var newFileName = prompt("Enter the new file name (without extension):");
+        var replacementText = newFileName;
+
+        if (newFileName) {
+            $.ajax({
+                url: '/AppMng/AppLocalizationSyncfusion/CreateLocale',
+                type: 'POST',
+                data: { newFileName: newFileName, replacementText: replacementText },
+                success: function (response) {
+                    alert(response);
+                },
+                error: function (xhr) {
+                    alert("Error: " + xhr.responseText);
+                }
+            });
+        }
+    }
+
+
+    /* Handle toolbar clicks */
+    function toolbarClick(args) {
+        hideMessages();
+
+        var gridObj = document.getElementById("Grid").ej2_instances[0];
+
+        if (args.item.id === 'Grid_Save') {
+            gridObj.endEdit();
+        }
+        else if (args.item.id === 'Grid_cancel') {
+            gridObj.editSettings.showAddNewRow = false;
+        }
+        else if (args.item.id === 'Grid_pdfexport') {
+            gridObj.pdfExport();
+        }
+        else if (args.item.id === 'Grid_excelexport') {
+            gridObj.excelExport();
+        }
+    }
+
+    /* Context Menu */
+    function contextMenuClick(args) {
+        hideMessages();
+
+        if (this.getSelectedRecords().length > 0) {
+            if (args.item.id === "Copy") {
+                this.copy();
+            } else if (args.item.id === "copyWithHeader") {
+                this.copy(true);
+            }
+        }
+    }
+
+    function hideMessages() {
+        document.getElementById("msg").ej2_instances[0].visible = false;
+    }
+</script>
+
+<style>
+    .custom-btn {
+        height: 30px;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+    }
+</style>

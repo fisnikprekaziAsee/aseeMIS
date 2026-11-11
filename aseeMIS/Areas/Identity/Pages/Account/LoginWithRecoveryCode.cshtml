@@ -1,0 +1,45 @@
+@page
+@model LoginWithRecoveryCodeModel
+@{
+    ViewData["Title"] = "Recovery code verification";
+}
+
+
+
+<!-- Full-screen centered container -->
+<div class="d-flex justify-content-center align-items-center mt-5" style="background-color: #f6f7fb;">
+    <div class="card shadow p-5 m-5 " style="background: #fff; border-radius: 10px;">
+
+        <!-- Brand Logo -->
+        <div class="text-center mb-4">
+            <h2 class="fw-bold" style="color:#0d9dda">aseeMIS</h2>
+        </div>
+
+        <!-- Welcome Message -->
+        <h5 class="text-center ">Recovery code verification</h5>
+        <p class="text-center text-muted">You have requested to log in with a recovery code. This login will not be remembered until you provide an authenticator app code at log in or disable 2FA and log in again.</p>
+        <section>
+            <form method="post">
+                <div asp-validation-summary="ModelOnly" class="text-danger" role="alert"></div>
+                <div class="form-floating mb-3">
+                    <input asp-for="Input.RecoveryCode" class="form-control" autocomplete="off" placeholder="RecoveryCode" />
+                    <label asp-for="Input.RecoveryCode" class="form-label"></label>
+                    <span asp-validation-for="Input.RecoveryCode" class="text-danger"></span>
+                </div>
+                <button type="submit" class="w-100 btn btn-lg btn-primary">Log in</button>
+                <div class="mt-3 text-right">
+                    <a id="Login" asp-area="Identity" asp-page="/Account/LoginWith2fa" class="text-muted small">Return to Two-factor authentication</a>
+                </div>
+            </form>
+
+        </section>
+    </div>
+</div>
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}
+<style>
+    .card {
+        max-width: 500px;
+    }
+</style>

@@ -1,0 +1,887 @@
+@model dsCredit.Core.ViewModels.CreditFrameworkViewModel
+
+@{
+    ViewData["Title"] = "Credit Case";
+}
+
+<style>
+    .cc-tab-short {
+        display: none;
+    }
+
+    @@media (max-width: 767.98px) {
+        #ccMasterTabs {
+            flex-wrap: nowrap;
+        }
+
+        #ccMasterTabs .nav-item {
+            flex: 1 1 0;
+            min-width: 0;
+        }
+
+        #ccMasterTabs .nav-link {
+            width: 100%;
+            min-height: 58px;
+            padding: .4rem .25rem;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: .15rem;
+            line-height: 1;
+        }
+
+        #ccMasterTabs .nav-link i {
+            margin-right: 0 !important;
+            font-size: 1.05rem;
+        }
+
+        .cc-tab-full {
+            display: none;
+        }
+
+        .cc-tab-short {
+            display: block;
+            font-size: .67rem;
+            font-weight: 600;
+            letter-spacing: .04em;
+        }
+    }
+</style>
+
+<div class="mb-3">
+    @await Component.InvokeAsync("BankPartyContextWidget", new aseeMIS.Areas.BankParty.ViewModels.BankPartyContextWidgetOptions
+    {
+        WidgetId = "ccBankParty",
+        Title = "Select Client",
+        Subtitle = "Search and select an existing individual or business client to continue.",
+        LanguageCode = "en",
+        SelectedBankPartyId = Model?.BankPartyId ?? 0,
+        ShowEntityFormButton = true,
+        FormSessionId = ViewBag.FormSessionId ?? ""
+    })
+</div>
+
+<ul class="nav nav-tabs ds-tabs mb-3" id="ccMasterTabs">
+    <li class="nav-item">
+        <button class="nav-link active"
+                id="ccFrameworkTabButton"
+                data-bs-toggle="tab"
+                data-bs-target="#ccm-tab-framework">
+            <i class="bi bi-bank me-1"></i>
+            <span class="cc-tab-full">Limit Gjeneral</span>
+            <span class="cc-tab-short">LIM</span>
+        </button>
+    </li>
+
+    <li class="nav-item">
+        <button class="nav-link"
+                id="ccCreditCaseTabButton"
+                data-bs-toggle="tab"
+                data-bs-target="#ccm-tab-application">
+            <i class="bi bi-grid me-1"></i>
+            <span class="cc-tab-full">Rastet Kreditore</span>
+            <span class="cc-tab-short">RAS</span>
+        </button>
+    </li>
+
+    <li class="nav-item">
+        <button class="nav-link"
+                id="ccFinAnalysisTabButton"
+                data-bs-toggle="tab"
+                data-bs-target="#ccm-tab-finanalysis">
+            <i class="bi bi-bar-chart-line me-1"></i>
+            <span class="cc-tab-full">Financial Analysis</span>
+            <span class="cc-tab-short">FIN</span>
+        </button>
+    </li>
+
+    <li class="nav-item">
+        <button class="nav-link"
+                id="ccRelatedPersonsTabButton"
+                data-bs-toggle="tab"
+                data-bs-target="#ccm-tab-related-persons">
+            <i class="bi bi-people me-1"></i>
+            <span class="cc-tab-full">Related Persons</span>
+            <span class="cc-tab-short">REL</span>
+        </button>
+    </li>
+
+    <li class="nav-item">
+        <button class="nav-link"
+                id="ccCollateralsTabButton"
+                data-bs-toggle="tab"
+                data-bs-target="#ccm-tab-collaterals">
+            <i class="bi bi-shield-lock me-1"></i>
+            <span class="cc-tab-full">Collaterals</span>
+            <span class="cc-tab-short">COL</span>
+        </button>
+    </li>
+
+    <li class="nav-item">
+        <button class="nav-link"
+                id="ccImportedDocumentsTabButton"
+                data-bs-toggle="tab"
+                data-bs-target="#ccm-tab-imported-documents">
+            <i class="bi bi-file-earmark-arrow-up me-1"></i>
+            <span class="cc-tab-full">Imported Documents</span>
+            <span class="cc-tab-short">IMP</span>
+        </button>
+    </li>
+
+    <li class="nav-item">
+        <button class="nav-link"
+                id="ccPrintableDocumentsTabButton"
+                data-bs-toggle="tab"
+                data-bs-target="#ccm-tab-printable-documents">
+            <i class="bi bi-printer me-1"></i>
+            <span class="cc-tab-full">Printable Documents</span>
+            <span class="cc-tab-short">PRI</span>
+        </button>
+    </li>
+
+    <li class="nav-item" id="ccDocumentsTabItem">
+        <button class="nav-link"
+                id="ccDocumentsTabButton"
+                data-bs-toggle="tab"
+                data-bs-target="#ccm-tab-documents">
+            <i class="bi bi-file-earmark-text me-1"></i>
+            <span class="cc-tab-full">Documents</span>
+            <span class="cc-tab-short">DOC</span>
+        </button>
+    </li>
+</ul>
+
+<div class="tab-content" id="ccMasterTabsContent">
+    <div class="tab-pane fade show active" id="ccm-tab-framework">
+        <div id="ccFrameworkContainer">
+            <div class="text-muted p-3">
+                Please select a client.
+            </div>
+        </div>
+    </div>
+
+    <div class="tab-pane fade" id="ccm-tab-application">
+        <div id="ccCreditCaseContainer">
+            <div class="text-muted p-3">
+                <i class="bi bi-search me-2"></i>
+                Please select a client to view application details.
+            </div>
+        </div>
+    </div>
+
+    <div class="tab-pane fade" id="ccm-tab-finanalysis">
+        <div id="ccFinAnalysisContainer">
+            <div class="text-muted p-3">
+                Open or save a credit application to manage financial analysis.
+            </div>
+        </div>
+    </div>
+
+    <div class="tab-pane fade" id="ccm-tab-related-persons">
+        <div id="ccRelatedPersonsContainer">
+            <div class="text-muted p-3">
+                Related persons will be loaded here.
+            </div>
+        </div>
+    </div>
+
+    <div class="tab-pane fade" id="ccm-tab-collaterals">
+        <div id="ccCollateralsContainer">
+            <div class="text-muted p-3">
+                Collaterals will be loaded here.
+            </div>
+        </div>
+    </div>
+
+    <div class="tab-pane fade" id="ccm-tab-imported-documents">
+        <div id="ccImportedDocumentsContainer">
+            <div class="text-muted p-3">
+                Imported documents will be loaded here.
+            </div>
+        </div>
+    </div>
+
+    <div class="tab-pane fade" id="ccm-tab-printable-documents">
+        <div id="ccPrintableDocumentsContainer">
+            <div class="text-muted p-3">
+                Printable documents will be loaded here.
+            </div>
+        </div>
+    </div>
+
+    <div class="tab-pane fade" id="ccm-tab-documents">
+        <div id="ccDocumentsContainer">
+            <div class="text-muted p-3">
+                Open or save a credit application to manage documents.
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="~/lib/jquery/dist/jquery.min.js"></script>
+<script src="~/js/creditCaseLoan.js" asp-append-version="true"></script>
+<script src="~/js/creditCaseFactoring.js" asp-append-version="true"></script>
+
+<style>
+    #ccMasterTabs .nav-link {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    #ccMasterTabs .nav-link i {
+        line-height: 1;
+    }
+
+    .cc-app-tab.active {
+        background: #0d6efd;
+        color: #fff;
+    }
+</style>
+
+<script>
+    (function () {
+        const hubFormSessionId = '@(ViewBag.FormSessionId ?? "")';
+        const hubChildFormSessions = @Html.Raw(ViewBag.ChildFormSessionsJson ?? "{}");
+        window.creditHubFormSessionId = hubFormSessionId;
+        window.creditHubChildFormSessions = hubChildFormSessions || {};
+
+        window.getCreditHubChildSession = function (formId) {
+            if (!formId) {
+                return "";
+            }
+
+            const sessions = window.creditHubChildFormSessions || {};
+            return sessions[String(formId)] || sessions[formId] || "";
+        };
+
+        let currentBankPartyId = null;
+        let dynamicTabs = {};
+        let startupNavigationHandled = false;
+        let currentCaseContext = {
+            creditCaseId: "",
+            caseNumber: "",
+            formSessionId: ""
+        };
+
+        window.calculateEndDate = function () {
+            const startDatePicker = document.getElementById("AgreementStartDate")?.ej2_instances?.[0];
+            const termInput = document.getElementById("AgreementTermMonths")?.ej2_instances?.[0];
+            const endDatePicker = document.getElementById("AgreementEndDate")?.ej2_instances?.[0];
+
+            if (!startDatePicker || !termInput || !endDatePicker) {
+                return;
+            }
+
+            const startDate = startDatePicker.value;
+            const months = termInput.value;
+
+            if (!startDate || !months) {
+                return;
+            }
+
+            const endDate = new Date(startDate);
+            endDate.setMonth(endDate.getMonth() + months);
+
+            endDatePicker.value = endDate;
+            endDatePicker.dataBind?.();
+        };
+
+        function getBankPartyId() {
+            const el = document.getElementById("ccBankPartyBankPartyId");
+            if (!el) {
+                return null;
+            }
+
+            const value = el.value;
+            if (!value || value === "0") {
+                return null;
+            }
+
+            return value;
+        }
+
+        function initAfterAjaxLoad() {
+            if (window.ds?.entity?.init) {
+                ds.entity.init();
+            }
+
+            if (window.ej?.base) {
+                ej.base.enableRipple(true);
+            }
+
+            if (document.getElementById("TermMonths") &&
+                typeof window.initializeFactoringTerms === "function") {
+                window.initializeFactoringTerms(0);
+            }
+        }
+
+        function normalizeContextValue(value) {
+            if (value === undefined || value === null) {
+                return "";
+            }
+
+            const normalized = String(value).trim();
+            return normalized === "0" ? "" : normalized;
+        }
+
+        function renderHubHtml(targetSelector, html) {
+            const container = $(targetSelector);
+            const nodes = $.parseHTML(html, document, true) || [];
+
+            container.empty();
+            nodes.forEach(node => container.append(node));
+            initAfterAjaxLoad();
+        }
+
+        window.renderHubHtml = renderHubHtml;
+
+        function showHubDocumentsPlaceholder(message, cssClass) {
+            const tone = cssClass || "text-muted";
+
+            $("#ccDocumentsContainer").html(`
+                <div class="${tone} p-3">
+                    ${message}
+                </div>
+            `);
+        }
+
+        function showFinancialAnalysisPlaceholder(message, cssClass) {
+            const tone = cssClass || "text-muted";
+
+            $("#ccFinAnalysisContainer").html(`
+                <div class="${tone} p-3">
+                    ${message}
+                </div>
+            `);
+        }
+
+        function showImportedDocumentsPlaceholder(message, cssClass) {
+            const tone = cssClass || "text-muted";
+
+            $("#ccImportedDocumentsContainer").html(`
+                <div class="${tone} p-3">
+                    ${message}
+                </div>
+            `);
+        }
+
+        function loadImportedDocuments(forceReload) {
+            const bankPartyId = getBankPartyId();
+            const container = document.getElementById("ccImportedDocumentsContainer");
+            if (!container) {
+                return;
+            }
+
+            if (!bankPartyId) {
+                delete container.dataset.loadedFor;
+                showImportedDocumentsPlaceholder("Please select a client to view imported documents.");
+                return;
+            }
+
+            if (!forceReload && container.dataset.loadedFor === String(bankPartyId)) {
+                return;
+            }
+
+            container.innerHTML = '<div class="text-muted p-3">Loading imported documents...</div>';
+
+            $.ajax({
+                url: "/Credit/Credit/LoadImportedDocuments",
+                type: "GET",
+                data: {
+                    bankPartyId: bankPartyId,
+                    formSessionId: window.getCreditHubChildSession(102)
+                },
+                timeout: 30000,
+                success: function (html) {
+                    renderHubHtml("#ccImportedDocumentsContainer", html);
+                    container.dataset.loadedFor = String(bankPartyId);
+                },
+                error: function (_, __, err) {
+                    console.error("Failed to load imported documents:", err);
+                    delete container.dataset.loadedFor;
+                    showImportedDocumentsPlaceholder("Failed to load imported documents.", "text-danger");
+                }
+            });
+        }
+
+        function clearCreditHubCurrentCaseContext() {
+            currentCaseContext = {
+                creditCaseId: "",
+                caseNumber: "",
+                formSessionId: ""
+            };
+
+            const documentsContainer = document.getElementById("ccDocumentsContainer");
+            if (documentsContainer) {
+                delete documentsContainer.dataset.loadedFor;
+                delete documentsContainer.dataset.loadedSession;
+            }
+
+            const finContainer = document.getElementById("ccFinAnalysisContainer");
+            if (finContainer) {
+                delete finContainer.dataset.loadedFor;
+                delete finContainer.dataset.loadedSession;
+            }
+        }
+
+        function getDynamicPaneContext(pane) {
+            if (!pane) {
+                return null;
+            }
+
+            const creditCaseId = normalizeContextValue(pane.dataset.creditCaseId);
+            const caseNumber = normalizeContextValue(pane.dataset.caseNumber);
+            const formSessionId = normalizeContextValue(pane.dataset.formSessionId);
+
+            if (!creditCaseId && !caseNumber && !formSessionId) {
+                return null;
+            }
+
+            return {
+                creditCaseId: creditCaseId,
+                caseNumber: caseNumber,
+                formSessionId: formSessionId
+            };
+        }
+
+        function applyCreditHubCurrentCaseContext(context) {
+            currentCaseContext = {
+                creditCaseId: normalizeContextValue(context?.creditCaseId),
+                caseNumber: normalizeContextValue(context?.caseNumber),
+                formSessionId: normalizeContextValue(context?.formSessionId)
+            };
+        }
+
+        function refreshCurrentCaseContextFromActiveTab(clearWhenMissing) {
+            const activePane = document.querySelector("#ccMasterTabsContent > .tab-pane.active, #ccMasterTabsContent > .tab-pane.show.active");
+            const context = getDynamicPaneContext(activePane);
+
+            if (context) {
+                applyCreditHubCurrentCaseContext(context);
+                return;
+            }
+
+            if (clearWhenMissing) {
+                clearCreditHubCurrentCaseContext();
+            }
+        }
+
+        function loadHubDocuments(forceReload) {
+            const documentsContainer = document.getElementById("ccDocumentsContainer");
+            if (!documentsContainer) {
+                return;
+            }
+
+            if (!currentCaseContext.creditCaseId) {
+                showHubDocumentsPlaceholder("Save or open a credit application first, then come back here to manage documents.");
+                return;
+            }
+
+            if (!forceReload &&
+                documentsContainer.dataset.loadedFor === currentCaseContext.creditCaseId &&
+                documentsContainer.dataset.loadedSession === currentCaseContext.formSessionId) {
+                return;
+            }
+
+            $.ajax({
+                url: "/DocEng/DocumentGenerator/View",
+                type: "GET",
+                data: {
+                    formId: 31,
+                    entityPrimaryKeyValue: currentCaseContext.creditCaseId
+                },
+                headers: {
+                    "FormSessionId": currentCaseContext.formSessionId || ""
+                },
+                success: function (html) {
+                    renderHubHtml("#ccDocumentsContainer", html);
+                    documentsContainer.dataset.loadedFor = currentCaseContext.creditCaseId;
+                    documentsContainer.dataset.loadedSession = currentCaseContext.formSessionId || "";
+                },
+                error: function (_, __, err) {
+                    console.error("Failed to load hub documents tab:", err);
+                    showHubDocumentsPlaceholder("Failed to load documents.", "text-danger");
+                }
+            });
+        }
+
+        function removeDynamicTab(tabId) {
+            $("#" + tabId).remove();
+            $("#" + tabId + "_btn").remove();
+            delete dynamicTabs[tabId];
+        }
+
+        function closeTabsByExclusiveGroup(exclusiveGroup, exceptTabId) {
+            if (!exclusiveGroup) {
+                return;
+            }
+
+            Object.keys(dynamicTabs).forEach(function (tabId) {
+                if (tabId === exceptTabId) {
+                    return;
+                }
+
+                if (dynamicTabs[tabId]?.exclusiveGroup === exclusiveGroup) {
+                    removeDynamicTab(tabId);
+                }
+            });
+        }
+
+        function resetCreditHubDynamicState() {
+            Object.keys(dynamicTabs).forEach(function (tabId) {
+                removeDynamicTab(tabId);
+            });
+
+            clearCreditHubCurrentCaseContext();
+            showHubDocumentsPlaceholder("Open or save a credit application to manage documents.");
+            showFinancialAnalysisPlaceholder("Open or save a credit application to manage financial analysis.");
+
+            const importedDocumentsContainer = document.getElementById("ccImportedDocumentsContainer");
+            if (importedDocumentsContainer) {
+                delete importedDocumentsContainer.dataset.loadedFor;
+            }
+            showImportedDocumentsPlaceholder("Imported documents will be loaded here.");
+
+            const frameworkTab = document.querySelector('#ccMasterTabs button[data-bs-target="#ccm-tab-framework"]');
+            if (frameworkTab) {
+                new bootstrap.Tab(frameworkTab).show();
+            }
+        }
+
+        window.updateCreditHubCurrentCaseContext = function (creditCaseId, caseNumber, formSessionId) {
+            applyCreditHubCurrentCaseContext({
+                creditCaseId: creditCaseId,
+                caseNumber: caseNumber,
+                formSessionId: formSessionId
+            });
+
+            const activePane = document.querySelector("#ccMasterTabsContent > .tab-pane.active, #ccMasterTabsContent > .tab-pane.show.active");
+            if (activePane && (activePane.id.startsWith("case_") || activePane.id.startsWith("new_"))) {
+                activePane.dataset.creditCaseId = currentCaseContext.creditCaseId;
+                activePane.dataset.caseNumber = currentCaseContext.caseNumber;
+                activePane.dataset.formSessionId = currentCaseContext.formSessionId;
+            }
+
+            const isDocumentsActive = document.querySelector('#ccMasterTabs button[data-bs-target="#ccm-tab-documents"]')?.classList.contains("active");
+            if (isDocumentsActive) {
+                loadHubDocuments(true);
+            }
+
+            const isFinancialActive = document.querySelector('#ccMasterTabs button[data-bs-target="#ccm-tab-finanalysis"]')?.classList.contains("active");
+            if (isFinancialActive) {
+                window.loadFinancialAnalysis(true);
+            }
+        };
+
+        window.openAppTab = function (tabId, title, loadFn, options) {
+            if (dynamicTabs[tabId]) {
+                activateTab(tabId);
+                return;
+            }
+
+            const exclusiveGroup = options?.exclusiveGroup || "";
+            closeTabsByExclusiveGroup(exclusiveGroup, tabId);
+            if (exclusiveGroup) {
+                clearCreditHubCurrentCaseContext();
+            }
+
+            $("#ccDocumentsTabItem").before(`
+                <li class="nav-item" id="${tabId}_btn">
+                    <button class="nav-link"
+                            type="button"
+                            data-bs-toggle="tab"
+                            data-bs-target="#${tabId}">
+                        ${title}
+                        <i class="bi bi-x ms-1"
+                           style="cursor:pointer"
+                           onclick="event.stopPropagation(); closeTab('${tabId}', event)">
+                        </i>
+                    </button>
+                </li>
+            `);
+
+            $("#ccm-tab-documents").before(`<div class="tab-pane fade" id="${tabId}" data-dynamic-tab="true"></div>`);
+
+            dynamicTabs[tabId] = {
+                exclusiveGroup: exclusiveGroup
+            };
+            loadFn(tabId);
+            activateTab(tabId);
+        };
+
+        function activateTab(tabId) {
+            const triggerEl = document.querySelector(`#ccMasterTabs button[data-bs-target="#${tabId}"]`);
+            if (!triggerEl) {
+                return;
+            }
+
+            new bootstrap.Tab(triggerEl).show();
+        }
+
+        window.closeTab = function (tabId, e) {
+            if (e) {
+                e.stopPropagation();
+            }
+
+            const closedPane = document.getElementById(tabId);
+            const closedContext = getDynamicPaneContext(closedPane);
+
+            removeDynamicTab(tabId);
+
+            if (closedContext && currentCaseContext.creditCaseId === closedContext.creditCaseId) {
+                clearCreditHubCurrentCaseContext();
+            }
+
+            const appTab = document.querySelector('#ccMasterTabs button[data-bs-target="#ccm-tab-application"]');
+            if (appTab) {
+                new bootstrap.Tab(appTab).show();
+            }
+
+            refreshCurrentCaseContextFromActiveTab(true);
+        };
+
+        window.creditHubCaseFilter = "active";
+        window.loadApplication = function (bankPartyId, onLoaded) {
+            window.creditHubCaseFilter = "active";
+            if (!bankPartyId) {
+                return;
+            }
+
+            $.ajax({
+                url: "/Credit/CreditCase/LoadPartyCreditCases",
+                data: {
+                    bankPartyId: bankPartyId,
+                    hubFormSessionId: hubFormSessionId,
+                    childFormSessionId: window.getCreditHubChildSession(301)
+                },
+                success: function (html) {
+                    renderHubHtml("#ccCreditCaseContainer", html);
+                    if (typeof onLoaded === "function") {
+                        onLoaded();
+                    }
+                }
+            });
+        };
+
+        window.refreshCreditCasesGrid = function (bankPartyId, onLoaded) {
+            if (!bankPartyId) {
+                return;
+            }
+
+            const grid = document.getElementById("ExistingProductsGrid")?.ej2_instances?.[0];
+            if (!grid) {
+                window.loadApplication(bankPartyId, onLoaded);
+                return;
+            }
+
+            $.ajax({
+                url: "/Credit/CreditCase/GetPartyCreditCases",
+                type: "GET",
+                data: { bankPartyId: bankPartyId, caseFilter: window.creditHubCaseFilter || "active" },
+                success: function (rows) {
+                    grid.dataSource = Array.isArray(rows) ? rows : [];
+                    grid.dataBind();
+                    if (typeof onLoaded === "function") {
+                        onLoaded();
+                    }
+                },
+                error: function () {
+                    if (typeof onLoaded === "function") {
+                        onLoaded();
+                    }
+                }
+            });
+        };
+
+        window.loadFramework = function (bankPartyId, stayOnFramework) {
+            if (!bankPartyId) {
+                return;
+            }
+
+            $("#ccFrameworkContainer").html("Loading...");
+
+            $.ajax({
+                url: "/Credit/CreditFramework/LoadFramework",
+                data: {
+                    bankPartyId: bankPartyId,
+                    hubFormSessionId: hubFormSessionId
+                },
+                success: function (html) {
+                    renderHubHtml("#ccFrameworkContainer", html);
+
+                    const hasFramework =
+                        document.getElementById("chFrameworkExists")?.value === "true";
+                    const targetSelector = hasFramework && stayOnFramework !== true
+                        ? "#ccm-tab-application"
+                        : "#ccm-tab-framework";
+                    const targetTab = document.querySelector(
+                        `#ccMasterTabs button[data-bs-target="${targetSelector}"]`);
+
+                    if (targetTab) {
+                        new bootstrap.Tab(targetTab).show();
+                    }
+                },
+                error: function () {
+                    $("#ccFrameworkContainer").html(`
+                        <div class="text-danger p-3">
+                            Failed to load framework.
+                        </div>
+                    `);
+                }
+            });
+        };
+
+        // window.loadFinancialAnalysis = function (forceReload) {
+        //     const finContainer = document.getElementById("ccFinAnalysisContainer");
+        //     if (!finContainer) {
+        //         return;
+        //     }
+
+        //     $.ajax({
+        //         url: "/Credit/CreditFinancialAnalysis/Load",
+        //         type: "GET",
+        //         data: {
+        //             creditCaseId: currentCaseContext.creditCaseId
+        //         },
+        //         success: function (html) {
+        //             renderHubHtml("#ccFinAnalysisContainer", html);
+        //             finContainer.dataset.loadedFor = currentCaseContext.creditCaseId;
+        //             finContainer.dataset.loadedSession = currentCaseContext.formSessionId || "";
+        //         },
+        //         error: function (_, __, err) {
+        //             console.error("Failed to load financial analysis:", err);
+        //             showFinancialAnalysisPlaceholder("Failed to load financial analysis.", "text-danger");
+        //         }
+        //     });
+        // };
+
+        function parseHubStartupNavigation() {
+            const params = new URLSearchParams(window.location.search || "");
+            const bankPartyId = (params.get("bankPartyId") || "").trim();
+            const mode = (params.get("mode") || "").trim().toLowerCase();
+            const appType = (params.get("appType") || "").trim();
+            const creditCaseId = (params.get("creditCaseId") || "").trim();
+
+            if (!bankPartyId) {
+                return null;
+            }
+
+            if (mode === "existing" && creditCaseId) {
+                return {
+                    bankPartyId: bankPartyId,
+                    mode: "existing",
+                    creditCaseId: creditCaseId
+                };
+            }
+
+            if (mode === "new") {
+                return {
+                    bankPartyId: bankPartyId,
+                    mode: "new",
+                    appType: appType || "Loan"
+                };
+            }
+
+            return {
+                bankPartyId: bankPartyId,
+                mode: "none"
+            };
+        }
+
+        function runHubStartupNavigation(startupNav) {
+            if (!startupNav || startupNavigationHandled) {
+                return;
+            }
+
+            startupNavigationHandled = true;
+
+            const bankPartyField = document.getElementById("ccBankPartyBankPartyId");
+            if (bankPartyField) {
+                bankPartyField.value = String(startupNav.bankPartyId);
+            }
+
+            const triggerDeferred = function (attempt) {
+                if (startupNav.mode === "new" && typeof window.selectApplication === "function") {
+                    window.selectApplication(startupNav.appType);
+                    return;
+                }
+
+                if (startupNav.mode === "existing" && typeof window.onUpdateProduct === "function") {
+                    window.onUpdateProduct(startupNav.creditCaseId);
+                    return;
+                }
+
+                if (attempt < 20) {
+                    setTimeout(function () { triggerDeferred(attempt + 1); }, 150);
+                }
+            };
+
+            currentBankPartyId = String(startupNav.bankPartyId);
+            window.loadApplication(startupNav.bankPartyId, function () {
+                triggerDeferred(0);
+            });
+            window.loadFramework(startupNav.bankPartyId);
+        }
+
+        const startupNavigation = parseHubStartupNavigation();
+        if (startupNavigation?.bankPartyId) {
+            const bankPartyField = document.getElementById("ccBankPartyBankPartyId");
+            if (bankPartyField) {
+                bankPartyField.value = String(startupNavigation.bankPartyId);
+            }
+            currentBankPartyId = String(startupNavigation.bankPartyId);
+            runHubStartupNavigation(startupNavigation);
+        }
+
+        setInterval(function () {
+            const bankPartyId = getBankPartyId();
+
+            if (bankPartyId && bankPartyId !== currentBankPartyId) {
+                resetCreditHubDynamicState();
+                currentBankPartyId = bankPartyId;
+
+                window.loadApplication(bankPartyId);
+                window.loadFramework(bankPartyId);
+            }
+        }, 500);
+
+        document.addEventListener("shown.bs.tab", function (event) {
+            const targetId = event.target.getAttribute("data-bs-target");
+            if (!targetId) {
+                return;
+            }
+
+            const container = document.querySelector(targetId);
+            if (!container) {
+                return;
+            }
+
+            if (targetId === "#ccm-tab-documents") {
+                loadHubDocuments(false);
+            } else if (targetId === "#ccm-tab-imported-documents") {
+                loadImportedDocuments(false);
+            } else if (targetId === "#ccm-tab-finanalysis") {
+                window.loadFinancialAnalysis(false);
+            } else if (targetId === "#ccm-tab-application") {
+                const bankPartyId = getBankPartyId();
+                if (bankPartyId && typeof window.refreshCreditCasesGrid === "function") {
+                    window.refreshCreditCasesGrid(bankPartyId);
+                }
+            } else if (targetId.startsWith("#case_") || targetId.startsWith("#new_")) {
+                refreshCurrentCaseContextFromActiveTab(false);
+            }
+
+            setTimeout(function () {
+                if (window.ds?.entity?.init) {
+                    ds.entity.init();
+                }
+
+                if (window.ej?.base) {
+                    ej.base.enableRipple(true);
+                }
+            }, 0);
+        });
+    })();
+</script>

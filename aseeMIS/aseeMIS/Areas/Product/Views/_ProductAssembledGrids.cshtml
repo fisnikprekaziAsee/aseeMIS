@@ -1,0 +1,23 @@
+@model aseeMIS.Areas.Common.ViewModels.Entity360PageViewModel
+
+@{
+    var formSessionId = Model.FormSessionId;
+    var productId = Model.PrimaryKey;  
+}
+
+<!-- ================= BILL OF MATERIALS ================= -->
+@await Component.InvokeAsync("GridDetailWidget",
+        new aseeMIS.Areas.Common.DTOs.GridRequest
+    {
+        FormId = 5306,                                      
+        FormSessionId = formSessionId,
+        ForeignAttributeName = "ProductId",
+        PrimaryAttributeName = "BOMId",
+        TargetId = productId,
+            ContextFormType = dsMIS.Core.Enums.EnumContextFormType.CHILD,
+        GridType = "CRUD",
+        RemoteMode = false,
+        GridName = $"GRID_{formSessionId}_5306"
+    })
+
+<ejs-scripts></ejs-scripts>

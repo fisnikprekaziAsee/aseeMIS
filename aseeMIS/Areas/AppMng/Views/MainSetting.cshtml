@@ -1,0 +1,32 @@
+﻿
+<div class="container">
+    <!-- Row for Accordion Items in Two Columns -->
+    <div class="row mb-3">
+        <!-- Column 1: Report Information and Report Sheets in one Accordion -->
+        <div class="col-md-12">
+            <div class="accordion accordion-flush" id="accordionColumn1">
+                <div class="accordion-item">
+                    <h2 class="accordion-header" id="headingReportInformation">
+                        <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#collapseReportInformation" aria-expanded="true" aria-controls="collapseReportInformation">
+                            Report Information & Report Sheets Definition
+                        </button>
+                    </h2>
+                    <div id="collapseReportInformation" class="accordion-collapse collapse show" aria-labelledby="headingReportInformation">
+                        <div class="accordion-body">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    @await Html.PartialAsync("AppSetting")
+                                </div>
+                                <div class="col-md-6">
+                                    @await Html.PartialAsync("AppSetting")
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+  
+</div>

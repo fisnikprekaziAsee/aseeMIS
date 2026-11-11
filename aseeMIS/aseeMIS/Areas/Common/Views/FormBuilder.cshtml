@@ -1,0 +1,163 @@
+@using System.ComponentModel
+@using dsMIS.Core.Attributes
+@using System.ComponentModel.DataAnnotations
+@using System.ComponentModel.DataAnnotations.Schema
+
+@{
+    var formId = ViewBag.FormId;
+    var formSessionId = ViewBag.FormSessionId;
+    var modelType = ViewBag.ModelType as Type;
+    var properties = modelType?.GetProperties() ?? Array.Empty<System.Reflection.PropertyInfo>();
+
+    var groupedFields = properties
+        .Select(p => new
+        {
+            Property = p,
+            UIHint = p.GetCustomAttributes(typeof(FormUIHintAttribute), true).FirstOrDefault() as FormUIHintAttribute,
+            Display = p.GetCustomAttributes(typeof(DisplayAttribute), true).FirstOrDefault() as DisplayAttribute
+        })
+        .Where(x => x.UIHint != null)
+        .GroupBy(x => x.UIHint!.Group)
+        .ToList();
+}
+
+<div class="accordion" id="formAccordion">
+    @foreach (var group in groupedFields)
+    {
+        var accordionId = "accordion_" + group.Key.Replace(" ", "_");
+
+        <div class="accordion-item">
+            <h2 class="accordion-header" id="heading_@accordionId">
+                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse_@accordionId" aria-expanded="false" aria-controls="collapse_@accordionId">
+                    @group.Key
+                </button>
+            </h2>
+            <div id="collapse_@accordionId" class="accordion-collapse collapse" aria-labelledby="heading_@accordionId" data-bs-parent="#formAccordion">
+                <div class="accordion-body">
+                    @{
+                        var rows = group
+                        .GroupBy(x => x.UIHint!.Row)
+                        .OrderBy(g => g.Key);
+                    }
+
+                    @foreach (var row in rows)
+                    {
+                        <div class="row mb-2">
+                            @foreach (var item in row.OrderBy(x => x.UIHint!.ColumnOrder))
+                            {
+                                var prop = item.Property;
+                                var attr = item.UIHint!;
+                                var displayName = item.Display?.Name ?? prop.Name;
+                                var fieldType = Nullable.GetUnderlyingType(prop.PropertyType) ?? prop.PropertyType;
+                                var columnWidth = attr.ColumnWidth > 0 ? attr.ColumnWidth : 4;
+
+                                <div class="col-md-@columnWidth">
+                                    <label class="form-label">@displayName</label>
+
+                                    @if (fieldType == typeof(string))
+                                    {
+                                        var controlType = attr.UIControlType?.ToLowerInvariant();
+
+                                        if (controlType == "textarea")
+                                        {
+                                            <textarea ejs-for="@prop.Name"  id="@prop.Name" name="@prop.Name" class="form-control" rows="3"></textarea>
+                                        }
+                                        else
+                                        {
+                                            <ejs-textbox ejs-for="@prop.Name" id="@prop.Name" name="@prop.Name" floatLabelType="Always"></ejs-textbox>
+                                        }
+                                    }
+                                    else if (fieldType == typeof(int) || fieldType == typeof(decimal))
+                                    {
+                                        
+                                        <ejs-numerictextbox ejs-for="@prop.Name" id="@prop.Name" name="@prop.Name" floatLabelType="Always"></ejs-numerictextbox>
+                                    }
+                                    else if (fieldType == typeof(bool))
+                                    {
+                                        <div class="form-check mt-2">
+                                            <input class="form-check-input" type="checkbox" id="@prop.Name" name="@prop.Name" />
+                                            <label class="form-check-label" for="@prop.Name">@displayName</label>
+                                        </div>
+                                    }
+                                    else if (fieldType == typeof(DateTime))
+                                    {
+                                        <ejs-datepicker ejs-for="@prop.Name"  id="@prop.Name" name="@prop.Name" format="yyyy-MM-dd" floatLabelType="Always"></ejs-datepicker>
+                                    }
+                                    else
+                                    {
+                                        <ejs-textbox ejs-for="@prop.Name"  id="@prop.Name" name="@prop.Name" floatLabelType="Always"></ejs-textbox>
+                                    }
+                                </div>
+                            }
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+    }
+
+    <!-- Save Button -->
+    <div class="text-end mt-3">
+        <button class="btn btn-primary" onclick="submitDynamicForm()">💾 Save</button>
+    </div>
+</div>
+<ejs-scripts></ejs-scripts>
+
+    <script>
+        function submitDynamicForm() {
+           
+
+
+        const model = {};
+
+        // Syncfusion controls use `ej2_instances`
+        const controls = document.querySelectorAll("[ejs-for]");
+         console.log("controls",controls);
+        controls.forEach(control => {
+            const ejInstance = control.ej2_instances?.[0];
+            if (ejInstance) {
+                var field = control.getAttribute("ejs-for");
+                console.log("field",field);
+                 field = control.getAttribute("id");
+                  console.log("field",field);
+                model[field] = ejInstance.value;
+            }
+        });
+    console.log("model",model);
+
+
+
+
+            const ajax = new ej.base.Ajax({
+                url: "/Common/CRUD/Add",
+                type: "POST",
+                data: JSON.stringify(model),
+                contentType: "application/json",
+                beforeSend: function (xhr) {
+                    xhr.httpRequest.setRequestHeader("FormSessionId", "@formSessionId");
+                }
+            });
+
+            ajax.send().then(response => {
+                const result = JSON.parse(response);
+                if (result.success) {
+                    const newRecord = result.updatedRow;
+                    newRecord.IsApproved = result.updatedRow.IsApproved;
+
+                    const grid = document.getElementById("Grid_" + "@formId")?.ej2_instances?.[0];
+                    if (grid) {
+                        grid.dataSource.unshift(newRecord);
+                        grid.refresh();
+                        updateChildDropdowns(grid, newRecord);
+                    }
+
+                    showMessage(result.message, 'Success');
+                } else {
+                    showMessage(result.message, 'Error');
+                }
+            }).catch(xhr => {
+                showMessage(xhr.message || "Unexpected error", 'Error');
+            });
+        }
+    </script>
+

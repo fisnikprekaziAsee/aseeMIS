@@ -1,0 +1,251 @@
+@model aseeMIS.Areas.BankParty.ViewModels.BankClientSectionViewModel.SectionsViewModel
+@functions {
+    string Money(decimal v) => "$" + v.ToString("#,0.##");
+    string Percent(decimal p) => (p * 100m).ToString("0.#") + "%";
+}
+<style>
+    .card-soft {
+        border-radius: 14px;
+        box-shadow: 0 2px 8px rgba(15,23,42,.05);
+    }
+
+    .header-link {
+        color: var(--bs-primary);
+        font-weight: 600;
+        text-decoration: none;
+        padding: .25rem .6rem;
+        border-radius: .5rem;
+    }
+
+        .header-link:hover {
+            background: rgba(var(--bs-primary-rgb),.08);
+            text-decoration: none;
+        }
+
+    .badge-pill {
+        border-radius: 999px;
+    }
+
+    .metric-row .label {
+        color: #64748b;
+    }
+
+    .metric-row .val {
+        font-weight: 700;
+    }
+
+    .chip-ok {
+        background: #16a34a;
+        color: #fff;
+        border-radius: 999px;
+        padding: .2rem .6rem;
+        font-size: .8rem;
+    }
+
+    .chip-warn {
+        background: #f59e0b;
+        color: #111827;
+        border-radius: 999px;
+        padding: .2rem .6rem;
+        font-size: .8rem;
+    }
+</style>
+
+<!-- ===== Top Summary Cards ===== -->
+<div class="row g-3 mt-1">
+    <!-- Account Activity -->
+    <div class="col-lg-6">
+        <div class="card card-soft p-4 h-100">
+            <div class="d-flex align-items-center gap-2 mb-3">
+                <i class="bi bi-graph-up-arrow fs-5 text-primary"></i>
+                <h5 class="mb-0">Account Activity</h5>
+            </div>
+
+            @if (Model.AccountSummary is not null)
+            {
+                <div class="vstack gap-3 metric-row">
+                    <div class="d-flex justify-content-between">
+                        <div class="label">Total Balance</div>
+                        <div class="val">@Money(Model.AccountSummary.TotalBalance)</div>
+                    </div>
+                    <div class="d-flex justify-content-between">
+                        <div class="label">Monthly Turnover</div>
+                        <div class="val">@Money(Model.AccountSummary.MonthlyTurnover)</div>
+                    </div>
+                    <div class="d-flex justify-content-between">
+                        <div class="label">Transactions This Month</div>
+                        <div class="val">@Model.AccountSummary.TransactionsThisMonth</div>
+                    </div>
+                    <div class="d-flex justify-content-between">
+                        <div class="label">Average Transaction</div>
+                        <div class="val">@Money(Model.AccountSummary.AverageTransaction)</div>
+                    </div>
+                    <div class="d-flex justify-content-between">
+                        <div class="label">Largest Transaction</div>
+                        <div class="val">@Money(Model.AccountSummary.LargestTransaction)</div>
+                    </div>
+                </div>
+            }
+            else
+            {
+
+                <div class="text-muted small">No activity summary.</div>
+            }
+        </div>
+    </div>
+
+    <!-- Credit Information -->
+    <div class="col-lg-6">
+        <div class="card card-soft p-4 h-100">
+            <div class="d-flex align-items-center gap-2 mb-3">
+                <i class="bi bi-credit-card-2-back fs-5 text-primary"></i>
+                <h5 class="mb-0">Credit Information</h5>
+            </div>
+
+            @if (Model.CreditSummary is not null)
+            {
+                <div class="vstack gap-3 metric-row">
+                    <div class="d-flex justify-content-between">
+                        <div class="label">Available Credit</div>
+                        <div class="val">@Money(Model.CreditSummary.AvailableCredit)</div>
+                    </div>
+                    <div class="d-flex justify-content-between">
+                        <div class="label">Outstanding Loans</div>
+                        <div class="val">@Money(Model.CreditSummary.OutstandingLoans)</div>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div class="label">Credit Score</div>
+                        <div class="val">
+                            <span class="chip-ok">
+                                @(Model.CreditSummary.CreditScoreText ?? "Score")
+                                (@Model.CreditSummary.CreditScore)
+                            </span>
+                        </div>
+                    </div>
+                    <div class="d-flex justify-content-between">
+                        <div class="label">Credit Utilization</div>
+                        <div class="val">@Percent(Model.CreditSummary.CreditUtilization)</div>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div class="label">Payment History</div>
+                        <div class="val">
+                            <span class="chip-ok">@(Model.CreditSummary.PaymentHistoryStatus ?? "On Time")</span>
+                        </div>
+                    </div>
+                </div>
+            }
+            else
+            {
+
+                <div class="text-muted small">No credit summary.</div>
+            }
+        </div>
+    </div>
+</div>
+
+<!-- ===== Existing 3-column section cards ===== -->
+<div class="row g-3 mt-1">
+    <!-- Accounts -->
+    <div class="col-lg-4">
+        <div class="card card-soft p-3 h-100">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <div class="fw-bold"><i class="bi bi-folder2 me-1"></i> Accounts (@Model.Accounts.Count)</div>
+                <a href="#" class="header-link"><i class="bi bi-plus-lg me-1"></i>Start New</a>
+            </div>
+            <div class="vstack gap-2">
+                @foreach (var a in Model.Accounts)
+                {
+                    <div class="card border-1 p-3">
+                        <div class="d-flex justify-content-between">
+                            <div>
+                                <div class="fw-semibold">@a.Name</div>
+                                <div class="text-muted small">@a.Number</div>
+                            </div>
+                            <div class="d-flex align-items-start gap-2">
+                                @if (a.IsActive)
+                                {
+                                    <span class="badge bg-success-subtle text-success border badge-pill">Active</span>
+                                }
+                                <button class="btn btn-sm btn-outline-secondary" aria-label="Edit"><i class="bi bi-pencil"></i></button>
+                            </div>
+                        </div>
+                        <div class="row pt-2 small">
+                            <div class="col-4 text-muted">Balance:</div><div class="col-8 fw-semibold">@Money(a.Balance)</div>
+                        </div>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+
+    <!-- Cards -->
+    <div class="col-lg-4">
+        <div class="card card-soft p-3 h-100">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <div class="fw-bold"><i class="bi bi-credit-card me-1"></i> Cards (@Model.Cards.Count)</div>
+                <a href="#" class="header-link"><i class="bi bi-plus-lg me-1"></i>Start New</a>
+            </div>
+            <div class="vstack gap-2">
+                @foreach (var c in Model.Cards)
+                {
+                    <div class="card border-1 p-3">
+                        <div class="d-flex justify-content-between">
+                            <div>
+                                <div class="fw-semibold">@c.Type</div>
+                                <div class="text-muted small">@c.Number</div>
+                            </div>
+                            <div class="d-flex align-items-start gap-2">
+                                @if (c.IsActive)
+                                {
+                                    <span class="badge bg-success-subtle text-success border badge-pill">Active</span>
+                                }
+                                <button class="btn btn-sm btn-outline-secondary" aria-label="Edit"><i class="bi bi-pencil"></i></button>
+                            </div>
+                        </div>
+                        <div class="row pt-2 small">
+                            <div class="col-4 text-muted">Limit:</div><div class="col-8 fw-semibold">@Money(c.Limit)</div>
+                            <div class="col-4 text-muted">Balance:</div><div class="col-8 fw-semibold">@Money(c.Balance)</div>
+                            <div class="col-4 text-muted">Expires:</div><div class="col-8 fw-semibold">@c.Expires</div>
+                        </div>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+
+    <!-- Loans -->
+    <div class="col-lg-4">
+        <div class="card card-soft p-3 h-100">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <div class="fw-bold"><i class="bi bi-receipt me-1"></i> Loans (@Model.Loans.Count)</div>
+                <a href="#" class="header-link"><i class="bi bi-plus-lg me-1"></i>Start New</a>
+            </div>
+            <div class="vstack gap-2">
+                @foreach (var l in Model.Loans)
+                {
+                    <div class="card border-1 p-3">
+                        <div class="d-flex justify-content-between">
+                            <div>
+                                <div class="fw-semibold">@l.Type</div>
+                                <div class="text-muted small">ID: @l.Id</div>
+                            </div>
+                            <div class="d-flex align-items-start gap-2">
+                                @if (l.IsActive)
+                                {
+                                    <span class="badge bg-success-subtle text-success border badge-pill">Active</span>
+                                }
+                                <button class="btn btn-sm btn-outline-secondary" aria-label="Edit"><i class="bi bi-pencil"></i></button>
+                            </div>
+                        </div>
+                        <div class="row pt-2 small">
+                            <div class="col-3 text-muted">Amount:</div><div class="col-3 fw-semibold">@Money(l.Amount)</div>
+                            <div class="col-3 text-muted">Balance:</div><div class="col-3 fw-semibold">@Money(l.Balance)</div>
+                            <div class="col-3 text-muted">Rate:</div><div class="col-3 fw-semibold">@l.Rate%</div>
+                            <div class="col-3 text-muted">Monthly:</div><div class="col-3 fw-semibold">@Money(l.Monthly)</div>
+                        </div>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+</div>

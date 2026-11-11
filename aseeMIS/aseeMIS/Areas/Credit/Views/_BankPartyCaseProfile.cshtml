@@ -1,0 +1,958 @@
+@model aseeMIS.Areas.Credit.ViewModels.CreditBankPartyProfileViewModel
+
+@{
+    string Initials()
+    {
+        var tokens = (Model.FullName ?? string.Empty)
+            .Split(' ', StringSplitOptions.RemoveEmptyEntries)
+            .Take(2)
+            .Select(x => x[0].ToString().ToUpperInvariant())
+            .ToArray();
+
+        return tokens.Length > 0 ? string.Join(string.Empty, tokens) : "?";
+    }
+
+    string Money(decimal? value, string? currencyCode = null)
+    {
+        var prefix = string.IsNullOrWhiteSpace(currencyCode) ? string.Empty : $"{currencyCode} ";
+        return $"{prefix}{(value ?? 0m):N2}";
+    }
+
+    string DateText(DateTime? value)
+    {
+        return value.HasValue ? value.Value.ToString("dd.MM.yyyy") : "-";
+    }
+
+    string DateOnlyText(DateOnly value)
+    {
+        return value.ToString("dd.MM.yyyy");
+    }
+
+    int TermMonths(DateOnly startDate, DateOnly maturityDate)
+    {
+        return Math.Max(0, ((maturityDate.Year - startDate.Year) * 12) + maturityDate.Month - startDate.Month);
+    }
+
+    decimal ProductUtilization(dsCredit.Core.DTOs.FN.CreditCaseProductByBankPartyDto product)
+    {
+        var approvedAmount = product.Amount <= 0 ? 0m : product.Amount;
+        var outstandingAmount = product.OutstandingAmount ?? product.OutstandingExposureAmount ?? 0m;
+
+        if (approvedAmount <= 0m)
+            return 0m;
+
+        return Math.Min(100m, Math.Round((outstandingAmount / approvedAmount) * 100m, 2));
+    }
+
+    string ProductIcon(dsCredit.Core.DTOs.FN.CreditCaseProductByBankPartyDto product)
+    {
+        if ((product.ProductTypeName ?? string.Empty).Contains("Factor", StringComparison.OrdinalIgnoreCase))
+            return "bi bi-receipt";
+
+        if (product.IsMortgageCase == true)
+            return "bi bi-house";
+
+        if ((product.ProductDisplayName ?? string.Empty).Contains("Auto", StringComparison.OrdinalIgnoreCase))
+            return "bi bi-car-front";
+
+        return "bi bi-cash-stack";
+    }
+
+    string StatusClass(string? statusCode)
+    {
+        return statusCode?.ToUpperInvariant() switch
+        {
+            "DISBURSED" or "ACTIVE" or "APPROVED" or "READYFORDISBURSEMENT" => "bg-success-subtle text-success border border-success-subtle",
+            "INREVIEW" or "SUBMITTED" => "bg-warning-subtle text-warning-emphasis border border-warning-subtle",
+            _ => "bg-light text-secondary border"
+        };
+    }
+
+    var profile = Model.Profile!;
+}
+
+<style>
+    .cbp-page {
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+    }
+
+    .cbp-soft-card {
+        background: #e8f0f8;
+        border: 1px solid #d5e1ed;
+    }
+
+    .cbp-hero-grid {
+        display: grid;
+        grid-template-columns: auto 1fr auto;
+        gap: 2rem;
+        align-items: center;
+    }
+
+    .cbp-avatar {
+        width: 64px;
+        height: 64px;
+        border-radius: 50%;
+        background: #2196df;
+        border: 6px solid #f1f6fb;
+        color: #fff;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.15rem;
+        font-weight: 700;
+        flex-shrink: 0;
+    }
+
+    .cbp-hero-flex {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+    }
+
+    .cbp-hero-body {
+        flex: 1;
+        min-width: 0;
+    }
+
+    .cbp-hero-action {
+        flex-shrink: 0;
+        align-self: center;
+    }
+
+    .cbp-name {
+        font-size: 1.05rem;
+        font-weight: 700;
+        color: #0f172a;
+        line-height: 1.2;
+    }
+
+    .cbp-meta-grid {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: .2rem .5rem;
+    }
+
+    .cbp-meta-item {
+        display: inline-flex;
+        align-items: center;
+        gap: .3rem;
+        font-size: .8rem;
+        color: #64748b;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .cbp-meta-icon {
+        font-size: .78rem;
+        color: #94a3b8;
+        flex-shrink: 0;
+    }
+
+    @@media (max-width: 1199.98px) {
+        .cbp-meta-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .cbp-hero-action {
+            align-self: flex-end;
+        }
+    }
+
+    @@media (max-width: 767.98px) {
+        .cbp-hero-flex {
+            flex-wrap: wrap;
+        }
+
+        .cbp-meta-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+
+
+    .cbp-badge-soft {
+        display: inline-flex;
+        align-items: center;
+        padding: .24rem .62rem;
+        border-radius: 999px;
+        font-size: .75rem;
+        font-weight: 600;
+        line-height: 1.1;
+    }
+
+    .cbp-label {
+        font-size: .72rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: .05em;
+        color: #94a3b8;
+        margin-bottom: .22rem;
+    }
+
+    .cbp-value {
+        font-size: .86rem;
+        color: #334155;
+        line-height: 1.35;
+    }
+
+    .cbp-kpi {
+        position: relative;
+        min-height: 118px;
+        border-color: #dbe3ec;
+    }
+
+    .cbp-kpi-icon {
+        position: absolute;
+        top: 14px;
+        right: 14px;
+        font-size: 1rem;
+        color: #93a7bf;
+    }
+
+    .cbp-kpi-title {
+        font-size: .78rem;
+        font-weight: 700;
+        color: #64748b;
+        margin-bottom: .55rem;
+    }
+
+    .cbp-kpi-value {
+        font-size: 1.3rem;
+        font-weight: 700;
+        color: #0f172a;
+        line-height: 1.1;
+    }
+
+    .cbp-kpi-value-primary {
+        color: #2089d6;
+    }
+
+    .cbp-kpi-value-success {
+        color: #16a34a;
+    }
+
+    .cbp-kpi-sub {
+        margin-top: .45rem;
+        font-size: .78rem;
+        color: #94a3b8;
+    }
+
+    .cbp-section-title {
+        display: flex;
+        align-items: center;
+        gap: .55rem;
+    }
+
+    .cbp-section-icon {
+        width: 28px;
+        height: 28px;
+        border-radius: 8px;
+        background: #eef5fb;
+        border: 1px solid #dde8f4;
+        color: #0d6efd;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: .9rem;
+    }
+
+    .cbp-product-list {
+        display: flex;
+        flex-direction: column;
+        gap: .85rem;
+    }
+
+    .cbp-product-card {
+        border: 1px solid #e8edf3;
+        border-radius: 14px;
+        padding: .95rem 1rem;
+        background: #f7fafc;
+    }
+
+    .cbp-product-head {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: .75rem;
+    }
+
+    .cbp-product-main {
+        display: flex;
+        align-items: flex-start;
+        gap: .75rem;
+        min-width: 0;
+    }
+
+    .cbp-product-icon {
+        width: 40px;
+        height: 40px;
+        border-radius: 12px;
+        background: #edf4ff;
+        color: #0d6efd;
+        border: 1px solid #d7e6fb;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1rem;
+        flex-shrink: 0;
+    }
+
+    .cbp-product-name {
+        font-size: .94rem;
+        font-weight: 700;
+        color: #0f172a;
+        margin-bottom: .28rem;
+    }
+
+    .cbp-product-meta,
+    .cbp-product-terms {
+        display: flex;
+        flex-wrap: wrap;
+        gap: .45rem .8rem;
+        font-size: .79rem;
+        color: #64748b;
+    }
+
+    .cbp-product-values {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: .8rem;
+        margin-top: .8rem;
+    }
+
+    .cbp-value-card {
+        padding: .7rem .8rem;
+        background: #fff;
+        border: 1px solid #edf1f5;
+        border-radius: 12px;
+    }
+
+    .cbp-value-card .cbp-value {
+        font-size: .95rem;
+        font-weight: 700;
+        color: #0f172a;
+    }
+
+    .cbp-progress {
+        height: 7px;
+        background: #e9eef4;
+        border-radius: 999px;
+        overflow: hidden;
+    }
+
+    .cbp-progress .progress-bar {
+        background: linear-gradient(90deg, #0d6efd 0%, #63a3ff 100%);
+    }
+
+    .cbp-snapshot-list {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: .8rem 1rem;
+    }
+
+    .cbp-snapshot-row {
+        display: flex;
+        align-items: flex-start;
+        gap: .7rem;
+        min-width: 0;
+    }
+
+    @@media (max-width: 767.98px) {
+        .cbp-snapshot-list {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    .cbp-snapshot-row i {
+        width: 16px;
+        color: #7f97b1;
+        margin-top: .15rem;
+        flex-shrink: 0;
+    }
+
+    .cbp-quick-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: .85rem;
+    }
+
+    .cbp-quick-card {
+        border: 1px solid #e8edf3;
+        border-radius: 14px;
+        background: #f7fafc;
+        padding: 1rem;
+        height: 100%;
+    }
+
+    .cbp-quick-icon {
+        width: 42px;
+        height: 42px;
+        border-radius: 12px;
+        background: #edf4ff;
+        color: #0d6efd;
+        border: 1px solid #d7e6fb;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1rem;
+        margin-bottom: .8rem;
+    }
+
+    .cbp-quick-title {
+        font-size: .92rem;
+        font-weight: 700;
+        color: #0f172a;
+        margin-bottom: .35rem;
+    }
+
+    .cbp-quick-text {
+        font-size: .8rem;
+        color: #64748b;
+        min-height: 36px;
+    }
+
+    .app-card {
+        height: 100%;
+        padding: 1.25rem;
+        border: 1px solid #e9ecef;
+        border-radius: 18px;
+        background: #fff;
+        transition: all .2s ease;
+        cursor: pointer;
+    }
+
+        .app-card:hover {
+            border-color: #0d6efd;
+            transform: translateY(-2px);
+            box-shadow: 0 8px 24px rgba(0,0,0,0.08);
+        }
+
+    .app-icon {
+        width: 52px;
+        height: 52px;
+        border-radius: 14px;
+        background: #f3f6ff;
+        color: #0d6efd;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.3rem;
+        margin-bottom: 1rem;
+    }
+
+    .app-title {
+        font-size: 0.95rem;
+        font-weight: 600;
+        color: #212529;
+        margin-bottom: .45rem;
+    }
+
+    .app-desc {
+        font-size: 0.85rem;
+        color: #6c757d;
+        line-height: 1.5;
+    }
+
+    @@media (max-width: 1199.98px) {
+        .cbp-hero-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .cbp-meta-item:not(:last-child)::after {
+            display: none;
+        }
+    }
+
+    @@media (max-width: 1199.98px) {
+        .cbp-hero-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    @@media (max-width: 767.98px) {
+        .cbp-product-values,
+        .cbp-quick-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+</style>
+
+<div class="cbp-page">
+    <div class="ds-card cbp-soft-card">
+        <div class="ds-card-b">
+            <div class="cbp-hero-flex">
+                <div class="cbp-avatar">@Initials()</div>
+
+                <div class="cbp-hero-body">
+                    <div class="d-flex align-items-center gap-2 flex-wrap mb-1">
+                        <div class="cbp-name">@Model.FullName</div>
+                        <span class="cbp-badge-soft bg-light text-secondary border">@Model.PartyTypeLabel</span>
+                        <span class="cbp-badge-soft bg-success-subtle text-success border border-success-subtle">
+                            <i class="bi bi-shield-check me-1"></i>Risk: @Model.RiskLabel
+                        </span>
+                    </div>
+                    <div class="cbp-meta-grid">
+                        <div class="cbp-meta-item">
+                            <i class="bi bi-person-badge cbp-meta-icon"></i>
+                            <span>@Model.IdentificationNumber</span>
+                        </div>
+                        <div class="cbp-meta-item">
+                            <i class="bi bi-envelope cbp-meta-icon"></i>
+                            <span>@Model.Email</span>
+                        </div>
+                        <div class="cbp-meta-item">
+                            <i class="bi bi-telephone cbp-meta-icon"></i>
+                            <span>@Model.Phone</span>
+                        </div>
+                        <div class="cbp-meta-item">
+                            <i class="bi bi-geo-alt cbp-meta-icon"></i>
+                            <span>@Model.Address</span>
+                        </div>
+                        <div class="cbp-meta-item">
+                            <i class="bi bi-calendar2 cbp-meta-icon"></i>
+                            <span>Client since @DateText(profile.FoundationDate ?? profile.DateOfEmployment ?? profile.RevisionDateLast)</span>
+                        </div>
+                        <div class="cbp-meta-item">
+                            <i class="bi bi-briefcase cbp-meta-icon"></i>
+                            <span>@Model.PrimaryDescriptor</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="cbp-hero-action">
+                    <a class="btn btn-outline-primary"
+                       href="@Url.Action(
+                                   "Index",
+                                   "Entity360",
+                                   new
+                                   {
+                                       area = "Common",
+                                       id = Model.IsIndividual ? 16 : 17,
+                                       entityPrimaryKeyValue = Model.BankPartyId
+                                   })">
+                        Open 360 <i class="bi bi-arrow-right ms-1"></i>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-3">
+        <div class="col-sm-6 col-xl-3">
+            <div class="ds-card cbp-kpi">
+                <i class="bi bi-wallet2 cbp-kpi-icon"></i>
+                <div class="ds-card-b">
+                    <div class="cbp-kpi-title">Total Outstanding</div>
+                    <div class="cbp-kpi-value cbp-kpi-value-primary">@Money(profile.TotalOutstandingExposure, Model.PreferredCurrency)</div>
+                    <div class="cbp-kpi-sub">Current utilized exposure</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-sm-6 col-xl-3">
+            <div class="ds-card cbp-kpi">
+                <i class="bi bi-bank cbp-kpi-icon"></i>
+                <div class="ds-card-b">
+                    <div class="cbp-kpi-title">Total Approved</div>
+                    <div class="cbp-kpi-value">@Money(profile.TotalApprovedAmount, Model.PreferredCurrency)</div>
+                    <div class="cbp-kpi-sub">@profile.UtilizationPercentage.ToString("N2")% utilization</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-sm-6 col-xl-3">
+            <div class="ds-card cbp-kpi">
+                <i class="bi bi-collection cbp-kpi-icon"></i>
+                <div class="ds-card-b">
+                    <div class="cbp-kpi-title">Active Products</div>
+                    <div class="cbp-kpi-value">@profile.ActiveProductsCount</div>
+                    <div class="cbp-kpi-sub">Live cases under management</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-sm-6 col-xl-3">
+            <div class="ds-card cbp-kpi">
+                <i class="bi bi-exclamation-triangle cbp-kpi-icon"></i>
+                <div class="ds-card-b">
+                    <div class="cbp-kpi-title">Late Exposures</div>
+                    <div class="cbp-kpi-value cbp-kpi-value-success">@profile.LateExposureCount</div>
+                    <div class="cbp-kpi-sub">Cases with payment delay</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-3">
+        <div class="col-xl-8">
+            <div class="ds-card h-100">
+                <div class="ds-card-h d-flex align-items-center gap-2">
+                    <span class="cbp-section-icon"><i class="bi bi-folder2-open"></i></span>
+                    <span class="ds-card-title">Existing Loans & Active Products</span>
+                    <span class="badge bg-light text-dark">@Model.ActiveProducts.Count</span>
+                </div>
+                <div class="ds-card-b">
+                    @if (Model.ActiveProducts.Count == 0)
+                    {
+                        <div class="alert alert-light border mb-0">No active credit products were found for this customer.</div>
+                    }
+                    else
+                    {
+                        <div class="cbp-product-list">
+                            @foreach (var product in Model.ActiveProducts.Take(2))
+                            {
+                                var outstandingAmount = product.OutstandingAmount ?? product.OutstandingExposureAmount ?? 0m;
+                                var utilization = ProductUtilization(product);
+
+                                <div class="cbp-product-card">
+                                    <div class="cbp-product-head">
+                                        <div class="cbp-product-main">
+                                            <div class="cbp-product-icon">
+                                                <i class="@ProductIcon(product)"></i>
+                                            </div>
+                                            <div class="min-w-0">
+                                                <div class="cbp-product-name">@product.ProductDisplayName</div>
+                                                <div class="cbp-product-meta">
+                                                    <span class="badge bg-light text-dark border">@product.CaseNumber</span>
+                                                    <span class="badge @StatusClass(product.CreditStatusCode)">@product.Status</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="cbp-product-terms mt-3">
+                                        <span><strong>Term:</strong> @TermMonths(product.StartDate, product.MaturityDate) months</span>
+                                        <span><strong>Interest:</strong> @product.InterestRate.ToString("N2")%</span>
+                                        <span><strong>Start:</strong> @DateOnlyText(product.StartDate)</span>
+                                    </div>
+
+                                    <div class="cbp-product-values">
+                                        <div class="cbp-value-card">
+                                            <div class="cbp-label">Approved</div>
+                                            <div class="cbp-value">@Money(product.Amount, product.CurrencyCode)</div>
+                                        </div>
+                                        <div class="cbp-value-card">
+                                            <div class="cbp-label">Outstanding</div>
+                                            <div class="cbp-value">@Money(outstandingAmount, product.CurrencyCode)</div>
+                                        </div>
+                                    </div>
+
+                                    <div class="d-flex align-items-center justify-content-between mt-3 mb-2">
+                                        <div class="cbp-label mb-0">Utilization</div>
+                                        <div class="small text-muted">@utilization.ToString("N2")%</div>
+                                    </div>
+                                    <div class="cbp-progress">
+                                        <div class="progress-bar" role="progressbar" style="width:@utilization.ToString(System.Globalization.CultureInfo.InvariantCulture)%"></div>
+                                    </div>
+
+                                    <div class="mt-3">
+                                        <a class="btn btn-sm btn-outline-primary"
+                                           href="@Url.Action("Index", "Credit", new { area = "Credit", bankPartyId = Model.BankPartyId, mode = "existing", creditCaseId = product.CreditCaseId })">
+                                            Continue Application <i class="bi bi-arrow-right ms-1"></i>
+                                        </a>
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+
+        <div class="col-xl-4">
+            <div class="ds-card h-100">
+                <div class="ds-card-h d-flex align-items-center gap-2">
+                    <span class="cbp-section-icon"><i class="bi bi-person-lines-fill"></i></span>
+                    <span class="ds-card-title">Personal Snapshot</span>
+                </div>
+                <div class="ds-card-b">
+                    <div class="cbp-snapshot-list">
+                        @if (Model.IsIndividual)
+                        {
+                            <div class="cbp-snapshot-row">
+                                <i class="bi bi-calendar-event"></i>
+                                <div>
+                                    <div class="cbp-label">Birth Date</div>
+                                    <div class="cbp-value">@DateText(profile.DateOfBirth)</div>
+                                </div>
+                            </div>
+
+                            <div class="cbp-snapshot-row">
+                                <i class="bi bi-gender-ambiguous"></i>
+                                <div>
+                                    <div class="cbp-label">Gender</div>
+                                    <div class="cbp-value">@profile.GenderName</div>
+                                </div>
+                            </div>
+
+                            <div class="cbp-snapshot-row">
+                                <i class="bi bi-heart"></i>
+                                <div>
+                                    <div class="cbp-label">Marital Status</div>
+                                    <div class="cbp-value">@profile.MaritalStatusName</div>
+                                </div>
+                            </div>
+
+                            <div class="cbp-snapshot-row">
+                                <i class="bi bi-people"></i>
+                                <div>
+                                    <div class="cbp-label">Household Members</div>
+                                    <div class="cbp-value">@profile.NumberOfPeopleInHousehold</div>
+                                </div>
+                            </div>
+
+                            <div class="cbp-snapshot-row">
+                                <i class="bi bi-mortarboard"></i>
+                                <div>
+                                    <div class="cbp-label">Education</div>
+                                    <div class="cbp-value">@profile.EducationLevelName</div>
+                                </div>
+                            </div>
+
+                            <div class="cbp-snapshot-row">
+                                <i class="bi bi-briefcase"></i>
+                                <div>
+                                    <div class="cbp-label">Occupation</div>
+                                    <div class="cbp-value">@Model.PrimaryDescriptor</div>
+                                </div>
+                            </div>
+
+                            <div class="cbp-snapshot-row">
+                                <i class="bi bi-building"></i>
+                                <div>
+                                    <div class="cbp-label">Employer</div>
+                                    <div class="cbp-value">@profile.EmployerName</div>
+                                </div>
+                            </div>
+
+                            <div class="cbp-snapshot-row">
+                                <i class="bi bi-person-workspace"></i>
+                                <div>
+                                    <div class="cbp-label">Job Title</div>
+                                    <div class="cbp-value">@profile.JobTitle</div>
+                                </div>
+                            </div>
+
+                            <div class="cbp-snapshot-row">
+                                <i class="bi bi-cash"></i>
+                                <div>
+                                    <div class="cbp-label">Monthly Income</div>
+                                    <div class="cbp-value">@Money(profile.MonthlyIncome, Model.PreferredCurrency)</div>
+                                </div>
+                            </div>
+
+                            <div class="cbp-snapshot-row">
+                                <i class="bi bi-bank"></i>
+                                <div>
+                                    <div class="cbp-label">Exposure Utilization</div>
+                                    <div class="cbp-value">@($"{profile.UtilizationPercentage}%")</div>
+                                </div>
+                            </div>
+
+                            <div class="cbp-snapshot-row">
+                                <i class="bi bi-shield-check"></i>
+                                <div>
+                                    <div class="cbp-label">PEP Status</div>
+                                    <div class="cbp-value">
+                                        @(profile.IsPEP == true ? "Politically Exposed" : "Standard")
+                                    </div>
+                                </div>
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="cbp-snapshot-row">
+                                <i class="bi bi-building"></i>
+                                <div>
+                                    <div class="cbp-label">Foundation Date</div>
+                                    <div class="cbp-value">@DateText(profile.FoundationDate)</div>
+                                </div>
+                            </div>
+
+                            <div class="cbp-snapshot-row">
+                                <i class="bi bi-upc-scan"></i>
+                                <div>
+                                    <div class="cbp-label">Registration Number</div>
+                                    <div class="cbp-value">@profile.RegistrationNumber</div>
+                                </div>
+                            </div>
+
+                            <div class="cbp-snapshot-row">
+                                <i class="bi bi-receipt"></i>
+                                <div>
+                                    <div class="cbp-label">Tax Number</div>
+                                    <div class="cbp-value">@profile.TaxNumber</div>
+                                </div>
+                            </div>
+
+                            <div class="cbp-snapshot-row">
+                                <i class="bi bi-diagram-3"></i>
+                                <div>
+                                    <div class="cbp-label">Organization Size</div>
+                                    <div class="cbp-value">@profile.OrganizationSizeName</div>
+                                </div>
+                            </div>
+
+                            <div class="cbp-snapshot-row">
+                                <i class="bi bi-people"></i>
+                                <div>
+                                    <div class="cbp-label">Employees</div>
+                                    <div class="cbp-value">@((profile.NumberOfEmployees ?? 0).ToString("N0"))</div>
+                                </div>
+                            </div>
+
+                            <div class="cbp-snapshot-row">
+                                <i class="bi bi-cash-stack"></i>
+                                <div>
+                                    <div class="cbp-label">Initial Capital</div>
+                                    <div class="cbp-value">@Money(profile.InitialCapital, Model.PreferredCurrency)</div>
+                                </div>
+                            </div>
+
+                            <div class="cbp-snapshot-row">
+                                <i class="bi bi-pie-chart"></i>
+                                <div>
+                                    <div class="cbp-label">Assets Value</div>
+                                    <div class="cbp-value">@Money(profile.AssetsValue, Model.PreferredCurrency)</div>
+                                </div>
+                            </div>
+
+                            <div class="cbp-snapshot-row">
+                                <i class="bi bi-bar-chart"></i>
+                                <div>
+                                    <div class="cbp-label">Revenue</div>
+                                    <div class="cbp-value">@Money(profile.SalesIncome, Model.PreferredCurrency)</div>
+                                </div>
+                            </div>
+
+                            <div class="cbp-snapshot-row">
+                                <i class="bi bi-bank"></i>
+                                <div>
+                                    <div class="cbp-label">Exposure Utilization</div>
+                                    <div class="cbp-value">@($"{profile.UtilizationPercentage}%")</div>
+                                </div>
+                            </div>
+
+                            <div class="cbp-snapshot-row">
+                                <i class="bi bi-person-badge"></i>
+                                <div>
+                                    <div class="cbp-label">Representative</div>
+                                    <div class="cbp-value">@Model.RepresentativeName</div>
+                                </div>
+                            </div>
+
+                            <div class="cbp-snapshot-row">
+                                <i class="bi bi-person-workspace"></i>
+                                <div>
+                                    <div class="cbp-label">Representative Role</div>
+                                    <div class="cbp-value">@profile.LegalRepresentativePosition</div>
+                                </div>
+                            </div>
+                        }
+
+                        <div class="cbp-snapshot-row">
+                            <i class="bi bi-envelope"></i>
+                            <div>
+                                <div class="cbp-label">Email</div>
+                                <div class="cbp-value">@Model.Email</div>
+                            </div>
+                        </div>
+                        <div class="cbp-snapshot-row">
+                            <i class="bi bi-telephone"></i>
+                            <div>
+                                <div class="cbp-label">Phone</div>
+                                <div class="cbp-value">@Model.Phone</div>
+                            </div>
+                        </div>
+                        <div class="cbp-snapshot-row">
+                            <i class="bi bi-geo-alt"></i>
+                            <div>
+                                <div class="cbp-label">Address</div>
+                                <div class="cbp-value">@Model.Address</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="ds-card">
+        <div class="ds-card-h d-flex align-items-center gap-2">
+            <span class="cbp-section-icon">
+                <i class="bi bi-lightning-charge"></i>
+            </span>
+            <span class="ds-card-title">Quick Application</span>
+        </div>
+
+        <div class="ds-card-b">
+
+            <div class="row g-3">
+
+                <div class="col-md-4">
+                    <a class="app-card d-block text-decoration-none"
+                       href="@Url.Action("Index", "Credit", new { area = "Credit", bankPartyId = Model.BankPartyId, mode = "new", appType = "Loan" })">
+                        <div class="app-icon">
+                            <i class="bi bi-wallet2"></i>
+                        </div>
+
+                        <div class="app-title">
+                            Consumer Loan
+                        </div>
+
+                        <div class="app-desc">
+                            Fast working capital or household financing for existing clients.
+                        </div>
+
+                        <span class="badge bg-light text-dark border mt-3">
+                            6.5% - 9.0%
+                        </span>
+                    </a>
+                </div>
+
+                <div class="col-md-4">
+                    <a class="app-card d-block text-decoration-none"
+                       href="@Url.Action("Index", "Credit", new { area = "Credit", bankPartyId = Model.BankPartyId, mode = "new", appType = "Loan" })">
+                        <div class="app-icon">
+                            <i class="bi bi-house-door"></i>
+                        </div>
+
+                        <div class="app-title">
+                            Mortgage
+                        </div>
+
+                        <div class="app-desc">
+                            Property-backed financing with longer tenor and structured repayment.
+                        </div>
+
+                        <span class="badge bg-light text-dark border mt-3">
+                            4.8% - 7.2%
+                        </span>
+                    </a>
+                </div>
+
+                <div class="col-md-4">
+                    <a class="app-card d-block text-decoration-none"
+                       href="@Url.Action("Index", "Credit", new { area = "Credit", bankPartyId = Model.BankPartyId, mode = "new", appType = "Loan" })">
+                        <div class="app-icon">
+                            <i class="bi bi-car-front"></i>
+                        </div>
+
+                        <div class="app-title">
+                            Auto Loan
+                        </div>
+
+                        <div class="app-desc">
+                            Vehicle purchase financing for salaried and business customers.
+                        </div>
+
+                        <span class="badge bg-light text-dark border mt-3">
+                            5.9% - 8.4%
+                        </span>
+                    </a>
+                </div>
+
+            </div>
+
+        </div>
+    </div>
+</div>

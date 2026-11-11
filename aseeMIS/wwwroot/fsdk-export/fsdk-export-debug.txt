@@ -1,0 +1,35 @@
+Mapped rows: 17
+
+Skipped: Currency [ALL] not mapped to any worksheet.
+Mapped: Currency=[CHF], Sheet=[D) General deposit data_CHF], ItemCode=[IND_LE_5000], SortOrder=[10], Row=[18], Amount=[1155.68], Accounts=[2], Depositors=[9]
+Mapped: Currency=[CHF], Sheet=[D) General deposit data_CHF], ItemCode=[IND_10001_20000], SortOrder=[15], Row=[23], Amount=[24733.96], Accounts=[1], Depositors=[2]
+Mapped: Currency=[CHF], Sheet=[D) General deposit data_CHF], ItemCode=[IND_20001_50000], SortOrder=[16], Row=[24], Amount=[41184.50], Accounts=[1], Depositors=[1]
+Skipped: ItemCode [LEG_LE_5000] / SortOrder [30] not mapped.
+Skipped: ItemCode [LEG_20001_50000] / SortOrder [36] not mapped.
+Mapped: Currency=[EUR], Sheet=[A) General deposit data_EUR], ItemCode=[IND_LE_5000], SortOrder=[10], Row=[18], Amount=[1154772.53], Accounts=[14], Depositors=[2689]
+Mapped: Currency=[EUR], Sheet=[A) General deposit data_EUR], ItemCode=[IND_5001_6000], SortOrder=[11], Row=[19], Amount=[136158.59], Accounts=[6], Depositors=[25]
+Mapped: Currency=[EUR], Sheet=[A) General deposit data_EUR], ItemCode=[IND_6001_7000], SortOrder=[12], Row=[20], Amount=[136670.00], Accounts=[2], Depositors=[21]
+Mapped: Currency=[EUR], Sheet=[A) General deposit data_EUR], ItemCode=[IND_7001_8000], SortOrder=[13], Row=[21], Amount=[201472.34], Accounts=[4], Depositors=[27]
+Mapped: Currency=[EUR], Sheet=[A) General deposit data_EUR], ItemCode=[IND_8001_10000], SortOrder=[14], Row=[22], Amount=[519600.95], Accounts=[4], Depositors=[47]
+Mapped: Currency=[EUR], Sheet=[A) General deposit data_EUR], ItemCode=[IND_10001_20000], SortOrder=[15], Row=[23], Amount=[2094378.07], Accounts=[5], Depositors=[126]
+Mapped: Currency=[EUR], Sheet=[A) General deposit data_EUR], ItemCode=[IND_20001_50000], SortOrder=[16], Row=[24], Amount=[5433646.98], Accounts=[6], Depositors=[144]
+Mapped: Currency=[EUR], Sheet=[A) General deposit data_EUR], ItemCode=[IND_50001_100000], SortOrder=[17], Row=[25], Amount=[6558402.49], Accounts=[3], Depositors=[73]
+Mapped: Currency=[EUR], Sheet=[A) General deposit data_EUR], ItemCode=[IND_GT_100000], SortOrder=[18], Row=[26], Amount=[7710621.63], Accounts=[4], Depositors=[34]
+Skipped: ItemCode [LEG_LE_5000] / SortOrder [30] not mapped.
+Skipped: ItemCode [LEG_5001_6000] / SortOrder [31] not mapped.
+Skipped: ItemCode [LEG_6001_7000] / SortOrder [32] not mapped.
+Skipped: ItemCode [LEG_7001_8000] / SortOrder [33] not mapped.
+Skipped: ItemCode [LEG_8001_10000] / SortOrder [34] not mapped.
+Skipped: ItemCode [LEG_10001_20000] / SortOrder [35] not mapped.
+Skipped: ItemCode [LEG_20001_50000] / SortOrder [36] not mapped.
+Skipped: ItemCode [LEG_50001_100000] / SortOrder [37] not mapped.
+Skipped: ItemCode [LEG_GT_100000] / SortOrder [38] not mapped.
+Mapped: Currency=[GBP], Sheet=[C) General deposit data_GBP], ItemCode=[IND_LE_5000], SortOrder=[10], Row=[18], Amount=[243.00], Accounts=[2], Depositors=[2]
+Skipped: ItemCode [LEG_LE_5000] / SortOrder [30] not mapped.
+Mapped: Currency=[USD], Sheet=[B) General deposit data_USD], ItemCode=[IND_LE_5000], SortOrder=[10], Row=[18], Amount=[13380.14], Accounts=[5], Depositors=[25]
+Mapped: Currency=[USD], Sheet=[B) General deposit data_USD], ItemCode=[IND_10001_20000], SortOrder=[15], Row=[23], Amount=[29887.53], Accounts=[2], Depositors=[2]
+Mapped: Currency=[USD], Sheet=[B) General deposit data_USD], ItemCode=[IND_20001_50000], SortOrder=[16], Row=[24], Amount=[57281.25], Accounts=[2], Depositors=[2]
+Mapped: Currency=[USD], Sheet=[B) General deposit data_USD], ItemCode=[IND_GT_100000], SortOrder=[18], Row=[26], Amount=[1849594.75], Accounts=[2], Depositors=[1]
+Skipped: ItemCode [LEG_LE_5000] / SortOrder [30] not mapped.
+Skipped: ItemCode [LEG_5001_6000] / SortOrder [31] not mapped.
+Skipped: ItemCode [LEG_10001_20000] / SortOrder [35] not mapped.

@@ -1,0 +1,439 @@
+﻿@using Syncfusion.EJ2.Grids
+@using Syncfusion.EJ2.DropDowns
+
+<h4 class="mb-4">Stored Procedure: <code>@ViewBag.StoredProcedureName</code></h4>
+
+@if (ViewBag.ParameterList != null && ((IEnumerable<object>)ViewBag.ParameterList).Any())
+{
+    <form id="spForm" class="container-fluid">
+        <input type="hidden" name="storedProcedureName" value="@ViewBag.StoredProcedureName" />
+        <div class="row g-3">
+            @{
+                int index = 0;
+            }
+            @foreach (var param in (IEnumerable<dynamic>)ViewBag.ParameterList)
+            {
+                string pType = param.ParamType?.ToString().ToLower() ?? "";
+                string uiType = param.UI?.Uitype?.ToString().ToLower() ?? "";
+                var options = param.Options as IEnumerable<object> ?? new List<object>();
+
+                // Detect dropdown fields dynamically
+                string textField = "Text";
+                string valueField = "Value";
+                var firstOption = options.Cast<object>().FirstOrDefault();
+                if (firstOption != null)
+                {
+                    var props = firstOption.GetType().GetProperties();
+                    if (props.Any(p => p.Name.ToLower().Contains("name")))
+                        textField = props.First(p => p.Name.ToLower().Contains("name")).Name;
+                    if (props.Any(p => p.Name.ToLower().Contains("id")))
+                        valueField = props.First(p => p.Name.ToLower().Contains("id")).Name;
+                }
+
+                <div class="col-md-6">
+                    <div class="form-group">
+                        <label class="form-label mb-1 fw-semibold">
+                            @param.ParamName (@param.ParamType)
+                            @if (param.IsRequired)
+                            {
+                                <span class="text-danger">*</span>
+                            }
+                        </label>
+
+                        <!-- Hidden field to keep parameter name -->
+                        <input type="hidden" name="paramNames[@index]" value="@param.ParamName" />
+
+                        @if (uiType == "ddl")
+                        {
+
+                            var htmlAttrs = new Dictionary<string, object>();
+                            if (param.IsRequired) htmlAttrs.Add("required", "required");
+
+                            <ejs-dropdownlist id="ddl_@index"
+                                              name="paramValues[@index]"
+                                              placeholder="Select option"
+                                              dataSource="@options"
+                                              cssClass="e-outline w-100"
+                                              min="@(param.MinValue)"
+                                              max="@(param.MaxValue)"
+                                              htmlAttributes="htmlAttrs">
+                                <e-dropdownlist-fields text="@textField" value="@valueField"></e-dropdownlist-fields>
+                            </ejs-dropdownlist>
+
+
+                            if (param.MinValue != null || param.MaxValue != null)
+                            {
+                                <small class="form-text text-muted">
+                                    @("Allowed range: " + (param.MinValue ?? "Any") + " to " + (param.MaxValue ?? "Any"))
+                                </small>
+                            }
+                            <span class="field-validation-error text-danger"
+                                  data-valmsg-for="paramValues[@index]"
+                                  data-valmsg-replace="true"></span>
+
+
+                        }
+                        else if (pType == "int")
+                        {
+                            var htmlAttrs = new Dictionary<string, object>();
+                            if (param.IsRequired) htmlAttrs.Add("required", "required");
+
+                            <ejs-numerictextbox id="num_@index"
+                                                name="paramValues[@index]"
+                                                format="n0"
+                                                decimals="0"
+                                                placeholder="Enter number"
+                                                cssClass="e-outline w-100"
+                                                min="@(param.MinValue)"
+                                                max="@(param.MaxValue)"
+                                                htmlAttributes="htmlAttrs">
+                            </ejs-numerictextbox>
+
+                            if (param.MinValue != null || param.MaxValue != null)
+                            {
+                                <small class="form-text text-muted">
+                                    @("Allowed range: " + (param.MinValue ?? "Any") + " to " + (param.MaxValue ?? "Any"))
+                                </small>
+                            }
+                            <span class="field-validation-error text-danger"
+                                  data-valmsg-for="paramValues[@index]"
+                                  data-valmsg-replace="true"></span>
+
+                        }
+
+                        else if (pType == "decimal" || pType == "float")
+                        {
+                            var htmlAttrs = new Dictionary<string, object>();
+                            if (param.IsRequired) htmlAttrs.Add("required", "required");
+
+                            <ejs-numerictextbox id="dec_@index"
+                                                name="paramValues[@index]"
+                                                format="n2"
+                                                decimals="2"
+                                                placeholder="Enter decimal"
+                                                cssClass="e-outline w-100"
+                                                min="@(param.MinValue)"
+                                                max="@(param.MaxValue)"
+                                                htmlAttributes="htmlAttrs">
+                            </ejs-numerictextbox>
+
+                            if (param.MinValue != null || param.MaxValue != null)
+                            {
+                                <small class="form-text text-muted">
+                                    @("Allowed range: " + (param.MinValue ?? "Any") + " to " + (param.MaxValue ?? "Any"))
+                                </small>
+                            }
+                            <span class="field-validation-error text-danger"
+                                  data-valmsg-for="paramValues[@index]"
+                                  data-valmsg-replace="true"></span>
+
+                        }
+
+                        else if (pType == "date")
+                        {
+                            <ejs-datepicker id="date_@index"
+                                            name="paramValues[@index]"
+                                            placeholder="Select date"
+                                            cssClass="e-outline w-100"
+                                            format="dd/MM/yyyy"
+                                            min="@(param.MinValue ?? string.Empty)"
+                                            max="@(param.MaxValue ?? string.Empty)"
+                                            htmlAttributes="@(param.IsRequired ? new Dictionary<string, object> { { "required", "required" } } : null)">
+                            </ejs-datepicker>
+                            <span class="field-validation-error text-danger" data-valmsg-for="paramValues[@index]" data-valmsg-replace="true"></span>
+
+                        }
+
+                        else if (pType == "datetime")
+                        {
+                            var minVal = string.IsNullOrWhiteSpace(param.MinValue)
+                            ? null
+                            : DateTime.Parse(param.MinValue).ToString("yyyy-MM-ddTHH:mm:ss");
+
+                            var maxVal = string.IsNullOrWhiteSpace(param.MaxValue)
+                            ? null
+                            : DateTime.Parse(param.MaxValue).ToString("yyyy-MM-ddTHH:mm:ss");
+
+                            var htmlAttrs = new Dictionary<string, object>();
+                            if (param.IsRequired)
+                            {
+                                htmlAttrs.Add("required", "required");
+                            }
+
+                            <ejs-datetimepicker id="datetime_@index"
+                                                name="paramValues[@index]"
+                                                placeholder="Select date and time"
+                                                cssClass="e-outline w-100"
+                                                format="dd/MM/yyyy HH:mm" 
+                                                min="@minVal"
+                                                max="@maxVal"
+                                                locale="en-US"
+                                                enableMask="true"
+                                                htmlAttributes="htmlAttrs">
+                            </ejs-datetimepicker>
+                            <span class="field-validation-error text-danger" data-valmsg-for="paramValues[@index]" data-valmsg-replace="true"></span>
+
+                        }
+
+
+                        else if (pType == "bit")
+                        {
+                            <ejs-checkbox id="chk_@index"
+                                          name="paramValues[@index]"
+                                          label="Yes / No">
+                            </ejs-checkbox>
+                        }
+                        else
+                        {
+                            <ejs-textbox id="txt_@index"
+                                         name="paramValues[@index]"
+                                         placeholder="Enter text"
+                                         cssClass="e-outline w-100"
+                                         htmlAttributes="@(param.IsRequired ? new Dictionary<string, object> { { "required", "required" } } : null)">
+                            </ejs-textbox>
+
+                        }
+                    </div>
+                </div>
+
+                index++;
+            }
+        </div>
+
+        <div class="mt-4 text-end">
+            <button type="submit" class="btn btn-primary px-4">Execute</button>
+        </div>
+    </form>
+}
+
+<hr class="my-4" />
+
+<!-- Data Grid -->
+<div id="gridContainer">
+    <ejs-grid id="spGrid"
+              allowPaging="true"
+              allowSorting="true"
+              allowExcelExport="true"
+              allowPdfExport="true"
+              toolbar="@(new List<string> { "ExcelExport", "PdfExport" })"
+              dataSource="new List<object>()">
+        <e-grid-columns>
+            <e-grid-column field="__dummy" headerText="Loading..." visible="false"></e-grid-column>
+        </e-grid-columns>
+    </ejs-grid>
+</div>
+
+
+
+<style>
+    .e-error {
+        color: red;
+        font-size: 0.9em;
+        margin-top: 4px;
+        display: block;
+    }
+</style>
+
+@section Scripts {
+    <script>
+        let latestData = [];
+
+        document.addEventListener("DOMContentLoaded", function () {
+            const form = document.getElementById('spForm');
+            const gridEl = document.getElementById("spGrid");
+            const grid = gridEl ? gridEl.ej2_instances[0] : null;
+            const spDropdown = document.getElementById('storedProcedureSelect');
+
+            if (spDropdown) {
+                spDropdown.addEventListener('change', () => {
+                    form.requestSubmit();
+                });
+            }
+
+            if (grid) {
+                grid.toolbarClick = function (args) {
+                    const fileName = getExportFileName("Report");
+                    const cleanedData = latestData.map(row => {
+                        const cleanRow = {};
+                        for (const key in row) {
+                            const value = row[key];
+                            cleanRow[key] = typeof value === 'object' && value !== null
+                                ? JSON.stringify(value)
+                                : value ?? '';
+                        }
+                        return cleanRow;
+                    });
+
+                    if (args.item.id === "spGrid_excelexport") {
+                        grid.excelExport({ fileName: fileName + ".xlsx", dataSource: cleanedData });
+                    }
+                    if (args.item.id === "spGrid_pdfexport") {
+                        grid.pdfExport({ fileName: fileName + ".pdf", dataSource: cleanedData });
+                    }
+                };
+            }
+
+            // ✅ Build initial validation rules dictionary
+            const validationRules = {
+        @for (int i = 0; i < ((IEnumerable<dynamic>)ViewBag.ParameterList).Count(); i++)
+        {
+            var param = ((IEnumerable<dynamic>)ViewBag.ParameterList).ElementAt(i);
+            var paramName = $"paramValues[{i}]";
+
+            if (param.ParamType == "int" || param.ParamType == "decimal" || param.ParamType == "float")
+            {
+                <text>
+                                    "@paramName": {
+                    @if (param.IsRequired)
+                    {
+                        <text>required: true, </text>
+                    }
+                    @if (param.MinValue != null)
+                    {
+                        <text>min: { value: @param.MinValue, message: "Minimum allowed is @param.MinValue" }, </text>
+                    }
+                    @if (param.MaxValue != null)
+                    {
+                        <text>max: { value: @param.MaxValue, message: "Maximum allowed is @param.MaxValue" }, </text>
+                    }
+                                    },
+                </text>
+            }
+            else if (param.IsRequired)
+            {
+                <text>"@paramName": { required: true },</text>
+            }
+        }
+            };
+
+            // ✅ Init FormValidator first
+                  const formValidator = new ej.inputs.FormValidator('#spForm', {
+            rules: validationRules,
+            customPlacement: function (inputElement, errorElement) {
+                const wrapper = inputElement.closest('.e-input-group') || inputElement.parentElement;
+                wrapper.appendChild(errorElement);
+            }
+        });
+
+        // 🧠 Ensure numeric input triggers validation
+        document.querySelectorAll(".e-numerictextbox input.e-input").forEach(input => {
+            input.addEventListener("blur", () => formValidator.validate(input.name));
+            input.addEventListener("input", () => formValidator.validate(input.name));
+        });
+
+
+            // 🛠 Attach numeric rules after Syncfusion controls initialize
+            setTimeout(() => {
+                const parameterList = @Html.Raw(Json.Serialize(ViewBag.ParameterList));
+
+                    parameterList.forEach((param, index) => {
+            const name = `paramValues[${index}]`;
+            const input = document.querySelector(`[name="${name}"]`);
+
+            if (!input || !input.ej2_instances || !input.ej2_instances[0]) return;
+
+            const rules = {};
+
+            if (param.IsRequired)
+                rules.required = true;
+
+            if (param.ParamType === "int" || param.ParamType === "decimal" || param.ParamType === "float") {
+                if (param.MinValue != null)
+                    rules.min = {
+                        value: parseFloat(param.MinValue),
+                        message: `Minimum allowed is ${param.MinValue}`
+                    };
+                if (param.MaxValue != null)
+                    rules.max = {
+                        value: parseFloat(param.MaxValue),
+                        message: `Maximum allowed is ${param.MaxValue}`
+                    };
+            }
+
+            if (param.ParamType === "date" || param.ParamType === "datetime") {
+                if (param.MinValue)
+                    rules.date = {
+                        min: new Date(param.MinValue),
+                        message: `Date must be after ${param.MinValue}`
+                    };
+                if (param.MaxValue)
+                    rules.date = {
+                        max: new Date(param.MaxValue),
+                        message: `Date must be before ${param.MaxValue}`
+                    };
+            }
+
+            formValidator.addRules(name, rules);
+        });
+
+            }, 0);
+
+            // 📨 Form submit handler
+            if (form) {
+                form.addEventListener('submit', function (e) {
+                    e.preventDefault();
+
+                    if (!formValidator.validate()) {
+                        return;
+                    }
+
+                    const formData = new FormData(this);
+
+                    const payload = {
+                        storedProcedureName: formData.get("storedProcedureName"),
+                        paramValues: {}
+                    };
+
+                    const paramsByIndex = {};
+
+                    formData.forEach((value, key) => {
+                        if (key.startsWith("paramNames[")) {
+                            const idx = key.match(/\[(\d+)\]/)[1];
+                            paramsByIndex[idx] = paramsByIndex[idx] || {};
+                            paramsByIndex[idx].name = value;
+                        }
+                        if (key.startsWith("paramValues[")) {
+                            const idx = key.match(/\[(\d+)\]/)[1];
+                            paramsByIndex[idx] = paramsByIndex[idx] || {};
+                            paramsByIndex[idx].value = value;
+                        }
+                    });
+
+                    Object.values(paramsByIndex).forEach(p => {
+                        if (p.name !== undefined) {
+                            payload.paramValues[p.name] = p.value || "";
+                        }
+                    });
+
+                    fetch('/RepEng/ReportingGrid/Execute', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    })
+                        .then(res => res.json())
+                        .then(data => {
+                            latestData = data.rows || [];
+                            if (grid) {
+                                grid.columns = (data.columns || []).map(col => ({
+                                    field: col.field,
+                                    headerText: col.headerText,
+                                    width: 150
+                                }));
+                                grid.dataSource = latestData;
+                                grid.refreshColumns();
+                                grid.refresh();
+                            }
+                        })
+                        .catch(err => console.error("❌ Execution error:", err));
+                });
+            }
+
+            function getExportFileName(prefix) {
+                const now = new Date();
+                return `${prefix}_${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}_${String(now.getHours()).padStart(2, '0')}-${String(now.getMinutes()).padStart(2, '0')}-${String(now.getSeconds()).padStart(2, '0')}`;
+            }
+        });
+    </script>
+}
+
+

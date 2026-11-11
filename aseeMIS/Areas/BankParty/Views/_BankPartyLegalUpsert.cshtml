@@ -1,0 +1,1436 @@
+@model dsBankParty.Core.ViewModels.BankPartyLegalEntityViewModel
+
+@{
+    var request = ViewData["EntityDetailRequest"] as aseeMIS.Areas.Common.DTOs.EntityDetailRequest
+        ?? throw new InvalidOperationException("EntityDetailRequest is required.");
+
+    var formSessionId = request.FormSessionId;
+    var formId = request.FormId;
+    var isAdd = request.IsAdd || (Model?.BankPartyId ?? 0) == 0;
+    var isGridDialog = request.IsGridDialog;
+    var gridName = request.GridName ?? "";
+
+    var countries = ViewData["FK_NationalityCountryCode"] as IEnumerable<object>;
+    var contactCountries = ViewData["FK_ContactCountryCode"] as IEnumerable<object> ?? countries;
+    var contactMunicipalities = ViewData["FK_ContactMunicipalityId"] as IEnumerable<object>;
+
+    var partyTypes = ViewData["FK_PartyTypeId"] as IEnumerable<object>;
+    var partySegments = ViewData["FK_PartySegmentId"] as IEnumerable<object>;
+    var sectors = ViewData["FK_SectorId"] as IEnumerable<object>;
+    var languages = ViewData["FK_LanguageCode"] as IEnumerable<object>;
+    var branches = ViewData["FK_ActualBranchId"] as IEnumerable<object>;
+    var advisors = ViewData["FK_ActualAdvisorEmployeeId"] as IEnumerable<object>;
+    var accountOfficers = ViewData["FK_ActualAccountOfficerEmployeeId"] as IEnumerable<object> ?? advisors;
+    var secondCitizenships = ViewData["FK_SecondCitizenshipCode"] as IEnumerable<object> ?? countries;
+
+    var naceCountries = ViewData["FK_NaceCountryCode"] as IEnumerable<object>;
+
+    var formDomId = "entityForm_" + request.FormSessionId;
+    var legalRepresentativeSearchId = "LegalRepresentativeSearch_" + request.FormSessionId;
+    var legalRepresentativeSelectFn = "select_LegalRepresentative_" + request.FormSessionId;
+    var searchIndividualsUrl = Url.Action("SearchIndividuals", "BankParty", new { area = "BankParty" })
+        ?? "/BankParty/BankParty/SearchIndividuals";
+
+    string PhoneNumberLocalValue(string? value, bool isResident)
+    {
+        var phone = new string((value ?? string.Empty).Where(char.IsDigit).ToArray());
+
+        if (isResident)
+        {
+            if (phone.StartsWith("383", System.StringComparison.Ordinal))
+                phone = phone[3..];
+
+            while (phone.StartsWith("0", System.StringComparison.Ordinal))
+                phone = phone[1..];
+
+            return phone.Length > 8 ? phone[..8] : phone;
+        }
+
+        return phone.TrimStart('0');
+    }
+
+    var fullNameIconTemplate = DsInputTemplates.FullNameIcon();
+    var legalNameCopyTemplate = DsInputTemplates.CopyToClipboard("PartyLegalName", title: "Copy legal name");
+    var phonePrefixTemplate = DsInputTemplates.EditablePhonePrefix("PhonePrefixBadge", "PhonePrefixInput");
+    var phoneCopyTemplate = DsInputTemplates.CopyPhoneToClipboard("PhoneNumberLocal", "PhonePrefixInput", title: "Copy phone");
+    var emailIconTemplate = DsInputTemplates.EmailIcon();
+    var viberPrefixTemplate = DsInputTemplates.EditablePhonePrefix("ViberPrefixBadge", "ViberPrefixInput", iconCss: "bi bi-chat-dots", title: "Viber prefix");
+    var whatsAppPrefixTemplate = DsInputTemplates.EditablePhonePrefix("WhatsAppPrefixBadge", "WhatsAppPrefixInput", iconCss: "bi bi-whatsapp", title: "WhatsApp prefix");
+    var viberCopyTemplate = DsInputTemplates.CopyPhoneFrom("ContactViber", "PhoneNumberLocal", "ViberPrefixInput", "PhonePrefixInput", title: "Copy phone");
+    var whatsAppCopyTemplate = DsInputTemplates.CopyPhoneFrom("ContactWhatsApp", "PhoneNumberLocal", "WhatsAppPrefixInput", "PhonePrefixInput", title: "Copy phone");
+    var emailAtTemplate = DsInputTemplates.EmailDomain("@");
+}
+
+
+<form id="@formDomId" onsubmit="return false;">
+    <div class="form-container" data-form-session-id="@formSessionId" data-form-id="@formId" data-primary-key="BankPartyId">
+
+        <ejs-numerictextbox ejs-for="BankPartyId" id="BankPartyId" type="hidden"></ejs-numerictextbox>
+        <ejs-textbox ejs-for="BankParty.PartyCode" id="PartyCode" type="hidden"></ejs-textbox>
+        <ejs-textbox ejs-for="BankParty.PhoneNumber" id="PhoneNumber" type="hidden"></ejs-textbox>
+        <input type="hidden"
+               id="LegalRepresentativeBankPartyId"
+               name="LegalRepresentativeBankPartyId"
+               value="@(Model?.LegalRepresentativeBankPartyId?.ToString() ?? string.Empty)" />
+        <input type="hidden"
+               id="LegalRepresentativeBankPartyName"
+               name="LegalRepresentativeBankPartyName"
+               value="@(Model?.LegalRepresentativeBankPartyName ?? string.Empty)" />
+
+        @* ROW 1: Company Identity *@
+        <div class="row g-3 mb-2">
+
+            @* Left Side: Company Identity Card *@
+            <div class="col-12 col-xl-9">
+
+                @* Company Identity Card *@
+                <div class="ds-card h-100">
+                    <div class="ds-card-h d-flex align-items-center gap-2" style="border-bottom-color: var(--ds-blue);">
+                        <i class="bi bi-building" style="color: var(--ds-blue);"></i>
+                        <span class="ds-card-title">Company Identity</span>
+                        @if (!isAdd)
+                        {
+                            <div class="d-flex align-items-center gap-4 ms-auto">
+                                <div class="d-flex align-items-center gap-1">
+                                    <i class="bi bi-hash text-muted"></i>
+                                    <span class="text-muted small">Code:</span>
+                                    <span class="fw-semibold">@(Model?.BankParty?.PartyCode ?? "-")</span>
+                                </div>
+                                <div class="d-flex align-items-center gap-1">
+                                    <i class="bi bi-phone text-muted"></i>
+                                    <span class="text-muted small">E-Banking ID:</span>
+                                    <span class="fw-semibold">@(Model?.BankParty?.PartyEbankingId?.ToString() ?? "-")</span>
+                                </div>
+                                <div class="d-flex align-items-center gap-1">
+                                    <i class="bi bi-link-45deg text-muted"></i>
+                                    <span class="text-muted small">External Ref:</span>
+                                    <span class="fw-semibold">@(Model?.BankParty?.PartyExternalReference ?? "-")</span>
+                                </div>
+                            </div>
+                        }
+                    </div>
+
+                    <div class="ds-card-b">
+
+                        @* Row 1 *@
+                        <div class="row g-3 mb-3 align-items-end">
+
+                            <div class="col-md-6 col-xl-2">
+                                <div class="form-check form-switch pt-2">
+                                    <input class="form-check-input" type="checkbox" asp-for="BankParty.IsResident" id="IsResident">
+                                    <label class="form-check-label fw-semibold" for="IsResident">Resident</label>
+                                </div>
+                            </div>
+
+                      
+
+                            <div class="col-md-6 col-xl-3 ds-required-empty">
+                                <ejs-dropdownlist ejs-for="BankParty.PartyTypeId"
+                                                  id="PartyTypeId"
+                                                  dataSource="@(partyTypes)"
+                                                  placeholder="Party Type"
+                                                  floatLabelType="Always"
+                                                  required="true">
+                                    <e-dropdownlist-fields text="PartyTypeName" value="PartyTypeId"></e-dropdownlist-fields>
+                                </ejs-dropdownlist>
+                            </div>
+
+                            <div class="col-md-6 col-xl-3 ds-required-empty">
+                                <ejs-dropdownlist ejs-for="BankParty.PartySegmentId"
+                                                  id="PartySegmentId"
+                                                  dataSource="@(partySegments)"
+                                                  placeholder="Party Segment"
+                                                  floatLabelType="Always"
+                                                  required="true">
+                                    <e-dropdownlist-fields text="SegmentName" value="PartySegmentId"></e-dropdownlist-fields>
+                                </ejs-dropdownlist>
+                            </div>
+
+                            <div class="col-md-6 col-xl-4 ds-required-empty">
+                                <ejs-dropdownlist ejs-for="BankParty.StatusCode"
+                                                  id="StatusCode"
+                                                  placeholder="Party Status"
+                                                  floatLabelType="Always"
+                                                  required="true">
+                                    <e-dropdownlist-fields text="StatusName" value="StatusCode"></e-dropdownlist-fields>
+                                </ejs-dropdownlist>
+                            </div>
+
+                        </div>
+
+                        @* Row 2 *@
+                        <div class="row g-3 mb-3">
+                            <div class="col-12 col-md-6 ds-required-empty">
+                                <ejs-textbox ejs-for="PartyLegalName"
+                                             id="PartyLegalName"
+                                             placeholder="Legal Name"
+                                             floatLabelType="Always"
+                                             prependTemplate="@fullNameIconTemplate"
+                                             appendTemplate="@legalNameCopyTemplate">
+                                </ejs-textbox>
+                            </div>
+
+                            <div class="col-12 col-md-6 ds-required-empty">
+                                <ejs-textbox ejs-for="PartyLegalShortName"
+                                             id="PartyLegalShortName"
+                                             placeholder="Short Name"
+                                             floatLabelType="Always">
+                                </ejs-textbox>
+                            </div>
+                        </div>
+
+                        @* Row 3 *@
+                        <div class="row g-3 mb-3">
+                            <div class="col-md-6 col-xl-3 ds-required-empty">
+                                <ejs-dropdownlist ejs-for="BankParty.NationalityCountryCode"
+                                                  id="NationalityCountryCode"
+                                                  dataSource="@(countries)"
+                                                  placeholder="Nationality Country Code"
+                                                  floatLabelType="Always"
+                                                  required="true">
+                                    <e-dropdownlist-fields text="CountryName" value="CountryCode"></e-dropdownlist-fields>
+                                </ejs-dropdownlist>
+                            </div>
+
+                            <div class="col-md-6 col-xl-3 ds-required-empty" id="IdentificationNumberWrapper">
+                                <ejs-textbox ejs-for="BankParty.IdentificationNumber"
+                                             id="IdentificationNumber"
+                                             placeholder="Identification Number"
+                                             floatLabelType="Always"
+                                             maxlength="9"
+                                             prependTemplate="@Html.Raw("<span class='e-input-group-icon'><i class='bi bi-credit-card'></i></span><span class='e-input-separator'></span>")">
+                                </ejs-textbox>
+                                <div id="IdentificationNumberError" class="ds-field-error">
+                                    Identification Number must contain exactly 9 digits.
+                                </div>
+                            </div>
+
+                            <div class="col-md-6 col-xl-3">
+                                <ejs-textbox ejs-for="TaxNumber"
+                                             id="TaxNumber"
+                                             placeholder="Tax Number"
+                                             floatLabelType="Always">
+                                </ejs-textbox>
+                            </div>
+                            <div class="col-md-6 col-xl-3">
+                                <ejs-dropdownlist ejs-for="BankParty.SecondCitizenshipCode"
+                                                  id="SecondCitizenshipCode_Compliance"
+                                                  dataSource="@(secondCitizenships)"
+                                                  placeholder="Second Citizenship"
+                                                  floatLabelType="Always">
+                                    <e-dropdownlist-fields text="CountryName" value="CountryCode"></e-dropdownlist-fields>
+                                </ejs-dropdownlist>
+                            </div>
+                        </div>
+
+                        @* Row 4 *@
+                        <div class="row g-3">
+                            <div class="col-md-6 ds-required-empty">
+                                @await Component.InvokeAsync("SearchAutocomplete",
+                                    new aseeMIS.Areas.Common.ViewModels.SearchAutocompleteOptions
+                                    {
+                                        SearchUrl = searchIndividualsUrl,
+                                        Placeholder = "Search Legal Representative...",
+                                        Id = legalRepresentativeSearchId,
+                                        ValueField = "BankPartyId",
+                                        TextField = "DisplayText",
+                                        OnSelectFn = legalRepresentativeSelectFn
+                                    })
+                            </div>
+
+                            <div class="col-md-6">
+                                <ejs-textbox ejs-for="LegalRepresentativePosition"
+                                             id="LegalRepresentativePosition"
+                                             placeholder="Representative Position"
+                                             floatLabelType="Always">
+                                </ejs-textbox>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            @* Right Side: Company Details Card *@
+            <div class="col-12 col-lg-4 col-xl-3">
+                <div class="ds-card h-100">
+                    <div class="ds-card-h d-flex align-items-center gap-2" style="border-bottom-color: var(--ds-violet);">
+                        <i class="bi bi-building-gear" style="color: var(--ds-violet);"></i>
+                        <span class="ds-card-title">Company Details</span>
+                    </div>
+                    <div class="ds-card-b">
+                        <div class="row g-3">
+                            <div class="col-sm-6 col-lg-12 ds-required-empty">
+                                <ejs-datepicker ejs-for="FoundationDate"
+                                                id="FoundationDate"
+                                                format="dd-MM-yyyy"
+                                                valueFormat="yyyy-MM-dd"
+                                                enableMask="true"
+                                                placeholder="Foundation Date"
+                                                floatLabelType="Always"
+                                                required="true">
+                                </ejs-datepicker>
+                            </div>
+
+                            <div class="col-sm-6 col-lg-12 ds-required-empty">
+                                <ejs-dropdownlist ejs-for="NaceCountryCode"
+                                                  id="NaceCountryCode"
+                                                  dataSource="@(naceCountries)"
+                                                  placeholder="NACE Activity"
+                                                  floatLabelType="Always">
+                                    <e-dropdownlist-fields text="DispayText" value="CountryNaceCode"></e-dropdownlist-fields>
+                                </ejs-dropdownlist>
+                            </div>
+
+                            <div class="col-sm-6 col-lg-12 ds-required-empty">
+                                <ejs-numerictextbox ejs-for="NumberOfEmployees"
+                                                    id="NumberOfEmployees"
+                                                    placeholder="Number Of Employees"
+                                                    min="0"
+                                                    decimals="0"
+                                                    format="n0"
+                                                    step="1"
+                                                    floatLabelType="Always"
+                                                    prependTemplate="@Html.Raw("<span class='e-input-group-icon'><i class='bi bi-people'></i></span><span class='e-input-separator'></span>")">
+                                </ejs-numerictextbox>
+                            </div>
+
+                            <div class="col-sm-6 col-lg-12 ds-required-empty">
+                                <ejs-numerictextbox ejs-for="InitialCapital"
+                                                    id="InitialCapital"
+                                                    placeholder="Initial Capital"
+                                                    min="0"
+                                                    format="n2"
+                                                    floatLabelType="Always"
+                                                    prependTemplate="@Html.Raw("<span class='e-input-group-icon'><i class='bi bi-cash-stack'></i></span><span class='e-input-separator'></span>")"
+                                                    appendTemplate="@Html.Raw("<span class='e-input-group-icon'>€</span>")">
+                                </ejs-numerictextbox>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        @* ROW 2: Contact Details + Client Management + Compliance *@
+        <div class="row g-3 mb-3 align-items-stretch">
+
+            @* Contact Details Card *@
+            <div class="col-12 col-lg-8 col-xl-6 d-flex">
+                <div class="ds-card h-100 flex-fill">
+                    <div class="ds-card-h d-flex align-items-center gap-2" style="border-bottom-color: var(--ds-green);">
+                        <i class="bi bi-telephone" style="color: var(--ds-green);"></i>
+                        <span class="ds-card-title">Contact Details</span>
+                    </div>
+
+                    <div class="ds-card-b">
+                        <div class="row g-3">
+                            <div class="col-12 ds-required-empty">
+                                <ejs-dropdownlist ejs-for="BankParty.ContactCountryCode"
+                                                  id="ContactCountryCode"
+                                                  dataSource="@(contactCountries)"
+                                                  placeholder="Country"
+                                                  floatLabelType="Always"
+                                                  required="true">
+                                    <e-dropdownlist-fields text="CountryName" value="CountryCode"></e-dropdownlist-fields>
+                                </ejs-dropdownlist>
+                            </div>
+
+                            <div class="col-12 col-md-6 ds-required-empty">
+                                <ejs-textbox id="PhoneNumberLocal"
+                                             placeholder="Phone Number"
+                                             floatLabelType="Always"
+                                             value="@PhoneNumberLocalValue(Model?.BankParty?.PhoneNumber, Model?.BankParty?.IsResident ?? false)"
+                                             maxlength="20"
+                                             required="true"
+                                             prependTemplate="@phonePrefixTemplate"
+                                             appendTemplate="@phoneCopyTemplate">
+                                </ejs-textbox>
+                            </div>
+
+                            <div class="col-12 col-md-6  ds-required-empty">
+                                <ejs-textbox ejs-for="BankParty.ContactEmail"
+                                             id="ContactEmail"
+                                             placeholder="Email"
+                                             floatLabelType="Always"
+                                             cssClass="ds-email-input"
+                                             prependTemplate="@emailIconTemplate"
+                                             appendTemplate="@emailAtTemplate">
+                                </ejs-textbox>
+                            </div>
+
+                            <div class="col-12 col-md-6  ds-required-empty" id="ContactMunicipalityIdWrapper">
+                                <ejs-dropdownlist ejs-for="BankParty.ContactMunicipalityId"
+                                                  id="ContactMunicipalityId"
+                                                  dataSource="@(contactMunicipalities)"
+                                                  placeholder="Municipality"
+                                                  floatLabelType="Always"
+                                                  allowFiltering="true">
+                                    <e-dropdownlist-fields text="MunicipalityName" value="MunicipalityId"></e-dropdownlist-fields>
+                                </ejs-dropdownlist>
+                            </div>
+
+                            <div class="col-12 col-md-6  ds-hidden ds-required-empty" id="ContactMunicipalityNameWrapper">
+                                <ejs-textbox ejs-for="BankParty.ContactMunicipalityName"
+                                             id="ContactMunicipalityName"
+                                             placeholder="Municipality"
+                                             floatLabelType="Always">
+                                </ejs-textbox>
+                            </div>
+
+                            <div class="col-12 col-md-6  ds-required-empty">
+                                <ejs-textbox ejs-for="BankParty.ContactAddress"
+                                             id="ContactAddress"
+                                             placeholder="Address"
+                                             floatLabelType="Always"
+                                             maxlength="255"
+                                             required="true"
+                                             prependTemplate="@Html.Raw("<span class='e-input-group-icon'><i class='bi bi-house'></i></span><span class='e-input-separator'></span>")">
+                                </ejs-textbox>
+                            </div>
+
+                            <div class="col-12 col-md-6 ">
+                                <ejs-textbox ejs-for="BankParty.ContactViber"
+                                             id="ContactViber"
+                                             placeholder="Viber"
+                                             floatLabelType="Always"
+                                             maxlength="20"
+                                             prependTemplate="@viberPrefixTemplate"
+                                             appendTemplate="@viberCopyTemplate">
+                                </ejs-textbox>
+                            </div>
+
+                            <div class="col-12 col-md-6 ">
+                                <ejs-textbox ejs-for="BankParty.ContactWhatsApp"
+                                             id="ContactWhatsApp"
+                                             placeholder="WhatsApp"
+                                             floatLabelType="Always"
+                                             maxlength="20"
+                                             prependTemplate="@whatsAppPrefixTemplate"
+                                             appendTemplate="@whatsAppCopyTemplate">
+                                </ejs-textbox>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            @* Client Management Card *@
+            <div class="col-12 col-md-6 col-lg-4 col-xl-3 d-flex">
+                        <div class="ds-card h-100 flex-fill">
+                            <div class="ds-card-h d-flex align-items-center gap-2" style="border-bottom-color: var(--ds-blue-dark);">
+                                <i class="bi bi-person-gear" style="color: var(--ds-blue-dark);"></i>
+                                <span class="ds-card-title">Client Management</span>
+                            </div>
+
+                            <div class="ds-card-b">
+                                <div class="row g-3">
+                                    <div class="col-12">
+                                        <ejs-dropdownlist ejs-for="BankParty.ActualAdvisorEmployeeId"
+                                                          id="ActualAdvisorEmployeeId"
+                                                          dataSource="@(advisors)"
+                                                          placeholder="Advisor"
+                                                          floatLabelType="Always">
+                                            <e-dropdownlist-fields text="FullName" value="EmployeeId"></e-dropdownlist-fields>
+                                        </ejs-dropdownlist>
+                                    </div>
+
+                                    <div class="col-12">
+                                        <ejs-dropdownlist ejs-for="BankParty.ActualAccountOfficerEmployeeId"
+                                                          id="ActualAccountOfficerEmployeeId"
+                                                          dataSource="@(accountOfficers)"
+                                                          placeholder="Account Officer"
+                                                          floatLabelType="Always">
+                                            <e-dropdownlist-fields text="FullName" value="EmployeeId"></e-dropdownlist-fields>
+                                        </ejs-dropdownlist>
+                                    </div>
+
+                                    <div class="col-12">
+                                        <ejs-dropdownlist ejs-for="BankParty.ActualBranchId"
+                                                          id="ActualBranchId"
+                                                          dataSource="@(branches)"
+                                                          placeholder="Branch"
+                                                          floatLabelType="Always">
+                                            <e-dropdownlist-fields text="BranchName" value="BranchId"></e-dropdownlist-fields>
+                                        </ejs-dropdownlist>
+                                    </div>
+
+                                    <div class="col-12 ds-required-empty">
+                                        <ejs-dropdownlist ejs-for="BankParty.LanguageCode"
+                                                          id="LanguageCode"
+                                                          dataSource="@(languages)"
+                                                          placeholder="Language"
+                                                          floatLabelType="Always"
+                                                          required="true">
+                                            <e-dropdownlist-fields text="LanguageName" value="LanguageCode"></e-dropdownlist-fields>
+                                        </ejs-dropdownlist>
+                                    </div>
+
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+            @* Compliance Card *@
+            <div class="col-12 col-md-6 col-lg-12 col-xl-3 d-flex">
+                        <div class="ds-card h-100 flex-fill">
+                            <div class="ds-card-h d-flex align-items-center gap-2" style="border-bottom-color: var(--ds-yellow-dark);">
+                                <i class="bi bi-shield-check" style="color: var(--ds-yellow-dark);"></i>
+                                <span class="ds-card-title">Compliance</span>
+                            </div>
+
+                            <div class="ds-card-b">
+                                <div class="row g-3 mb-3">
+                                    <div class="col-6">
+                                        <div class="form-check form-switch pt-1">
+                                            <input class="form-check-input" type="checkbox" id="IsPEP" />
+                                            <label class="form-check-label fw-semibold" for="IsPEP">PEP</label>
+                                        </div>
+                                    </div>
+
+                                    <div class="col-6">
+                                        <div class="form-check form-switch pt-1">
+                                            <input class="form-check-input" type="checkbox" asp-for="BankParty.IsFATCA" id="IsFATCA" />
+                                            <label class="form-check-label fw-semibold" for="IsFATCA">FATCA</label>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="row g-3 mb-3">
+                                    <div class="col-6 ds-required-empty">
+                                        <ejs-datepicker ejs-for="BankParty.RevisionDateLast"
+                                                        id="RevisionDateLast"
+                                                        format="dd-MM-yyyy"
+                                                        valueFormat="yyyy-MM-dd"
+                                                        enableMask="true"
+                                                        placeholder="Last Revision Date"
+                                                        floatLabelType="Always"
+                                                        required="true">
+                                        </ejs-datepicker>
+                                    </div>
+
+                                    <div class="col-6 ds-required-empty">
+                                        <ejs-datepicker ejs-for="BankParty.RevisionDateNext"
+                                                        id="RevisionDateNext"
+                                                        format="dd-MM-yyyy"
+                                                        valueFormat="yyyy-MM-dd"
+                                                        enableMask="true"
+                                                        placeholder="Next Revision Date"
+                                                        floatLabelType="Always"
+                                                        required="true">
+                                        </ejs-datepicker>
+                                    </div>
+                                </div>
+
+                                @* Description field moved from Note card into Compliance card *@
+                                <div class="row g-3">
+                                    <div class="col-12">
+                                        <ejs-textarea ejs-for="BankParty.PartyDescription"
+                                                      id="PartyDescription"
+                                                      width="100%"
+                                                      rows="2"
+                                                      placeholder="Description"
+                                                      floatLabelType="Always"
+                                                      maxlength="255">
+                                        </ejs-textarea>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+        </div>
+
+        @* Save Button *@
+        <div class="col-12">
+            <div class="d-flex justify-content-end">
+                <button type="submit" class="btn btn-primary" onclick="preSave()">
+                    <i class="bi bi-save"></i>
+                    @(isAdd ? "Create Legal Entity" : "Save Changes")
+                </button>
+            </div>
+        </div>
+
+    </div>
+</form>
+
+<hr style="margin-top:20px;" />
+
+<script>
+    function toDateOnly(value) {
+        if (!value) return null;
+
+        const d = new Date(value);
+
+        return d.getFullYear() + "-" +
+            String(d.getMonth() + 1).padStart(2, '0') + "-" +
+            String(d.getDate()).padStart(2, '0');
+    }
+
+    function getTodayDateOnly() {
+        const today = new Date();
+        return new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    }
+
+    function getNextRevisionDateOnly() {
+        const today = new Date();
+        return new Date(today.getFullYear() + 5, today.getMonth(), today.getDate());
+    }
+
+    function sanitizePhoneDigits(value) {
+        return String(value ?? "").replace(/\D+/g, "");
+    }
+
+    var isAddMode = @(isAdd.ToString().ToLowerInvariant());
+
+    window[@Html.Raw(System.Text.Json.JsonSerializer.Serialize(legalRepresentativeSelectFn))] = function (args) {
+        const row = args?.itemData;
+        const id = row?.BankPartyId ?? row?.bankPartyId ?? "";
+        const text = row?.DisplayText ?? row?.displayText ?? row?.FullName ?? row?.fullName ?? "";
+
+        document.getElementById("LegalRepresentativeBankPartyId").value = id;
+        document.getElementById("LegalRepresentativeBankPartyName").value = text;
+    };
+
+    document.addEventListener("DOMContentLoaded", function () {
+
+        formLocalizationDataBound("BankParty");
+
+        const dsInput = window.ds?.input;
+        const getEj2Instance = function (id) {
+            return document.getElementById(id)?.ej2_instances?.[0] ?? null;
+        };
+
+        const getInputElement = function (id) {
+            const root = document.getElementById(id);
+            if (!root) return null;
+
+            if (root.matches("input, select, textarea")) return root;
+
+            return root.querySelector("input, select, textarea");
+        };
+
+        const getControlValue = function (id) {
+            const control = getEj2Instance(id);
+            const input = getInputElement(id);
+            return control?.value ?? input?.value ?? null;
+        };
+
+        const setTextboxValue = function (id, value) {
+            const control = getEj2Instance(id);
+            const input = getInputElement(id);
+
+            if (control) {
+                control.value = value;
+                control.dataBind?.();
+            }
+
+            if (input) {
+                input.value = value ?? "";
+            }
+        };
+
+        const setDatePickerValue = function (id, value) {
+            const control = getEj2Instance(id);
+            if (control) {
+                control.value = value;
+                control.dataBind?.();
+                return;
+            }
+
+            const input = getInputElement(id);
+            if (input) {
+                input.value = value ? toDateOnly(value) : "";
+            }
+        };
+
+        const setRevisionDatesDefault = function () {
+            setDatePickerValue("RevisionDateLast", getTodayDateOnly());
+            setDatePickerValue("RevisionDateNext", getNextRevisionDateOnly());
+        };
+
+        const disableRevisionDates = function () {
+            const lastRevisionControl = getEj2Instance("RevisionDateLast");
+            const nextRevisionControl = getEj2Instance("RevisionDateNext");
+
+            if (lastRevisionControl) {
+                lastRevisionControl.enabled = false;
+                lastRevisionControl.dataBind?.();
+            }
+
+            if (nextRevisionControl) {
+                nextRevisionControl.enabled = false;
+                nextRevisionControl.dataBind?.();
+            }
+        };
+
+        const initializeLegalRepresentative = async function () {
+            const autocompleteId = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(legalRepresentativeSearchId));
+            const currentId = document.getElementById("LegalRepresentativeBankPartyId")?.value;
+            let currentText = document.getElementById("LegalRepresentativeBankPartyName")?.value;
+
+            if (!currentId) return;
+
+            if (!currentText) {
+                try {
+                    const response = await fetch(
+                        @Html.Raw(System.Text.Json.JsonSerializer.Serialize(searchIndividualsUrl)) +
+                        "?searchText=" + encodeURIComponent(currentId),
+                        { headers: { "Accept": "application/json" } });
+                    const rows = response.ok ? await response.json() : [];
+                    const selected = Array.isArray(rows)
+                        ? rows.find(row => String(row?.BankPartyId ?? row?.bankPartyId) === String(currentId))
+                        : null;
+                    currentText = selected?.DisplayText ?? selected?.displayText ?? selected?.FullName ?? selected?.fullName ?? "";
+                    document.getElementById("LegalRepresentativeBankPartyName").value = currentText;
+                } catch {
+                    currentText = "";
+                }
+            }
+
+            if (!currentText) return;
+
+            let attempts = 0;
+            const timer = setInterval(function () {
+                const control = getEj2Instance(autocompleteId);
+                if (!control) {
+                    if (++attempts > 50) clearInterval(timer);
+                    return;
+                }
+
+                clearInterval(timer);
+                control.text = currentText;
+                control.value = currentText;
+                if (control.element) control.element.value = currentText;
+                control.dataBind?.();
+            }, 50);
+        };
+
+        initializeLegalRepresentative();
+
+        const setDropdownValue = function (id, value, onlyIfEmpty) {
+            const currentValue = getControlValue(id);
+            if (onlyIfEmpty && currentValue) return;
+
+            const control = getEj2Instance(id);
+
+            if (control) {
+                control.value = value;
+                control.dataBind?.();
+                return;
+            }
+
+            const input = getInputElement(id);
+            if (input) {
+                input.value = value ?? "";
+            }
+        };
+
+        const getDropdownData = function (id) {
+            const control = getEj2Instance(id);
+            const sources = [control?.dataSource, control?.listData];
+
+            for (const data of sources) {
+                if (Array.isArray(data)) return data;
+                if (Array.isArray(data?.result)) return data.result;
+            }
+
+            return [];
+        };
+
+        const getCountryValue = function (row) {
+            return row?.CountryCode ?? row?.countryCode ?? row?.Value ?? row?.value ?? null;
+        };
+
+        const findContactCountryRow = function () {
+            const countryCode = String(getControlValue("ContactCountryCode") ?? "").toLowerCase();
+            if (!countryCode) return null;
+
+            return getDropdownData("ContactCountryCode").find(function (row) {
+                return String(getCountryValue(row) ?? "").toLowerCase() === countryCode;
+            }) ?? null;
+        };
+
+        const getContactCountryPrefix = function () {
+            const prefix = dsInput?.getCountryPhonePrefix?.(findContactCountryRow());
+            return prefix || dsInput?.getCountryPhonePrefix?.(findResidentCountryRow()) || "+";
+        };
+
+        const phonePrefixManager = dsInput?.createPhonePrefixManager?.({
+            fields: {
+                PhoneNumberLocal: {
+                    badgeId: "PhonePrefixBadge",
+                    inputId: "PhonePrefixInput"
+                },
+                ContactViber: {
+                    badgeId: "ViberPrefixBadge",
+                    inputId: "ViberPrefixInput"
+                },
+                ContactWhatsApp: {
+                    badgeId: "WhatsAppPrefixBadge",
+                    inputId: "WhatsAppPrefixInput"
+                }
+            },
+            getCountryPrefix: getContactCountryPrefix,
+            getCountryRows: function () {
+                return getDropdownData("ContactCountryCode");
+            },
+            getKnownPrefixes: function () {
+                return getDropdownData("ContactCountryCode").map(row => dsInput?.getCountryPhonePrefix?.(row)).filter(Boolean);
+            },
+            getValue: getControlValue,
+            setValue: setTextboxValue
+        });
+
+        const getPhonePrefix = function (fieldId) {
+            return phonePrefixManager?.getPrefixValue?.(fieldId) || getContactCountryPrefix();
+        };
+
+        const isResidentPhonePrefix = function () {
+            return dsInput?.normalizePhonePrefix?.(getPhonePrefix("PhoneNumberLocal")) === dsInput?.getCountryPhonePrefix?.(findResidentCountryRow());
+        };
+
+        const getPhoneMaxLength = function (fieldId, fallback) {
+            return phonePrefixManager?.getMaxLength?.(fieldId) ?? fallback;
+        };
+
+        const setDropdownEnabled = function (id, enabled) {
+            const control = getEj2Instance(id);
+            if (control) {
+                control.enabled = enabled;
+                control.dataBind?.();
+                return;
+            }
+
+            const input = getInputElement(id);
+            if (input) {
+                input.disabled = !enabled;
+            }
+        };
+
+        const sanitizePhoneNumber = function (value) {
+            return sanitizePhoneDigits(value);
+        };
+
+        const syncPhonePrefixBadge = function () {
+            const isResident = document.getElementById("IsResident")?.checked ?? false;
+            ["PhonePrefixBadge", "ViberPrefixBadge", "WhatsAppPrefixBadge"].forEach(function (badgeId) {
+                document.getElementById(badgeId)?.classList.toggle("is-resident", isResident);
+            });
+        };
+
+        const normalizePhoneNumberInput = function () {
+            const phoneInput = getInputElement("PhoneNumberLocal");
+            if (!phoneInput) return;
+
+            const isResident = document.getElementById("IsResident")?.checked ?? false;
+            const useResidentPhoneRules = isResident && isResidentPhonePrefix();
+            // SINGLE SOURCE OF TRUTH = DefCountry.PhoneNumberMaxLenght (per-country, from DB).
+            // Store the value EXACTLY as the user is expected to type it (without the trunk
+            // leading "0", since the +prefix badge is already rendered next to the input).
+            // Fallback to 8 only when the country row does not define a length.
+            const residentPhoneLength = getPhoneMaxLength("PhoneNumberLocal", 8);
+
+            phoneInput.inputMode = "tel";
+
+            if (useResidentPhoneRules) {
+                phoneInput.maxLength = residentPhoneLength;
+                phoneInput.setAttribute("maxlength", String(residentPhoneLength));
+
+                const visiblePhoneValue = String(phoneInput.value ?? "");
+                const normalizedValue = dsInput?.normalizeLocalPhone?.(visiblePhoneValue, getPhonePrefix("PhoneNumberLocal"), residentPhoneLength)
+                    ?? sanitizePhoneNumber(visiblePhoneValue).slice(0, residentPhoneLength);
+
+                if (visiblePhoneValue !== normalizedValue) {
+                    setTextboxValue("PhoneNumberLocal", normalizedValue);
+                }
+
+                setTextboxValue("PhoneNumber", dsInput?.composePhoneNumber?.(normalizedValue, getPhonePrefix("PhoneNumberLocal")) ?? normalizedValue);
+                return;
+            }
+
+            const maxLength = getPhoneMaxLength("PhoneNumberLocal", 20);
+            phoneInput.maxLength = maxLength;
+            phoneInput.setAttribute("maxlength", String(maxLength));
+
+            const visiblePhoneValue = String(phoneInput.value ?? "");
+            const normalizedValue = sanitizePhoneNumber(visiblePhoneValue).slice(0, maxLength);
+
+            if (visiblePhoneValue !== normalizedValue) {
+                setTextboxValue("PhoneNumberLocal", normalizedValue);
+            }
+
+            setTextboxValue("PhoneNumber", dsInput?.composePhoneNumber?.(normalizedValue, getPhonePrefix("PhoneNumberLocal")) ?? (normalizedValue ? `+${normalizedValue}` : ""));
+        };
+
+        const syncPhoneNumberWithResident = function (preferHiddenValue) {
+            const phoneInput = getInputElement("PhoneNumberLocal");
+            if (!phoneInput) return;
+
+            const isResident = document.getElementById("IsResident")?.checked ?? false;
+            const useResidentPhoneRules = isResident && isResidentPhonePrefix();
+            // Same length source as normalizePhoneNumberInput — keeps the two flows in sync.
+            const residentPhoneLength = getPhoneMaxLength("PhoneNumberLocal", 8);
+            const hiddenPhoneValue = String(getControlValue("PhoneNumber") ?? "");
+            const visiblePhoneValue = String(phoneInput.value ?? "");
+
+            const sourceValue = preferHiddenValue && hiddenPhoneValue
+                ? hiddenPhoneValue
+                : (visiblePhoneValue || hiddenPhoneValue);
+
+            phoneInput.inputMode = "tel";
+
+            if (useResidentPhoneRules) {
+                const normalizedValue = dsInput?.normalizeLocalPhone?.(sourceValue, getPhonePrefix("PhoneNumberLocal"), residentPhoneLength)
+                    ?? sanitizePhoneNumber(sourceValue).slice(0, residentPhoneLength);
+
+                phoneInput.maxLength = residentPhoneLength;
+                phoneInput.setAttribute("maxlength", String(residentPhoneLength));
+
+                if (visiblePhoneValue !== normalizedValue) {
+                    setTextboxValue("PhoneNumberLocal", normalizedValue);
+                }
+
+                setTextboxValue("PhoneNumber", dsInput?.composePhoneNumber?.(normalizedValue, getPhonePrefix("PhoneNumberLocal")) ?? normalizedValue);
+                syncPhonePrefixBadge();
+                return;
+            }
+
+            const maxLength = getPhoneMaxLength("PhoneNumberLocal", 20);
+            const normalizedValue = (dsInput?.stripPhonePrefix?.(sourceValue, getPhonePrefix("PhoneNumberLocal")) ?? sanitizePhoneNumber(sourceValue)).slice(0, maxLength);
+
+            phoneInput.maxLength = maxLength;
+            phoneInput.setAttribute("maxlength", String(maxLength));
+
+            if (visiblePhoneValue !== normalizedValue) {
+                setTextboxValue("PhoneNumberLocal", normalizedValue);
+            }
+
+            setTextboxValue("PhoneNumber", dsInput?.composePhoneNumber?.(normalizedValue, getPhonePrefix("PhoneNumberLocal")) ?? (normalizedValue ? `+${normalizedValue}` : ""));
+            syncPhonePrefixBadge();
+        };
+
+        const bindPhoneNumberRules = function () {
+            const phoneInput = getInputElement("PhoneNumberLocal");
+            if (!phoneInput || phoneInput.dataset.phoneNumberBound === "true") return;
+
+            phoneInput.dataset.phoneNumberBound = "true";
+            phoneInput.addEventListener("input", function () {
+                normalizePhoneNumberInput();
+            });
+        };
+
+        const setIdentificationError = function (show) {
+            const wrapper = document.getElementById("IdentificationNumberWrapper");
+            const error = document.getElementById("IdentificationNumberError");
+
+            if (show) {
+                wrapper?.classList.add("ds-invalid");
+                error?.classList.add("show");
+            } else {
+                wrapper?.classList.remove("ds-invalid");
+                error?.classList.remove("show");
+            }
+        };
+
+        const normalizeIdentificationNumber = function () {
+            const identificationInput = getInputElement("IdentificationNumber");
+            if (!identificationInput) return "";
+
+            const visibleValue = String(identificationInput.value ?? "");
+            const normalizedValue = visibleValue.replace(/\D+/g, "").slice(0, 9);
+
+            if (visibleValue !== normalizedValue) {
+                setTextboxValue("IdentificationNumber", normalizedValue);
+            }
+
+            if (normalizedValue.length === 9) {
+                setIdentificationError(false);
+            }
+
+            return normalizedValue;
+        };
+
+        const validateIdentificationNumber = function () {
+            const identificationValue = normalizeIdentificationNumber();
+            const isValid = identificationValue.length === 9;
+
+            setIdentificationError(!isValid);
+
+            return isValid;
+        };
+
+        const bindIdentificationNumberRules = function () {
+            const identificationInput = getInputElement("IdentificationNumber");
+            if (!identificationInput || identificationInput.dataset.identificationNumberBound === "true") return;
+
+            identificationInput.dataset.identificationNumberBound = "true";
+            identificationInput.inputMode = "numeric";
+            identificationInput.maxLength = 9;
+            identificationInput.setAttribute("maxlength", "9");
+            identificationInput.setAttribute("autocomplete", "off");
+
+            identificationInput.addEventListener("keydown", function (e) {
+                const allowedKeys = [
+                    "Backspace",
+                    "Delete",
+                    "Tab",
+                    "ArrowLeft",
+                    "ArrowRight",
+                    "Home",
+                    "End"
+                ];
+
+                if (allowedKeys.includes(e.key)) return;
+
+                if (!/^\d$/.test(e.key)) {
+                    e.preventDefault();
+                    return;
+                }
+
+                const currentValue = String(identificationInput.value ?? "").replace(/\D+/g, "");
+                const selectionStart = identificationInput.selectionStart ?? currentValue.length;
+                const selectionEnd = identificationInput.selectionEnd ?? currentValue.length;
+                const hasSelection = selectionStart !== selectionEnd;
+
+                if (currentValue.length >= 9 && !hasSelection) {
+                    e.preventDefault();
+                }
+            });
+
+            identificationInput.addEventListener("paste", function (e) {
+                e.preventDefault();
+
+                const pastedText = e.clipboardData?.getData("text") ?? "";
+                const normalizedValue = String(pastedText ?? "").replace(/\D+/g, "").slice(0, 9);
+
+                setTextboxValue("IdentificationNumber", normalizedValue);
+
+                if (normalizedValue.length === 9) {
+                    setIdentificationError(false);
+                } else {
+                    setIdentificationError(true);
+                }
+            });
+
+            identificationInput.addEventListener("input", function () {
+                normalizeIdentificationNumber();
+            });
+        };
+
+        const findResidentCountryRow = function () {
+            const nationalityCountries = getDropdownData("NationalityCountryCode");
+            const rows = nationalityCountries.length ? nationalityCountries : getDropdownData("ContactCountryCode");
+
+            return rows.find(row => dsInput?.isResidentCountryRow?.(row)) ?? rows[0] ?? null;
+        };
+
+        const findResidentCountryValue = function () {
+            return getCountryValue(findResidentCountryRow());
+        };
+
+        const syncContactMunicipalityName = function () {
+            const municipalityControl = getEj2Instance("ContactMunicipalityId");
+            const municipalityText = municipalityControl?.text ?? "";
+            setTextboxValue("ContactMunicipalityName", municipalityText);
+        };
+
+        const filterContactMunicipalitiesByCountry = function (countryCode, resetSelection) {
+            const municipalityControl = getEj2Instance("ContactMunicipalityId");
+            if (!municipalityControl) return;
+
+            const currentValue = municipalityControl.value;
+
+            if (!municipalityControl._originalDataSource) {
+                municipalityControl._originalDataSource = municipalityControl.dataSource ?? [];
+            }
+
+            const allMunicipalities = municipalityControl._originalDataSource;
+            const normalizedCountryCode = String(countryCode ?? "").toUpperCase();
+
+            municipalityControl.dataSource = allMunicipalities.filter(function (row) {
+                const rowCountryCode = String(
+                    row?.CountryCode ??
+                    row?.countryCode ??
+                    row?.MunicipalityCountryCode ??
+                    row?.municipalityCountryCode ??
+                    ""
+                ).toUpperCase();
+
+                return rowCountryCode === normalizedCountryCode;
+            });
+
+            if (resetSelection) {
+                municipalityControl.value = null;
+                municipalityControl.text = null;
+            } else {
+                municipalityControl.value = currentValue;
+            }
+            municipalityControl.dataBind?.();
+        };
+
+        function toggleContactMunicipalityFields(resetValues) {
+            const country = getEj2Instance("ContactCountryCode")?.value;
+            const residentCountry = findResidentCountryValue();
+            const isResidentCountry = residentCountry && String(country ?? "").toUpperCase() === String(residentCountry ?? "").toUpperCase();
+
+            const idWrapper = document.getElementById("ContactMunicipalityIdWrapper");
+            const nameWrapper = document.getElementById("ContactMunicipalityNameWrapper");
+            const nameInput = document.getElementById("ContactMunicipalityName");
+
+            if (isResidentCountry) {
+                filterContactMunicipalitiesByCountry(country, resetValues === true);
+
+                idWrapper?.classList.remove("ds-hidden");
+                nameWrapper?.classList.add("ds-hidden");
+
+                nameInput?.removeAttribute("required");
+                nameInput?.removeAttribute("data-val-required");
+
+                syncContactMunicipalityName();
+            } else {
+                idWrapper?.classList.add("ds-hidden");
+                nameWrapper?.classList.remove("ds-hidden");
+
+                nameInput?.setAttribute("required", "required");
+
+                setDropdownValue("ContactMunicipalityId", null, false);
+                if (resetValues === true) {
+                    setTextboxValue("ContactMunicipalityName", "");
+                }
+            }
+        }
+
+        function handleResidentToggle(options) {
+            const config = options ?? {};
+            const preferHiddenPhoneValue = config.preferHiddenPhoneValue === true;
+            const isResident = document.getElementById("IsResident")?.checked ?? false;
+            const residentCountryValue = findResidentCountryValue();
+
+            if (isResident) {
+                setDropdownValue("NationalityCountryCode", residentCountryValue, false);
+                setDropdownValue("ContactCountryCode", residentCountryValue, false);
+            } else {
+                const currentNationality = String(getControlValue("NationalityCountryCode") ?? "").toUpperCase();
+                const currentContactCountry = String(getControlValue("ContactCountryCode") ?? "").toUpperCase();
+                const normalizedResidentCountryValue = String(residentCountryValue ?? "").toUpperCase();
+
+                if (currentNationality === normalizedResidentCountryValue) {
+                    setDropdownValue("NationalityCountryCode", null, false);
+                }
+
+                if (currentContactCountry === normalizedResidentCountryValue) {
+                    setDropdownValue("ContactCountryCode", null, false);
+                    setDropdownValue("ContactMunicipalityId", null, false);
+                    setTextboxValue("ContactMunicipalityName", "");
+                }
+            }
+
+            setDropdownEnabled("NationalityCountryCode", !isResident);
+            setDropdownEnabled("ContactCountryCode", true);
+            phonePrefixManager?.sync?.({ force: true, resetManual: true });
+            syncPhoneNumberWithResident(preferHiddenPhoneValue);
+            syncPhonePrefixBadge();
+            toggleContactMunicipalityFields(config.resetContactValues ?? !preferHiddenPhoneValue);
+        }
+
+        const bindResidentToggle = function () {
+            const residentToggle = document.getElementById("IsResident");
+            if (!residentToggle || residentToggle.dataset.residentBehaviorBound === "true") return;
+
+            residentToggle.dataset.residentBehaviorBound = "true";
+            residentToggle.addEventListener("change", function () {
+                handleResidentToggle();
+            });
+        };
+
+        const loadWfeStatusDropdown = function (attempt, statusCode) {
+            const dropdown = getEj2Instance("StatusCode");
+            if (!dropdown) {
+                if ((attempt ?? 0) < 20) {
+                    window.setTimeout(function () {
+                        loadWfeStatusDropdown((attempt ?? 0) + 1, statusCode);
+                    }, 100);
+                }
+                return;
+            }
+
+            const isAddMode = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(isAdd));
+            const currentStatusCode = statusCode
+                ?? (isAddMode
+                    ? null
+                    : @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model?.BankParty?.StatusCode)));
+
+            const query = new URLSearchParams({
+                isIndividual: "false"
+            });
+
+            if (!isAddMode && currentStatusCode) {
+                query.set("currentStatusCode", currentStatusCode);
+            }
+
+            fetch(`/Wfe/WorkflowCrmExtensions/GetStatuses?${query.toString()}`, {
+                headers: { "X-Requested-With": "XMLHttpRequest" }
+            })
+                .then(res => res.ok ? res.json() : Promise.reject(res.status))
+                .then(function (data) {
+                    const rows = Array.isArray(data)
+                        ? data
+                        : (Array.isArray(data?.result) ? data.result : (data ? [data] : []));
+
+                    const statuses = rows
+                        .map(function (row) {
+                            return {
+                                statusCode: row?.statusCode ?? row?.StatusCode,
+                                statusName: row?.statusName ?? row?.StatusName,
+                                stepCode: row?.stepCode ?? row?.StepCode,
+                                action: row?.action ?? row?.Action,
+                                isCurrent: row?.isCurrent ?? row?.IsCurrent,
+                                SetEntityActive: row?.setEntityActive ?? row?.SetEntityActive
+                            };
+                        })
+                        .filter(row => row.statusCode && row.statusName);
+
+                    if (statuses.length === 0) return;
+
+                    dropdown.dataSource = statuses;
+                    dropdown.fields = { text: "statusName", value: "statusCode" };
+                    dropdown.dataBind();
+
+                    if (isAddMode && !dropdown.value) {
+                        dropdown.value = statuses[0].statusCode;
+                        dropdown.dataBind();
+                    }
+                })
+                .catch(function (err) {
+                    console.warn("[WFE] Failed to load legal-entity status transitions:", err);
+                });
+        };
+
+        window.refreshBankPartyWorkflowStatuses = function (currentStatusCode) {
+            loadWfeStatusDropdown(0, currentStatusCode);
+        };
+
+        const filterLegalPartyLookups = function () {
+            const partyTypeObj = document.getElementById("PartyTypeId")?.ej2_instances?.[0];
+            if (partyTypeObj?.dataSource) {
+                partyTypeObj.dataSource = partyTypeObj.dataSource.filter(x => x.IsIndividual === false);
+                partyTypeObj.dataBind();
+            }
+
+            const partySegmentObj = document.getElementById("PartySegmentId")?.ej2_instances?.[0];
+            if (partySegmentObj?.dataSource) {
+                partySegmentObj.dataSource = partySegmentObj.dataSource.filter(x => x.IsIndividual === false);
+                partySegmentObj.dataBind();
+            }
+        };
+
+        bindPhoneNumberRules();
+        bindIdentificationNumberRules();
+        bindResidentToggle();
+        window.ds?.input?.init?.(document.getElementById("@formDomId") || document);
+        phonePrefixManager?.initialize?.();
+        filterLegalPartyLookups();
+        loadWfeStatusDropdown(0);
+
+        const contactCountry = getEj2Instance("ContactCountryCode");
+        const contactMunicipality = getEj2Instance("ContactMunicipalityId");
+
+        const handleContactCountryChange = function () {
+            phonePrefixManager?.sync?.({ force: true, resetManual: true });
+            syncPhoneNumberWithResident();
+            toggleContactMunicipalityFields(true);
+        };
+
+        if (dsInput?.bindControlChange) {
+            dsInput.bindControlChange("ContactCountryCode", handleContactCountryChange, "bankPartyPhoneCountryBound");
+        } else {
+            contactCountry?.addEventListener("change", handleContactCountryChange);
+        }
+        contactMunicipality?.addEventListener("change", syncContactMunicipalityName);
+
+        const initInterval = setInterval(function () {
+            const ready =
+                !!getEj2Instance("NationalityCountryCode") &&
+                !!getEj2Instance("ContactCountryCode") &&
+                !!getEj2Instance("RevisionDateLast") &&
+                !!getEj2Instance("RevisionDateNext") &&
+                getDropdownData("NationalityCountryCode").length > 0;
+
+            if (ready) {
+                clearInterval(initInterval);
+
+                if (isAddMode) {
+                    setRevisionDatesDefault();
+                }
+
+                disableRevisionDates();
+                handleResidentToggle({ preferHiddenPhoneValue: true });
+                syncPhonePrefixBadge();
+                toggleContactMunicipalityFields();
+                syncContactMunicipalityName();
+                normalizeIdentificationNumber();
+            }
+        }, 100);
+
+        if ($ && $("form").validate) {
+            $("form").validate().settings.ignore = ":hidden";
+        }
+
+        window.validateLegalIdentificationNumber = validateIdentificationNumber;
+    });
+
+    window.preSave = function () {
+        const dsInput = window.ds?.input;
+
+        const getValue = function (id) {
+            const el = document.getElementById(id);
+            if (!el) return null;
+
+            const ej2 = el.ej2_instances?.[0];
+            if (ej2) return ej2.value;
+
+            if (el.matches("input, select, textarea")) return el.value;
+
+            const input = el.querySelector("input, select, textarea");
+            return input ? input.value : null;
+        };
+
+        const getText = function (id) {
+            const el = document.getElementById(id);
+            const ej2 = el?.ej2_instances?.[0];
+            return ej2?.text ?? null;
+        };
+
+        const getChecked = function (id) {
+            return document.getElementById(id)?.checked ?? false;
+        };
+
+        const isIdentificationValid = window.validateLegalIdentificationNumber
+            ? window.validateLegalIdentificationNumber()
+            : true;
+
+        if (!isIdentificationValid) {
+            const identificationInput = document.getElementById("IdentificationNumber")?.querySelector("input")
+                ?? document.getElementById("IdentificationNumber");
+
+            identificationInput?.focus();
+            return;
+        }
+
+        const isResident = getChecked("IsResident");
+        const phoneLocal = String(getValue("PhoneNumberLocal") ?? "").trim();
+        const phonePrefix = dsInput?.normalizePhonePrefix?.(getValue("PhonePrefixInput")) || getContactCountryPrefix();
+        const contactCountryControl = document.getElementById("ContactCountryCode")?.ej2_instances?.[0];
+        const residentCountrySource = contactCountryControl?.dataSource;
+        const residentCountryRows = Array.isArray(residentCountrySource)
+            ? residentCountrySource
+            : (Array.isArray(residentCountrySource?.result) ? residentCountrySource.result : (contactCountryControl?.listData ?? []));
+        const residentCountryRow = residentCountryRows.find(row => dsInput?.isResidentCountryRow?.(row));
+        const residentPrefix = dsInput?.getCountryPhonePrefix?.(residentCountryRow);
+        const hasResidentPrefix = phonePrefix === residentPrefix;
+        const phoneLocalInput = document.getElementById("PhoneNumberLocal")?.querySelector("input") ?? document.getElementById("PhoneNumberLocal");
+        const phoneMaxLength = Number(phoneLocalInput?.maxLength) > 0 ? Number(phoneLocalInput.maxLength) : 50;
+
+        let phoneDigits = isResident && hasResidentPrefix
+            ? (dsInput?.normalizeLocalPhone?.(phoneLocal, phonePrefix, phoneMaxLength) ?? sanitizePhoneDigits(phoneLocal).slice(0, phoneMaxLength))
+            : sanitizePhoneDigits(phoneLocal).slice(0, phoneMaxLength);
+
+        if (isResident && hasResidentPrefix && phoneDigits.length !== phoneMaxLength) {
+            showMessage(`Phone Number must be exactly ${phoneMaxLength} digits for resident country. Do not write 0 before the number.`, "Error");
+            return;
+        }
+
+        const fullPhone = dsInput?.composePhoneNumber?.(phoneDigits, phonePrefix) ?? (phoneDigits ? `${phonePrefix}${phoneDigits}` : "");
+
+        ds.entity.prepareModel = function (model) {
+            model.BankParty = model.BankParty || {};
+
+            const copyToBankParty = function (fieldName, targetName) {
+                const destinationName = targetName || fieldName;
+                if (model.BankParty[destinationName] === undefined || model.BankParty[destinationName] === null || model.BankParty[destinationName] === "") {
+                    model.BankParty[destinationName] = model[fieldName] ?? getValue(fieldName);
+                }
+            };
+
+            [
+                "PartyCode",
+                "StatusCode",
+                "PartyTypeId",
+                "PartySegmentId",
+                "IdentificationNumber",
+                "NationalityCountryCode",
+                "ContactCountryCode",
+                "ContactMunicipalityId",
+                "ContactAddress",
+                "ContactEmail",
+                "ContactViber",
+                "ContactWhatsApp",
+                "ActualBranchId",
+                "LanguageCode",
+                "ActualAdvisorEmployeeId",
+                "ActualAccountOfficerEmployeeId",
+                "PartyDescription"
+            ].forEach(fieldName => copyToBankParty(fieldName));
+
+            model.BankParty.BankPartyId = model.BankPartyId ?? getValue("BankPartyId");
+            model.BankParty.PartyCode = model.BankParty.PartyCode || "TEMP-" + Date.now();
+            model.BankParty.StatusCode = model.BankParty.StatusCode || "DRAFT";
+            const statusDropdown = document.getElementById("StatusCode")?.ej2_instances?.[0];
+            const selectedStatus =
+                statusDropdown?.itemData ??
+                statusDropdown?.dataSource?.find?.(row =>
+                    String(row?.statusCode ?? row?.StatusCode) === String(statusDropdown?.value));
+            const SetEntityActive = selectedStatus?.SetEntityActive;
+            model.BankParty.IsActive = SetEntityActive === null || SetEntityActive === undefined
+                ? true
+                : Boolean(SetEntityActive);
+            model.BankParty.FullName = model.PartyLegalName ?? getValue("PartyLegalName");
+            model.BankParty.IdentificationNumber =
+                model.BankParty.IdentificationNumber ??
+                model.IdentificationNumber ??
+                getValue("IdentificationNumber");
+            model.BankParty.PhoneNumber = fullPhone;
+            model.BankParty.ContactViber = dsInput?.composePhoneNumber?.(getValue("ContactViber"), getValue("ViberPrefixInput")) ?? model.BankParty.ContactViber;
+            model.BankParty.ContactWhatsApp = dsInput?.composePhoneNumber?.(getValue("ContactWhatsApp"), getValue("WhatsAppPrefixInput")) ?? model.BankParty.ContactWhatsApp;
+            model.BankParty.SecondCitizenshipCode =
+                model.SecondCitizenshipCode_Compliance ??
+                model.BankParty.SecondCitizenshipCode ??
+                getValue("SecondCitizenshipCode_Compliance");
+            model.BankParty.IsIndividual = false;
+            model.BankParty.IsResident = getChecked("IsResident");
+            model.BankParty.IsWalkIn = getChecked("IsWalkIn");
+            model.BankParty.IsPEP = getChecked("IsPEP");
+            model.BankParty.ContactMunicipalityName =
+                getText("ContactMunicipalityId") ||
+                model.BankParty.ContactMunicipalityName ||
+                getValue("ContactMunicipalityName");
+            model.BankParty.RevisionDateLast = toDateOnly(
+                isAddMode
+                    ? getTodayDateOnly()
+                    : (model.BankParty.RevisionDateLast || getValue("RevisionDateLast") || getTodayDateOnly())
+            );
+            model.BankParty.RevisionDateNext = toDateOnly(
+                isAddMode
+                    ? getNextRevisionDateOnly()
+                    : (model.BankParty.RevisionDateNext || getValue("RevisionDateNext") || getNextRevisionDateOnly())
+            );
+            model.BankParty.IsFATCA = getChecked("IsFATCA");
+
+            return model;
+        };
+
+        if (@Html.Raw(System.Text.Json.JsonSerializer.Serialize(isGridDialog))) {
+            const dialogContainer =
+                document.querySelector(".e-dialog .form-container[data-form-session-id]") ||
+                document.querySelector(".form-container[data-form-session-id]");
+
+            saveGridPartialDialogEditor(
+                @Html.Raw(System.Text.Json.JsonSerializer.Serialize(gridName)),
+                ds.entity.prepareModel(ds.entity.collectModel(dialogContainer))
+            );
+            return;
+        }
+
+        ds.entity.save();
+    };
+</script>

@@ -1,0 +1,148 @@
+﻿@using Syncfusion.EJ2.Schedule
+@using Syncfusion.EJ2.DropDowns
+@using Syncfusion.EJ2.Inputs
+@using Syncfusion.EJ2.Buttons
+@using Syncfusion.EJ2.Calendars
+
+
+
+<ejs-schedule id="schedule" height="550px" selectedDate="@DateTime.Today" views="@ViewBag.view"
+              popupOpen="onPopupOpen" created="onScheduleCreated" actionBegin="onActionBegin">
+    <e-schedule-eventsettings dataSource="@ViewBag.datasource"></e-schedule-eventsettings>
+</ejs-schedule>
+
+
+<ejs-dialog id="holidayDialog" width="500px" isModal="true" visible="false" showCloseIcon="true" header="Add Holiday">
+    <e-content-template>
+        <div class="form-group">
+            <label>Country</label>
+            <ejs-dropdownlist id="countryDropdown" dataSource="@ViewBag.Countries" fields="@(new DropDownListFieldSettings { Text = "CountryName", Value = "CountryCode" })" placeholder="Select Country"></ejs-dropdownlist>
+        </div>
+        <div class="form-group">
+            <label>Holiday Name</label>
+            <ejs-textbox id="holidayName"></ejs-textbox>
+        </div>
+        <div class="form-group">
+            <label>Holiday Date</label>
+            <ejs-datepicker id="holidayDate" readonly="true"></ejs-datepicker>
+        </div>
+        <div class="form-group">
+            <label>Observed Date</label>
+            <ejs-datepicker id="observedDate" readonly="true"></ejs-datepicker>
+        </div>
+        <div class="form-group">
+            <ejs-checkbox id="isPublicHoliday" label="Is Public Holiday" checked="true"></ejs-checkbox>
+        </div>
+        <div class="form-group">
+            <ejs-checkbox id="isRecurringAnnual" label="Is Recurring Annual" change="onRecurringChange"></ejs-checkbox>
+        </div>
+        <div class="form-group" id="untilYearGroup" style="display:none;">
+            <label>Until Year</label>
+            <ejs-numerictextbox id="untilYear" min="@(DateTime.Today.Year)" max="@(DateTime.Today.Year + 10)" value="@DateTime.Today.Year"></ejs-numerictextbox>
+        </div>
+        <div class="form-group">
+            <label>Holiday Description</label>
+            <ejs-textbox id="holidayDescription"></ejs-textbox>
+        </div>
+        <div style="text-align:right;">
+            <ejs-button id="saveHoliday" content="Save Holiday" isPrimary="true" click="onSaveHoliday"></ejs-button>
+        </div>
+    </e-content-template>
+</ejs-dialog>
+
+<script>
+
+        function onScheduleCreated() {
+        var scheduleObj = document.getElementById('schedule').ej2_instances[0];
+        if (scheduleObj.currentView === 'Agenda') {
+            scheduleObj.agendaDaysCount = 365; // Set agenda view to 365 days
+        }
+    }
+
+
+    function onPopupOpen(args) {
+        // Cancel default editor
+        args.cancel = true;
+
+        // Show custom dialog
+        var holidayDialog = document.getElementById('holidayDialog').ej2_instances[0];
+        holidayDialog.show();
+
+        // Set clicked date
+        var clickedDate = args.data.StartTime;
+        document.getElementById('holidayDate').ej2_instances[0].value = clickedDate;
+
+        // Calculate Observed Date
+        var observedDate = calculateObservedDate(clickedDate);
+        document.getElementById('observedDate').ej2_instances[0].value = observedDate;
+    }
+
+    function calculateObservedDate(date) {
+        var observedDate = new Date(date);
+        if (observedDate.getDay() === 6) { // Saturday
+            observedDate.setDate(observedDate.getDate() + 2);
+        } else if (observedDate.getDay() === 0) { // Sunday
+            observedDate.setDate(observedDate.getDate() + 1);
+        }
+        return observedDate;
+    }
+
+    function onRecurringChange(args) {
+        var show = args.checked;
+        document.getElementById('untilYearGroup').style.display = show ? 'block' : 'none';
+    }
+
+    
+
+        function onActionBegin(args) {
+        if (args.requestType === 'eventCreate') {
+            var eventData = args.data[0]; // It's an array
+            var model = mapEventToHolidayModel(eventData);
+
+            fetch('/Calendars/HolidayApi/AddHoliday?countryCode=' + model.CountryCode, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(model)
+            }).then(response => {
+                if (response.ok) {
+                    alert('✅ Holiday added.');
+                } else {
+                    alert('❌ Error adding holiday.');
+                }
+            });
+        }
+        else if (args.requestType === 'eventChange') {
+            var eventData = args.data;
+            var model = mapEventToHolidayModel(eventData);
+
+            fetch('/api/Calendars/HolidayApi/UpdateHoliday', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(model)
+            }).then(response => {
+                if (response.ok) {
+                    alert('✅ Holiday updated.');
+                } else {
+                    alert('❌ Error updating holiday.');
+                }
+            });
+        }
+        else if (args.requestType === 'eventRemove') {
+            var eventData = args.data[0]; // It's an array
+            var holidayId = eventData.Id;
+
+            fetch('/api/Calendars/HolidayApi/DeleteHoliday', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(holidayId)
+            }).then(response => {
+                if (response.ok) {
+                    alert('✅ Holiday deleted.');
+                } else {
+                    alert('❌ Error deleting holiday.');
+                }
+            });
+        }
+    }
+
+</script>

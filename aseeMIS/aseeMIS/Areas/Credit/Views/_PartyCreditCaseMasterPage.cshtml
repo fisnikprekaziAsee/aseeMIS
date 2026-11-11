@@ -1,0 +1,525 @@
+@model IReadOnlyList<dsCredit.Core.DTOs.FN.CreditCaseProductByBankPartyDto>
+
+<style>
+
+    /* APPLICATION CARDS */
+    .app-card {
+        border: 1px solid #e2e8f0;
+        border-radius: 12px;
+        padding: 24px;
+        text-align: center;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        height: 100%;
+        background: #fff;
+    }
+
+        .app-card:hover {
+            border-color: #0d6efd;
+            box-shadow: 0 4px 12px rgba(13, 110, 253, 0.15);
+            transform: translateY(-2px);
+        }
+
+    .app-icon {
+        width: 56px;
+        height: 56px;
+        border-radius: 50%;
+        background: #e7f1ff;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 0 auto 12px auto;
+        font-size: 22px;
+        color: #0d6efd;
+    }
+
+    .app-title {
+        font-weight: 600;
+        margin-bottom: 6px;
+    }
+
+    .app-desc {
+        font-size: 13px;
+        color: #64748b;
+    }
+</style>
+
+<div id="ccApplicationFlow">
+
+    @if (Model != null)
+    {
+        <div class="ds-card mb-3">
+
+            <!-- HEADER -->
+            <div class="ds-card-h d-flex align-items-center gap-2">
+
+                <i class="bi bi-folder2-open"></i>
+
+                <span class="ds-card-title">
+                    Existing Products
+                </span>
+
+                <span id="existingProductsCount" class="badge bg-light text-dark">
+                    @Model.Count
+                </span>
+
+                <div class="ms-auto d-flex align-items-center gap-2">
+                    <select id="existingProductsCaseFilter" class="form-select form-select-sm" style="width:150px" aria-label="Case history" onchange="changeExistingProductsFilter(this.value)">
+                        <option value="active" selected="@(ViewBag.CaseFilter == "active")">Active</option>
+                        <option value="historical" selected="@(ViewBag.CaseFilter == "historical")">Historical</option>
+                        <option value="all" selected="@(ViewBag.CaseFilter == "all")">All</option>
+                    </select>
+                    <button class="btn btn-sm btn-success"
+                            onclick="exportExistingProducts()">
+                        <i class="bi bi-file-earmark-excel me-1"></i>
+                        Export
+                    </button>
+                </div>
+
+            </div>
+
+            <!-- BODY -->
+            <div class="ds-card-b">
+
+                <ejs-grid id="ExistingProductsGrid"
+                          dataSource="Model"
+                          dataBound="onExistingProductsDataBound"
+                          allowPaging="false"
+                          allowSorting="true"
+                          allowFiltering="true"
+                          allowResizing="true"
+                          allowExcelExport="true"
+                          gridLines="None">
+
+                    <e-grid-filterSettings type="Menu"></e-grid-filterSettings>
+
+                    <e-grid-columns>
+
+                        <e-grid-column field="CreditCaseId"
+                                       headerText="Case Id"
+                                       isPrimaryKey="true"
+                                       visible="false">
+                        </e-grid-column>
+
+                        <e-grid-column field="ProductTypeName"
+                                       headerText="Product Type Name"
+                                       visible="false">
+                        </e-grid-column>
+
+                        <e-grid-column field="CaseNumber"
+                                       headerText="Case Number"
+                                       width="150">
+                        </e-grid-column>
+
+                        <e-grid-column field="ProductDisplayName"
+                                       headerText="Product"
+                                       width="140">
+                        </e-grid-column>
+
+                        <e-grid-column field="RequestedCreditAmount" headerText="Requested Amount" format="N2" textAlign="Right" width="150" />
+                        <e-grid-column field="ApprovedCreditAmount" headerText="Approved Amount" format="N2" textAlign="Right" width="150" />
+
+                        <e-grid-column field="CurrencyCode"
+                                       headerText="CCY"
+                                       width="90">
+                        </e-grid-column>
+
+                        <e-grid-column field="StartDateValue"
+                                       headerText="Start Date"
+                                       format="dd.MM.yyyy"
+                                       width="130">
+                        </e-grid-column>
+
+                        <e-grid-column field="MaturityDateValue"
+                                       headerText="Maturity"
+                                       format="dd.MM.yyyy"
+                                       width="130">
+                        </e-grid-column>
+
+                        <e-grid-column field="OutstandingAmount"
+                                       headerText="Outstanding"
+                                       format="N2"
+                                       textAlign="Right"
+                                       width="140">
+                        </e-grid-column>
+
+                        <e-grid-column field="CaseStatusName"
+                                       headerText="Status"
+                                       width="120"
+                                       freeze="Right">
+                        </e-grid-column>
+
+                        <e-grid-column headerText="Action"
+                                       width="120"
+                                       textAlign="Center"
+                                       template="#actionTemplate"
+                                       freeze="Right">
+                        </e-grid-column>
+
+                    </e-grid-columns>
+
+                </ejs-grid>
+
+            </div>
+        </div>
+    }
+
+    <!-- APPLICATION TYPE -->
+    <div id="ccApplicationSelection">
+
+        <div class="card">
+            <div class="card-body">
+
+                <h6 class="fw-semibold mb-3">Select Application Type</h6>
+
+                <div class="row g-3">
+
+                    <div class="col-lg-3 col-md-4">
+                        <div class="app-card" onclick="selectApplication('Loan')">
+                            <div class="app-icon">
+                                <i class="bi bi-briefcase"></i>
+                            </div>
+                            <div class="app-title">Loan Application</div>
+                            <div class="app-desc">
+                                Standard loan with amortization schedule
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-lg-3 col-md-4">
+                        <div class="app-card" onclick="selectApplication('ContractedFarming')">
+                            <div class="app-icon">
+                                <i class="bi bi-flower1"></i>
+                            </div>
+                            <div class="app-title">Contract Farming</div>
+                            <div class="app-desc">
+                                Group lending with mandatory business client as leader
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-lg-3 col-md-4">
+                        <div class="app-card" onclick="selectApplication('CreditCard')">
+                            <div class="app-icon">
+                                <i class="bi bi-credit-card"></i>
+                            </div>
+                            <div class="app-title">Credit Card</div>
+                            <div class="app-desc">
+                                Card facility with revolving utilization
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-lg-3 col-md-4">
+                        <div class="app-card" onclick="selectApplication('Factoring')">
+                            <div class="app-icon">
+                                <i class="bi bi-receipt"></i>
+                            </div>
+                            <div class="app-title">Factoring</div>
+                            <div class="app-desc">
+                                Invoice financing with debtor management
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-lg-3 col-md-4">
+                        <div class="app-card" onclick="selectApplication('Guarantee')">
+                            <div class="app-icon">
+                                <i class="bi bi-shield-check"></i>
+                            </div>
+                            <div class="app-title">Guarantee</div>
+                            <div class="app-desc">
+                                Bank guarantee and contingent exposure
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-lg-3 col-md-4">
+                        <div class="app-card" onclick="selectApplication('Leasing')">
+                            <div class="app-icon">
+                                <i class="bi bi-truck"></i>
+                            </div>
+                            <div class="app-title">Leasing</div>
+                            <div class="app-desc">
+                                Asset finance with lease schedule
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-lg-3 col-md-4">
+                        <div class="app-card" onclick="selectApplication('MerchantFinance')">
+                            <div class="app-icon">
+                                <i class="bi bi-shop"></i>
+                            </div>
+                            <div class="app-title">Merchant Finance</div>
+                            <div class="app-desc">
+                                Merchant cash flow and sales-based finance
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-lg-3 col-md-4">
+                        <div class="app-card" onclick="selectApplication('Revolving')">
+                            <div class="app-icon">
+                                <i class="bi bi-arrow-repeat"></i>
+                            </div>
+                            <div class="app-title">Revolving</div>
+                            <div class="app-desc">
+                                Reusable credit line with available limit
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+
+            </div>
+        </div>
+
+    </div>
+
+</div>
+
+<!-- ACTION TEMPLATE -->
+<script id="actionTemplate" type="text/x-template">
+    <button class="btn btn-sm btn-primary"
+            onclick="onUpdateProduct(${CreditCaseId})">
+        <i class="bi bi-pencil-square"></i>
+    </button>
+</script>
+
+
+
+<script>
+    window.creditHubFormSessionId = window.creditHubFormSessionId || '@(ViewBag.HubFormSessionId ?? "")';
+
+    function getCreditChildSession(formId) {
+        return typeof window.getCreditHubChildSession === "function"
+            ? window.getCreditHubChildSession(formId)
+            : "";
+    }
+
+    function changeExistingProductsFilter(value) {
+        window.creditHubCaseFilter = ["active", "historical", "all"].includes(value) ? value : "active";
+        window.refreshCreditCasesGrid?.(@(ViewBag.BankPartyId ?? 0));
+    }
+    function onExistingProductsDataBound() {
+        const grid = document.getElementById("ExistingProductsGrid")?.ej2_instances?.[0];
+        const badge = document.getElementById("existingProductsCount");
+        if (badge) badge.textContent = String(Array.isArray(grid?.dataSource) ? grid.dataSource.length : 0);
+    }
+    function exportExistingProducts() {
+        var grid = document.getElementById("ExistingProductsGrid").ej2_instances[0];
+
+        grid.excelExport({
+            fileName: "ExistingProducts.xlsx"
+        });
+    }
+
+    // 🔥 OPEN EXISTING CASE TAB
+    function onUpdateProduct(creditCaseId) {
+
+        if (!creditCaseId) return;
+
+        const grid = document.getElementById("ExistingProductsGrid").ej2_instances[0];
+
+        const row = grid.getCurrentViewRecords().find(x => x.CreditCaseId == creditCaseId);
+
+        const resolvedType = row?.ProductTypeName || "Loan";
+
+        console.log("Resolved:", resolvedType);
+
+        // 🔴 Safety check
+        if (typeof openAppTab !== "function") {
+            console.error("openAppTab is not available (HUB not loaded)");
+            return;
+        }
+
+        const tabId = "case_" + creditCaseId;
+        const title = `${resolvedType} ${creditCaseId}`;
+
+        openAppTab(tabId, title, function (id) {
+
+            $("#" + id).html(`
+                <div class="text-muted p-3">
+                    <i class="bi bi-arrow-repeat spin me-2"></i> Loading case...
+                </div>
+            `);
+
+            $.ajax({
+                url: resolveExistingApplicationUrl(resolvedType),
+                type: "GET",
+                data: {
+                    creditCaseId: creditCaseId,
+                    hubFormSessionId: window.creditHubFormSessionId || "",
+                    childFormSessionId: getCreditChildSession(resolveExistingApplicationFormId(resolvedType))
+                },
+                success: function (html) {
+                    if (typeof window.renderHubHtml === "function") {
+                        window.renderHubHtml("#" + id, html);
+                        return;
+                    }
+
+                    const container = $("#" + id);
+                    container.html(html);
+
+                    setTimeout(() => {
+                        if (window.ds?.entity?.init) ds.entity.init();
+                        if (window.ej?.base) ej.base.enableRipple(true);
+                    }, 0);
+                },
+                error: function () {
+                    $("#" + id).html(`
+                        <div class="text-danger p-3">
+                            Failed to load case.
+                        </div>
+                    `);
+                }
+            });
+
+        }, { exclusiveGroup: "application360" });
+    }
+
+
+    // 🔥 OPEN NEW APPLICATION TAB
+    function selectApplication(type) {
+
+        const bankPartyId = document.getElementById("ccBankPartyBankPartyId")?.value;
+        if (!bankPartyId) return;
+
+        // 🔴 Safety check
+        if (typeof openAppTab !== "function") {
+            console.error("openAppTab is not available (HUB not loaded)");
+            return;
+        }
+
+        const applicationTypes = {
+            Loan: {
+                title: "Loan Application",
+                formId: 332,
+                productTypeCode: "LOAN",
+                url: "/Credit/CreditCaseLoan/LoadLoan"
+            },
+            ContractedFarming: {
+                title: "Contract Farming",
+                formId: 323,
+                productTypeCode: "CONTRACT_FARMING",
+                url: "/Credit/CreditCaseContractFarming/LoadContractFarming"
+            },
+            CreditCard: {
+                title: "Credit Card",
+                productTypeCode: "CREDIT_CARD"
+            },
+            Factoring: {
+                title: "Factoring",
+                formId: 334,
+                productTypeCode: "FACTORING",
+                url: "/Credit/CreditCaseFactoring/LoadFactoring"
+            },
+            Guarantee: {
+                title: "Guarantee",
+                productTypeCode: "GUARANTEE"
+            },
+            Leasing: {
+                title: "Leasing",
+                productTypeCode: "LEASING"
+            },
+            MerchantFinance: {
+                title: "Merchant Finance",
+                productTypeCode: "MERCHANT_FINANCE"
+            },
+            Revolving: {
+                title: "Revolving",
+                productTypeCode: "REVOLVING"
+            }
+        };
+
+        const applicationType = applicationTypes[type];
+        if (!applicationType) {
+            console.error("Unknown application type", type);
+            return;
+        }
+
+        const tabId = "new_" + type;
+        const title = applicationType.title;
+
+        openAppTab(tabId, title, function (id) {
+
+            $("#" + id).html(`
+                <div class="text-muted p-3">
+                    <i class="bi bi-arrow-repeat spin me-2"></i> Loading ${title}...
+                </div>
+            `);
+
+            if (!applicationType.url) {
+                $("#" + id).html(`
+                    <div class="alert alert-info mb-0">
+                        <div class="fw-semibold">${title}</div>
+                        <div class="small">
+                            Product type ${applicationType.productTypeCode} is available for Hub mapping.
+                            The application flow will be connected after its target form/service is selected.
+                        </div>
+                    </div>
+                `);
+                return;
+            }
+
+            $.ajax({
+                url: applicationType.url,
+                type: "GET",
+                data: {
+                    bankPartyId: bankPartyId,
+                    hubFormSessionId: window.creditHubFormSessionId || "",
+                    childFormSessionId: getCreditChildSession(applicationType.formId)
+                },
+                success: function (html) {
+                    if (typeof window.renderHubHtml === "function") {
+                        window.renderHubHtml("#" + id, html);
+                        return;
+                    }
+
+                    const container = $("#" + id);
+                    container.html(html);
+
+                    setTimeout(() => {
+                        if (window.ds?.entity?.init) ds.entity.init();
+                        if (window.ej?.base) ej.base.enableRipple(true);
+                    }, 0);
+                },
+                error: function (xhr) {
+                    const message = xhr.status === 403
+                        ? "No access to this application. Check the form permissions and reopen CreditHub."
+                        : xhr.status === 404 && xhr.responseText?.startsWith("Factoring form ")
+                            ? xhr.responseText
+                            : "Failed to load application.";
+                    $("#" + id).empty().append($("<div>").addClass("text-danger p-3").text(message));
+                }
+            });
+
+        }, { exclusiveGroup: "application360" });
+    }
+
+    function resolveExistingApplicationUrl(applicationType) {
+        switch (applicationType) {
+            case "Factoring":
+                return "/Credit/CreditCaseFactoring/LoadExistingFactoring";
+            case "ContractedFarming":
+                return "/Credit/CreditCaseContractFarming/LoadExistingContractFarming";
+            default:
+                return "/Credit/CreditCaseLoan/LoadExistingLoan";
+        }
+    }
+
+    function resolveExistingApplicationFormId(applicationType) {
+        switch (applicationType) {
+            case "Factoring":
+                return 334;
+            case "ContractedFarming":
+                return 323;
+            default:
+                return 332;
+        }
+    }
+
+</script>
+
+<ejs-scripts></ejs-scripts>

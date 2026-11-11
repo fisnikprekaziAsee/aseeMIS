@@ -1,0 +1,504 @@
+@model aseeMIS.Areas.Credit.ViewModels.CreditEngineAmortizationLabViewModel
+@using dsCreditEngine.Enums
+@{
+    var frequencyOptions = Enum.GetValues<CreditFrequencyCode>()
+        .Select(x => new { Value = (int)x, Text = x.ToString() })
+        .ToList();
+
+    var duePolicyOptions = Enum.GetValues<CreditDueDayPolicy>()
+        .Select(x => new { Value = (int)x, Text = x.ToString() })
+        .ToList();
+
+    var dayCountOptions = Enum.GetValues<CreditDayCountConvention>()
+        .Select(x => new { Value = (int)x, Text = x.ToString() })
+        .ToList();
+
+    var principalMethodOptions = Enum.GetValues<CreditPrincipalCalculationMethod>()
+        .Select(x => new { Value = (int)x, Text = x.ToString() })
+        .ToList();
+
+    var graceTypeOptions = Enum.GetValues<CreditGraceType>()
+        .Select(x => new { Value = (int)x, Text = x.ToString() })
+        .ToList();
+}
+
+<style>
+    .credit-engine-amort-lab .lab-thead th {
+        background: #3f6f94;
+        color: #fff;
+        border-color: #345c7c;
+    }
+</style>
+
+<div class="credit-engine-amort-lab">
+    <form asp-action="AmortizationLab" asp-controller="CreditEngine" asp-area="Credit" method="post" novalidate>
+        @Html.AntiForgeryToken()
+
+        @if (!string.IsNullOrWhiteSpace(Model.SuccessMessage))
+        {
+            <div class="alert alert-success alert-dismissible fade show" role="alert">
+                <i class="bi bi-check-circle me-1"></i>@Model.SuccessMessage
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        }
+
+        @if (!string.IsNullOrWhiteSpace(Model.ErrorMessage))
+        {
+            <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                <i class="bi bi-exclamation-triangle me-1"></i>@Model.ErrorMessage
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        }
+
+        <div class="alert alert-info py-2">
+            <i class="bi bi-info-circle me-1"></i>
+            Engine lab preview: this form talks directly to <code>dsCreditEngine</code> and is intended to become a reusable partial in Loan360 later.
+        </div>
+
+        <div class="ds-card mb-3">
+            <div class="ds-card-h d-flex align-items-center gap-2">
+                <i class="bi bi-calculator"></i>
+                <span class="ds-card-title">Core Inputs</span>
+            </div>
+            <div class="ds-card-b">
+                <div class="row g-3">
+                    <div class="col-md-3">
+                        <ejs-numerictextbox ejs-for="Principal"
+                                            id="CreditEngine_Principal"
+                                            placeholder="Principal Amount"
+                                            floatLabelType="Always"
+                                            format="n2"
+                                            min="0">
+                        </ejs-numerictextbox>
+                    </div>
+
+                    <div class="col-md-3">
+                        <ejs-numerictextbox ejs-for="BaseAnnualRate"
+                                            id="CreditEngine_BaseAnnualRate"
+                                            placeholder="Nominal Annual Interest Rate (%)"
+                                            floatLabelType="Always"
+                                            format="n4">
+                        </ejs-numerictextbox>
+                    </div>
+
+                    <div class="col-md-2">
+                        <ejs-numerictextbox ejs-for="MaturityMonths"
+                                            id="CreditEngine_MaturityMonths"
+                                            placeholder="Term (months)"
+                                            floatLabelType="Always"
+                                            format="n0"
+                                            decimals="0"
+                                            min="1"
+                                            step="1">
+                        </ejs-numerictextbox>
+                    </div>
+
+                    <div class="col-md-2">
+                        <ejs-datepicker ejs-for="StartDate"
+                                        id="CreditEngine_StartDate"
+                                        format="dd-MM-yyyy"
+                                        valueFormat="yyyy-MM-dd"
+                                        showClearButton="true"
+                                        enableMask="true"
+                                        placeholder="Start Date"
+                                        floatLabelType="Always">
+                        </ejs-datepicker>
+                    </div>
+
+                    <div class="col-md-2">
+                        <ejs-datepicker ejs-for="EndDate"
+                                        id="CreditEngine_EndDate"
+                                        readonly="true"
+                                        format="dd-MM-yyyy"
+                                        valueFormat="yyyy-MM-dd"
+                                        showClearButton="true"
+                                        enableMask="true"
+                                        placeholder="Projected End Date"
+                                        floatLabelType="Always">
+                        </ejs-datepicker>
+                    </div>
+
+                    <div class="col-md-3">
+                        <ejs-datepicker ejs-for="NextInstallmentDate"
+                                        id="CreditEngine_NextInstallmentDate"
+                                        format="dd-MM-yyyy"
+                                        valueFormat="yyyy-MM-dd"
+                                        showClearButton="true"
+                                        enableMask="true"
+                                        placeholder="Next Installment Date"
+                                        floatLabelType="Always">
+                        </ejs-datepicker>
+                    </div>
+
+                    <div class="col-md-3">
+                        <ejs-dropdownlist ejs-for="FrequencyCode"
+                                          id="CreditEngine_FrequencyCode"
+                                          dataSource="@(frequencyOptions)"
+                                          placeholder="Frequency"
+                                          floatLabelType="Always">
+                            <e-dropdownlist-fields text="Text" value="Value"></e-dropdownlist-fields>
+                        </ejs-dropdownlist>
+                    </div>
+
+                    <div class="col-md-3">
+                        <ejs-dropdownlist ejs-for="DueDayPolicy"
+                                          id="CreditEngine_DueDayPolicy"
+                                          dataSource="@(duePolicyOptions)"
+                                          placeholder="Due Day Policy"
+                                          floatLabelType="Always">
+                            <e-dropdownlist-fields text="Text" value="Value"></e-dropdownlist-fields>
+                        </ejs-dropdownlist>
+                    </div>
+
+                    <div class="col-md-3">
+                        <ejs-numerictextbox ejs-for="FixedDayOfMonth"
+                                            id="CreditEngine_FixedDayOfMonth"
+                                            placeholder="Fixed Day Of Month"
+                                            floatLabelType="Always"
+                                            format="n0"
+                                            decimals="0"
+                                            min="1"
+                                            max="31"
+                                            step="1">
+                        </ejs-numerictextbox>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="ds-card mb-3">
+            <div class="ds-card-h d-flex align-items-center gap-2">
+                <i class="bi bi-sliders"></i>
+                <span class="ds-card-title">Calculation Options</span>
+            </div>
+            <div class="ds-card-b">
+                <div class="row g-3">
+                    <div class="col-md-3">
+                        <ejs-dropdownlist ejs-for="DayCountConvention"
+                                          id="CreditEngine_DayCountConvention"
+                                          dataSource="@(dayCountOptions)"
+                                          placeholder="Day Count Convention"
+                                          floatLabelType="Always">
+                            <e-dropdownlist-fields text="Text" value="Value"></e-dropdownlist-fields>
+                        </ejs-dropdownlist>
+                    </div>
+
+                    <div class="col-md-3">
+                        <ejs-dropdownlist ejs-for="PrincipalCalculationMethod"
+                                          id="CreditEngine_PrincipalCalculationMethod"
+                                          dataSource="@(principalMethodOptions)"
+                                          placeholder="Principal Calculation Method"
+                                          floatLabelType="Always">
+                            <e-dropdownlist-fields text="Text" value="Value"></e-dropdownlist-fields>
+                        </ejs-dropdownlist>
+                    </div>
+
+                    <div class="col-md-3" id="CreditEngine_FixedInstallmentWrap">
+                        <ejs-numerictextbox ejs-for="FixedInstallmentAmount"
+                                            id="CreditEngine_FixedInstallmentAmount"
+                                            placeholder="Fixed Installment Amount"
+                                            floatLabelType="Always"
+                                            format="n2"
+                                            min="0">
+                        </ejs-numerictextbox>
+                    </div>
+
+                    <div class="col-md-3" id="CreditEngine_FixedPrincipalWrap">
+                        <ejs-numerictextbox ejs-for="FixedPrincipalAmount"
+                                            id="CreditEngine_FixedPrincipalAmount"
+                                            placeholder="Fixed Principal Amount"
+                                            floatLabelType="Always"
+                                            format="n2"
+                                            min="0">
+                        </ejs-numerictextbox>
+                    </div>
+
+                    <div class="col-md-3">
+                        <ejs-dropdownlist ejs-for="GraceType"
+                                          id="CreditEngine_GraceType"
+                                          dataSource="@(graceTypeOptions)"
+                                          placeholder="Grace Type"
+                                          floatLabelType="Always">
+                            <e-dropdownlist-fields text="Text" value="Value"></e-dropdownlist-fields>
+                        </ejs-dropdownlist>
+                    </div>
+
+                    <div class="col-md-2">
+                        <ejs-numerictextbox ejs-for="GraceMonths"
+                                            id="CreditEngine_GraceMonths"
+                                            placeholder="Grace Months"
+                                            floatLabelType="Always"
+                                            format="n0"
+                                            decimals="0"
+                                            min="0"
+                                            step="1">
+                        </ejs-numerictextbox>
+                    </div>
+
+                    <div class="col-md-3">
+                        <ejs-datepicker ejs-for="GraceUntilDate"
+                                        id="CreditEngine_GraceUntilDate"
+                                        format="dd-MM-yyyy"
+                                        valueFormat="yyyy-MM-dd"
+                                        showClearButton="true"
+                                        enableMask="true"
+                                        placeholder="Grace Until Date Override"
+                                        floatLabelType="Always">
+                        </ejs-datepicker>
+                    </div>
+
+                    <div class="col-md-4 d-flex align-items-center gap-4 pt-3">
+                        <ejs-checkbox ejs-for="UseEndOfMonth"
+                                      id="CreditEngine_UseEndOfMonth"
+                                      label="Use End Of Month">
+                        </ejs-checkbox>
+                        <ejs-checkbox ejs-for="AccrueInterestDuringFullGrace"
+                                      id="CreditEngine_AccrueInterestDuringFullGrace"
+                                      label="Accrue Interest In Full Grace">
+                        </ejs-checkbox>
+                        <ejs-checkbox ejs-for="CapitalizeDuringFullGrace"
+                                      id="CreditEngine_CapitalizeDuringFullGrace"
+                                      label="Capitalize During Full Grace">
+                        </ejs-checkbox>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="ds-card mb-3">
+            <div class="ds-card-h d-flex align-items-center gap-2">
+                <i class="bi bi-percent"></i>
+                <span class="ds-card-title">Rate And Fees</span>
+            </div>
+            <div class="ds-card-b">
+                <div class="row g-3">
+                    <div class="col-md-3 d-flex align-items-center pt-3">
+                        <ejs-checkbox ejs-for="UseIndexedRate"
+                                      id="CreditEngine_UseIndexedRate"
+                                      label="Use Indexed Rate">
+                        </ejs-checkbox>
+                    </div>
+
+                    <div class="col-md-3" id="CreditEngine_IndexCodeWrap">
+                        <ejs-textbox ejs-for="IndexCode"
+                                     id="CreditEngine_IndexCode"
+                                     placeholder="Index Code"
+                                     floatLabelType="Always">
+                        </ejs-textbox>
+                    </div>
+
+                    <div class="col-md-3" id="CreditEngine_IndexRateWrap">
+                        <ejs-numerictextbox ejs-for="IndexRatePercent"
+                                            id="CreditEngine_IndexRatePercent"
+                                            placeholder="Current Index Rate (%)"
+                                            floatLabelType="Always"
+                                            format="n4">
+                        </ejs-numerictextbox>
+                    </div>
+
+                    <div class="col-md-3 d-flex align-items-center pt-3">
+                        <ejs-checkbox ejs-for="AddFinalBalloonAtMaturity"
+                                      id="CreditEngine_AddFinalBalloonAtMaturity"
+                                      label="Add Final Balloon At Maturity">
+                        </ejs-checkbox>
+                    </div>
+
+                    <div class="col-md-3">
+                        <ejs-numerictextbox ejs-for="DisbursementFeePercent"
+                                            id="CreditEngine_DisbursementFeePercent"
+                                            placeholder="Disbursement Fee (%)"
+                                            floatLabelType="Always"
+                                            format="n2"
+                                            min="0">
+                        </ejs-numerictextbox>
+                    </div>
+
+                    <div class="col-md-3">
+                        <ejs-numerictextbox ejs-for="MinimumFeeAmount"
+                                            id="CreditEngine_MinimumFeeAmount"
+                                            placeholder="Minimum Fee Amount"
+                                            floatLabelType="Always"
+                                            format="n2"
+                                            min="0">
+                        </ejs-numerictextbox>
+                    </div>
+
+                    <div class="col-md-6">
+                        <label class="form-label">Applied Fee Preview</label>
+                        <input type="text"
+                               class="form-control"
+                               id="CreditEngine_AppliedFeePreview"
+                               value="@($"{Model.AppliedDisbursementFeePercent:N4}% / {Model.AppliedDisbursementFeeAmount:N2}")"
+                               readonly />
+                        @if (Model.MinimumFeeApplied)
+                        {
+                            <small class="text-muted">Minimum fee has been applied.</small>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="d-flex gap-2 mb-4">
+            <button type="submit" class="btn btn-primary">
+                <i class="bi bi-play-circle me-1"></i>Generate Engine Preview
+            </button>
+        </div>
+
+        @if (Model.Result != null)
+        {
+            <div class="ds-card mb-3">
+                <div class="ds-card-h d-flex align-items-center gap-2">
+                    <i class="bi bi-bar-chart-line"></i>
+                    <span class="ds-card-title">Engine Summary</span>
+                </div>
+                <div class="ds-card-b">
+                    <div class="row g-3">
+                        <div class="col-md-3"><strong>Total Interest:</strong> @Model.Result.Summary.TotalInterest.ToString("N2")</div>
+                        <div class="col-md-3"><strong>Total Principal:</strong> @Model.Result.Summary.TotalPrincipal.ToString("N2")</div>
+                        <div class="col-md-3"><strong>Total Payment:</strong> @Model.Result.Summary.TotalPayment.ToString("N2")</div>
+                        <div class="col-md-3"><strong>Net Disbursed:</strong> @Model.Result.Summary.NetDisbursed.ToString("N2")</div>
+                        <div class="col-md-3"><strong>Total Fees:</strong> @Model.Result.Summary.TotalFees.ToString("N2")</div>
+                        <div class="col-md-3"><strong>EIR:</strong> @(Model.Result.Summary.EffectiveAnnualRate?.ToString("N4") ?? "-")%</div>
+                        <div class="col-md-6"><strong>Applied Grace Until:</strong> @(Model.Result.Summary.AppliedGraceUntilDate?.ToString("dd-MM-yyyy") ?? "-")</div>
+                    </div>
+                    @if (Model.Result.Diagnostics.Count > 0)
+                    {
+                        <hr />
+                        <div class="small text-muted">
+                            @string.Join(" | ", Model.Result.Diagnostics)
+                        </div>
+                    }
+                </div>
+            </div>
+
+            <div class="ds-card">
+                <div class="ds-card-h d-flex align-items-center gap-2">
+                    <i class="bi bi-table"></i>
+                    <span class="ds-card-title">Amortization Schedule</span>
+                </div>
+                <div class="ds-card-b">
+                    <div class="table-responsive">
+                        <table class="table table-sm table-bordered align-middle mb-0">
+                            <thead class="lab-thead">
+                                <tr>
+                                    <th>#</th>
+                                    <th>From</th>
+                                    <th>To</th>
+                                    <th>Days</th>
+                                    <th>Rate %</th>
+                                    <th>Interest</th>
+                                    <th>Principal</th>
+                                    <th>Total</th>
+                                    <th>Balance Before</th>
+                                    <th>Balance After</th>
+                                    <th>Notes</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var row in Model.Result.Rows)
+                                {
+                                    <tr>
+                                        <td>@row.Number</td>
+                                        <td>@row.FromDate.ToString("dd-MM-yyyy")</td>
+                                        <td>@row.ToDate.ToString("dd-MM-yyyy")</td>
+                                        <td>@row.AccruedDays</td>
+                                        <td>@row.TotalRate.ToString("N4")</td>
+                                        <td>@row.Interest.ToString("N2")</td>
+                                        <td>@row.Principal.ToString("N2")</td>
+                                        <td>@row.Total.ToString("N2")</td>
+                                        <td>@row.BalanceBefore.ToString("N2")</td>
+                                        <td>@row.BalanceAfter.ToString("N2")</td>
+                                        <td>@row.Notes</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        }
+    </form>
+</div>
+
+<script>
+    (function () {
+        let initAttempts = 0;
+
+        function getInstance(id) {
+            return document.getElementById(id)?.ej2_instances?.[0] ?? null;
+        }
+
+        function setVisible(id, visible) {
+            const element = document.getElementById(id);
+            if (element) {
+                element.style.display = visible ? "" : "none";
+            }
+        }
+
+        function calculateProjectedEndDate() {
+            const startDate = getInstance("CreditEngine_StartDate")?.value;
+            const term = getInstance("CreditEngine_MaturityMonths")?.value;
+            const endPicker = getInstance("CreditEngine_EndDate");
+
+            if (!startDate || !term || !endPicker) {
+                return;
+            }
+
+            const endDate = new Date(startDate);
+            endDate.setMonth(endDate.getMonth() + Number(term));
+            endPicker.value = endDate;
+            endPicker.dataBind?.();
+        }
+
+        function togglePrincipalFields() {
+            const method = Number(getInstance("CreditEngine_PrincipalCalculationMethod")?.value ?? 2);
+            setVisible("CreditEngine_FixedInstallmentWrap", method === 0);
+            setVisible("CreditEngine_FixedPrincipalWrap", method === 1);
+        }
+
+        function toggleIndexedFields() {
+            const useIndexed = !!getInstance("CreditEngine_UseIndexedRate")?.checked;
+            setVisible("CreditEngine_IndexCodeWrap", useIndexed);
+            setVisible("CreditEngine_IndexRateWrap", useIndexed);
+        }
+
+        function bindChange(id, handler) {
+            const instance = getInstance(id);
+            if (instance) {
+                instance.change = handler;
+                instance.dataBind?.();
+            }
+        }
+
+        function initializeEngineLabUi() {
+            const startDateReady = !!getInstance("CreditEngine_StartDate");
+            const termReady = !!getInstance("CreditEngine_MaturityMonths");
+            const methodReady = !!getInstance("CreditEngine_PrincipalCalculationMethod");
+            const indexedReady = !!getInstance("CreditEngine_UseIndexedRate");
+
+            if (!(startDateReady && termReady && methodReady && indexedReady)) {
+                initAttempts++;
+                if (initAttempts < 40) {
+                    window.setTimeout(initializeEngineLabUi, 100);
+                }
+                return;
+            }
+
+            bindChange("CreditEngine_StartDate", calculateProjectedEndDate);
+            bindChange("CreditEngine_MaturityMonths", calculateProjectedEndDate);
+            bindChange("CreditEngine_PrincipalCalculationMethod", togglePrincipalFields);
+            bindChange("CreditEngine_UseIndexedRate", toggleIndexedFields);
+
+            calculateProjectedEndDate();
+            togglePrincipalFields();
+            toggleIndexedFields();
+        }
+
+        if (document.readyState === "loading") {
+            document.addEventListener("DOMContentLoaded", initializeEngineLabUi);
+        } else {
+            initializeEngineLabUi();
+        }
+    })();
+</script>

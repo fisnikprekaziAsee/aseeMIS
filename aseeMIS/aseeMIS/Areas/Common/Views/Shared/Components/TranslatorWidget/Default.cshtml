@@ -1,0 +1,181 @@
+@using System.ComponentModel
+@using dsMIS.Core.Attributes
+@using System.ComponentModel.DataAnnotations
+@using System.ComponentModel.DataAnnotations.Schema
+@{
+    var gridName = (string)ViewBag.GridName;
+}
+
+<!-- Collapsible Filter Section -->
+<div class="card shadow-sm mb-3">
+    <div class="card-header bg-white border-bottom py-1">
+        <a class="text-blue text-decoration-none small fw-semibold"
+           data-bs-toggle="collapse"
+           href="#filterSection"
+           role="button"
+           aria-expanded="true"
+           aria-controls="filterSection">
+            <i class="bi bi-funnel"></i> Filter
+        </a>
+    </div>
+
+    <div class="collapse show" id="filterSection">
+        <div class="card-body py-2">
+            <div class="row align-items-end">
+
+                <!-- Source Language -->
+                <div class="col-md-3 pe-1">
+                    <label for="langCode1" class="form-label small mb-1">Source Language:</label>
+                    <ejs-dropdownlist id="langCode1" dataSource="@ViewBag.Languages" value="@("sq-AL")"
+                                      placeholder="Select Source Language" popupHeight="220px">
+                        <e-dropdownlist-fields text="LanguageName" value="LanguageCode"></e-dropdownlist-fields>
+                    </ejs-dropdownlist>
+                </div>
+
+                <!-- Swap Icon -->
+                <div class="col-auto px-1 d-flex align-items-end pb-1">
+                    <button type="button" class="btn btn-outline-secondary btn-sm swap-btn"
+                            onclick="swapLanguages()" title="Swap Languages">
+                        <i class="bi bi-arrow-left-right"></i>
+                    </button>
+                </div>
+
+                <!-- Destination Language -->
+                <div class="col-md-3 ps-1">
+                    <label for="langCode2" class="form-label small mb-1">Destination Language:</label>
+                    <ejs-dropdownlist id="langCode2" dataSource="@ViewBag.Languages" value="@("en-US")"
+                                      placeholder="Select Destination Language" popupHeight="220px">
+                        <e-dropdownlist-fields text="LanguageName" value="LanguageCode"></e-dropdownlist-fields>
+                    </ejs-dropdownlist>
+                </div>
+
+                <!-- Show Data -->
+                <div class="col-auto ps-2 d-flex align-items-end">
+                    <button type="button" class="btn btn-sm btn-outline-primary d-flex align-items-center custom-btn"
+                            onclick="onTranslatorLanguageChange('@gridName')" title="Show Data">
+                        <i class="bi bi-search fs-6"></i>
+                    </button>
+                </div>
+
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // 🔄 Swap dropdown values (like Google Translate)
+    function swapLanguages() {
+        const lang1 = document.getElementById("langCode1")?.ej2_instances?.[0];
+        const lang2 = document.getElementById("langCode2")?.ej2_instances?.[0];
+        if (!lang1 || !lang2) return;
+
+        const tempValue = lang1.value;
+        const tempText = lang1.text;
+
+        // Swap values and texts
+        lang1.value = lang2.value;
+        lang1.text = lang2.text;
+        lang1.dataBind();
+
+        lang2.value = tempValue;
+        lang2.text = tempText;
+        lang2.dataBind();
+    }
+
+    // 🔍 Request translated data
+    function onTranslatorLanguageChange(gridId) {
+        const lang1 = document.getElementById("langCode1")?.ej2_instances?.[0];
+        const lang2 = document.getElementById("langCode2")?.ej2_instances?.[0];
+        if (!lang1 || !lang2) return;
+
+        const langCode1 = lang1.value;
+        const langCode2 = lang2.value;
+        if (!langCode1 || !langCode2) return;
+
+        const grid = document.getElementById(gridId)?.ej2_instances?.[0];
+        if (!grid) return;
+
+        const formSessionId = grid.element.dataset.formSessionId;
+
+        // RemoteMode path (TRANSLATOR_PAGED form): keep the DataManager bound and just refresh.
+        // We push the picked languages as request headers so GridDataController.TranslatorPaged
+        // can override the config defaults — paging/sort/filter all continue to flow through the
+        // same /api/griddata/translator-paged endpoint. Replacing grid.dataSource with an array
+        // here (the legacy local-mode behavior) would discard the DataManager and break paging.
+        const isRemoteDM = ej.data && ej.data.DataManager && grid.dataSource instanceof ej.data.DataManager;
+        if (isRemoteDM) {
+            const remoteUrl = grid.dataSource.dataSource && grid.dataSource.dataSource.url;
+
+            // Re-instantiate the DataManager with the updated header set. Mutating dm.dataSource.headers
+            // in place isn't reliably picked up across Syncfusion versions — a fresh DM avoids that.
+            grid.dataSource = new ej.data.DataManager({
+                url: remoteUrl,
+                adaptor: new ej.data.UrlAdaptor(),
+                crossDomain: false,
+                headers: [
+                    { FormSessionId: formSessionId },
+                    { SourceLanguageCode: langCode1 },
+                    { DestinationLanguageCode: langCode2 }
+                ]
+            });
+
+            // Reset to first page on language change so the user doesn't land on an out-of-range page.
+            if (grid.pageSettings) grid.pageSettings.currentPage = 1;
+            grid.refresh();
+            return;
+        }
+
+        // Local-mode fallback (legacy TRANSLATOR form): one shot fetch, replace dataSource with array.
+        const url = '@Url.Action("GetTranslator", "Translator", new { area = "Common" })';
+
+        $.ajax({
+            url: url,
+            type: 'GET',
+            data: { langCode1, langCode2 },
+            beforeSend: xhr => xhr.setRequestHeader("FormSessionId", formSessionId),
+            success: data => {
+                try {
+                    const parsed = (typeof data === "string") ? JSON.parse(data) : data;
+                    grid.dataSource = parsed || [];
+                    grid.refresh();
+                } catch (e) {
+                    showMessage("Translator data parse error: " + e.message, "Error");
+                }
+            },
+            error: xhr => showMessage(xhr?.responseText || xhr?.message || "Translator request failed.", "Error")
+        });
+    }
+
+    document.addEventListener("DOMContentLoaded", function () {
+        const grid = document.getElementById("@gridName")?.ej2_instances?.[0];
+        if (grid && typeof gridDataBound === "function") gridDataBound(grid, "APPMNG");
+    });
+</script>
+
+<style>
+    .swap-btn {
+        height: 30px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 50%;
+        padding: 0 8px;
+        transition: transform 0.2s ease-in-out;
+    }
+
+        .swap-btn:hover {
+            transform: rotate(180deg);
+            background-color: #f8f9fa;
+        }
+
+    .custom-btn {
+        height: 30px;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+    }
+
+    .e-toolbar-item .e-tbar-btn-text {
+        display: none;
+    }
+</style>

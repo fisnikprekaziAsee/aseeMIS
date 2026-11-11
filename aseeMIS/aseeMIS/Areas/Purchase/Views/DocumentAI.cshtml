@@ -1,0 +1,519 @@
+﻿@{
+    ViewData["Title"] = "AI Bill Analyzer";
+}
+
+<style>
+    /* Layout Container */
+    .analyzer-container {
+        display: flex;
+        gap: 20px;
+        align-items: flex-start;
+    }
+
+    /* Left side (Form) */
+    .form-panel {
+        flex: 1;
+        max-height: 90vh;
+        overflow-y: auto;
+        padding-right: 10px;
+    }
+
+    /* Right side (Sticky Preview) */
+    .preview-panel {
+        flex: 1;
+        position: sticky;
+        top: 20px;
+        height: 85vh;
+        border: 1px solid #ddd;
+        background: #f9f9f9;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        overflow: hidden;
+    }
+
+    #docViewer {
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+    }
+
+    .placeholder-text {
+        color: #888;
+        text-align: center;
+    }
+
+    .raw-json {
+        font-family: Consolas, monospace;
+        font-size: 12px;
+        min-height: 160px;
+    }
+</style>
+
+<h2>AI Bill Analyzer (OCR + AI)</h2>
+
+<div class="analyzer-container">
+
+    <div class="form-panel">
+        <form id="uploadForm" enctype="multipart/form-data" method="post">
+            @Html.AntiForgeryToken()
+            <div style="display:flex; gap:12px; align-items:center; margin-bottom:15px;">
+                <input type="file" id="file" name="file"
+                       accept=".pdf,.docx,.png,.jpg,.jpeg,.tif,.tiff" required
+                       onchange="previewDocument(this)" />
+                <button type="button" onclick="analyzeBill()" class="btn btn-primary">
+                    Analyze Bill
+                </button>
+            </div>
+        </form>
+
+        <div id="status" style="margin:10px 0; color:#555;"></div>
+        <hr />
+
+        <h3>Invoice Header</h3>
+        <table class="table table-sm">
+            <tbody>
+                <tr>
+                    <th>Bill Type</th>
+                    <td><input class="form-control" id="BillType" /></td>
+                    <th>Language</th>
+                    <td><input class="form-control" id="Language" /></td>
+                </tr>
+                <tr>
+                    <th>Invoice #</th>
+                    <td><input class="form-control" id="InvoiceNumber" /></td>
+                    <th>Date</th>
+                    <td><input class="form-control" id="InvoiceDate" /></td>
+                </tr>
+                <tr>
+                    <th>Due Date</th>
+                    <td><input class="form-control" id="DueDate" /></td>
+                    <th>Currency</th>
+                    <td><input class="form-control" id="Currency" /></td>
+                </tr>
+            </tbody>
+        </table>
+
+        <h3>Supplier</h3>
+        <table class="table table-sm">
+            <tbody>
+                <tr>
+                    <th>Name</th>
+                    <td><input class="form-control" id="SupplierName" /></td>
+                    <th>NUI</th>
+                    <td><input class="form-control" id="SupplierNui" /></td>
+                </tr>
+                <tr>
+                    <th>Address</th>
+                    <td colspan="3"><input class="form-control" id="SupplierAddress" /></td>
+                </tr>
+                <tr>
+                    <th>Email</th>
+                    <td><input class="form-control" id="SupplierEmail" /></td>
+                    <th>Phone</th>
+                    <td><input class="form-control" id="SupplierPhone" /></td>
+                </tr>
+            </tbody>
+        </table>
+
+        <h3>Buyer</h3>
+        <table class="table table-sm">
+            <tbody>
+                <tr>
+                    <th>Name</th>
+                    <td><input class="form-control" id="BuyerName" /></td>
+                    <th>NUI</th>
+                    <td><input class="form-control" id="BuyerNui" /></td>
+                </tr>
+                <tr>
+                    <th>Address</th>
+                    <td colspan="3"><input class="form-control" id="BuyerAddress" /></td>
+                </tr>
+                <tr>
+                    <th>Contact</th>
+                    <td><input class="form-control" id="BuyerContact" /></td>
+                    <th>Email</th>
+                    <td><input class="form-control" id="BuyerEmail" /></td>
+                </tr>
+            </tbody>
+        </table>
+
+        <h3>Line Items</h3>
+        <table class="table table-bordered table-sm">
+            <thead>
+                <tr>
+                    <th style="width:50%;">Description</th>
+                    <th style="width:10%;">Qty</th>
+                    <th style="width:20%;">Unit Price</th>
+                    <th style="width:20%;">Line Total</th>
+                </tr>
+            </thead>
+            <tbody id="linesBody"></tbody>
+        </table>
+        <button type="button" class="btn btn-secondary btn-sm" onclick="addLine()">+ Add Line</button>
+
+        <h3 style="margin-top:20px;">Totals</h3>
+        <table class="table table-sm">
+            <tbody>
+                <tr><th>Subtotal</th><td><input class="form-control" id="Subtotal" /></td></tr>
+                <tr><th>VAT Rate</th><td><input class="form-control" id="VatRate" /></td></tr>
+                <tr><th>VAT Amount</th><td><input class="form-control" id="VatAmount" /></td></tr>
+                <tr><th>Total</th><td><input class="form-control" id="Total" /></td></tr>
+            </tbody>
+        </table>
+
+        <h3>Payment</h3>
+        <table class="table table-sm">
+            <tbody>
+                <tr>
+                    <th>Bank</th>
+                    <td><input class="form-control" id="BankName" /></td>
+                    <th>IBAN</th>
+                    <td><input class="form-control" id="Iban" /></td>
+                </tr>
+                <tr>
+                    <th>SWIFT/BIC</th>
+                    <td><input class="form-control" id="SwiftBic's" /></td>
+                    <th>Ref</th>
+                    <td><input class="form-control" id="PaymentReference" /></td>
+                </tr>
+                <tr>
+                    <th>Notes</th>
+                    <td colspan="3"><input class="form-control" id="Notes" /></td>
+                </tr>
+            </tbody>
+        </table>
+
+        <h3>Raw (AI/OCR)</h3>
+        <table class="table table-sm">
+            <tbody>
+                <tr>
+                    <th>AI Provider</th>
+                    <td><input class="form-control" id="AiProvider" /></td>
+                    <th>AI Model</th>
+                    <td><input class="form-control" id="AiModel" /></td>
+                </tr>
+                <tr>
+                    <th>Confidence</th>
+                    <td><input class="form-control" id="OverallConfidence" /></td>
+                    <th>Created At</th>
+                    <td><input class="form-control" id="InvoiceRawCreatedAt" /></td>
+                </tr>
+                <tr>
+                    <th>AI Raw JSON</th>
+                    <td colspan="3">
+                        <textarea class="form-control raw-json" id="AIRawJson"></textarea>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+
+        <hr />
+        <h4>OCR Preview</h4>
+        <textarea id="ocrPreview" class="form-control" style="width:100%; height:150px;"></textarea>
+    </div>
+
+    <div class="preview-panel" id="previewContainer">
+        <div class="placeholder-text" id="noFileText">No document selected</div>
+        <iframe id="docViewer" style="display:none;" frameborder="0"></iframe>
+    </div>
+
+   
+
+</div>
+
+
+<hr />
+<button type="button" class="btn btn-success" onclick="saveInvoice()">
+    Add Invoice
+</button>
+
+<script>
+    // --- PREVIEW LOGIC ---
+    function previewDocument(input) {
+      const file = input.files[0];
+      const viewer = document.getElementById("docViewer");
+      const placeholder = document.getElementById("noFileText");
+
+      if (file) {
+        const reader = new FileReader();
+        reader.onload = function (e) {
+          viewer.src = e.target.result;
+          viewer.style.display = "block";
+          placeholder.style.display = "none";
+        }
+        reader.readAsDataURL(file);
+      }
+    }
+
+    function setVal(id, v) {
+      const el = document.getElementById(id);
+      if (el) el.value = (v ?? "");
+    }
+
+    function escAttr(s) {
+      return String(s ?? "")
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+    }
+
+    // Get either PascalCase or camelCase
+    function getAny(obj, ...keys) {
+      if (!obj) return "";
+      for (const k of keys) {
+        if (obj[k] !== undefined && obj[k] !== null) return obj[k];
+      }
+      return "";
+    }
+
+    // -------------------------
+    // Render InvoiceLines
+    // -------------------------
+    function renderInvoiceLines(invoiceLines) {
+      const body = document.getElementById("linesBody");
+      body.innerHTML = "";
+
+      const arr = Array.isArray(invoiceLines) ? invoiceLines : [];
+      arr.forEach((ln, idx) => {
+        const desc = getAny(ln, "InvoiceLineDescription", "invoiceLineDescription");
+        const qty  = getAny(ln, "Quantity", "quantity");
+        const up   = getAny(ln, "UnitPrice", "unitPrice");
+        const lt   = getAny(ln, "LineTotal", "lineTotal");
+
+        body.insertAdjacentHTML("beforeend", `
+          <tr>
+            <td><input class="form-control" data-line="${idx}" data-field="InvoiceLineDescription" value="${escAttr(desc)}"></td>
+            <td><input class="form-control" data-line="${idx}" data-field="Quantity" value="${escAttr(qty)}"></td>
+            <td><input class="form-control" data-line="${idx}" data-field="UnitPrice" value="${escAttr(up)}"></td>
+            <td><input class="form-control" data-line="${idx}" data-field="LineTotal" value="${escAttr(lt)}"></td>
+          </tr>
+        `);
+      });
+
+      if (arr.length === 0) addLine();
+    }
+
+    function addLine() {
+      const body = document.getElementById("linesBody");
+      const idx = body.children.length;
+      body.insertAdjacentHTML("beforeend", `
+        <tr>
+          <td><input class="form-control" data-line="${idx}" data-field="InvoiceLineDescription"></td>
+          <td><input class="form-control" data-line="${idx}" data-field="Quantity"></td>
+          <td><input class="form-control" data-line="${idx}" data-field="UnitPrice"></td>
+          <td><input class="form-control" data-line="${idx}" data-field="LineTotal"></td>
+        </tr>
+      `);
+    }
+
+    // -----------------------------------------
+    // Fill UI from InvoiceAiViewModel
+    // Expected JSON shape:
+    // {
+    //   "Invoice": { ... },
+    //   "InvoiceLines": [ ... ],
+    //   "InvoiceRaw": { ... }
+    // }
+    // OR wrapped:
+    // { "fields": { ... } }
+    // -----------------------------------------
+    function fillAll(vm) {
+      if (!vm) return;
+
+      const root = vm.fields ?? vm.Fields ?? vm;
+
+      const inv   = root.Invoice ?? root.invoice ?? {};
+      const lines = root.InvoiceLines ?? root.invoiceLines ?? [];
+      const raw   = root.InvoiceRaw ?? root.invoiceRaw ?? null;
+
+      // --- Invoice ---
+      setVal("BillType", getAny(inv, "InvoiceType", "invoiceType"));
+      setVal("Language", getAny(inv, "InvoiceLanguageCode", "invoiceLanguageCode"));
+
+      setVal("InvoiceNumber", getAny(inv, "InvoiceNumber", "invoiceNumber"));
+      setVal("InvoiceDate", getAny(inv, "InvoiceDate", "invoiceDate"));
+      setVal("DueDate", getAny(inv, "InvoiceDueDate", "invoiceDueDate"));
+      setVal("Currency", getAny(inv, "InvoiceCurrency", "invoiceCurrency"));
+
+      setVal("SupplierName", getAny(inv, "SupplierName", "supplierName"));
+      setVal("SupplierNui", getAny(inv, "SupplierNUI", "supplierNUI", "supplierNui"));
+      setVal("SupplierAddress", getAny(inv, "SupplierAddress", "supplierAddress"));
+      setVal("SupplierEmail", getAny(inv, "SupplierEmail", "supplierEmail"));
+      setVal("SupplierPhone", getAny(inv, "SupplierPhone", "supplierPhone"));
+
+      setVal("BuyerName", getAny(inv, "BuyerName", "buyerName"));
+      setVal("BuyerNui", getAny(inv, "BuyerNui", "buyerNui"));
+      setVal("BuyerAddress", getAny(inv, "BuyerAddress", "buyerAddress"));
+      setVal("BuyerContact", getAny(inv, "BuyerContact", "buyerContact"));
+      setVal("BuyerEmail", getAny(inv, "BuyerEmail", "buyerEmail"));
+
+      setVal("Subtotal", getAny(inv, "Subtotal", "subtotal"));
+      setVal("VatRate", getAny(inv, "VatRate", "vatRate"));
+      setVal("VatAmount", getAny(inv, "VatAmount", "vatAmount"));
+      setVal("Total", getAny(inv, "Total", "total"));
+
+      setVal("BankName", getAny(inv, "BankName", "bankName"));
+      setVal("Iban", getAny(inv, "Iban", "iban"));
+
+      // UI SwiftBic -> SwiftCode
+      setVal("SwiftBic", getAny(inv, "SwiftCode", "swiftCode"));
+
+      setVal("PaymentReference", getAny(inv, "PaymentReference", "paymentReference"));
+      setVal("Notes", getAny(inv, "Notes", "notes"));
+
+      // --- InvoiceLines ---
+      renderInvoiceLines(lines);
+
+      // --- InvoiceRaw ---
+      // Fill raw inputs if present
+      setVal("AiProvider", raw ? getAny(raw, "AiProvider", "aiProvider") : "");
+      setVal("AiModel", raw ? getAny(raw, "AiModel", "aiModel") : "");
+      setVal("OverallConfidence", raw ? getAny(raw, "OverallConfidence", "overallConfidence") : "");
+      setVal("InvoiceRawCreatedAt", raw ? getAny(raw, "CreatedAt", "createdAt") : "");
+
+      // Pretty print json if it looks like json, otherwise show raw string
+      const rawJson = raw ? getAny(raw, "AIRawJson", "aiRawJson") : "";
+      if (rawJson) {
+        try {
+          const parsed = (typeof rawJson === "string") ? JSON.parse(rawJson) : rawJson;
+          document.getElementById("AIRawJson").value = JSON.stringify(parsed, null, 2);
+        } catch {
+          document.getElementById("AIRawJson").value = String(rawJson);
+        }
+      } else {
+        document.getElementById("AIRawJson").value = "";
+      }
+
+      // OCR preview from InvoiceRaw (preferred)
+      const ocr = raw ? getAny(raw, "OcrRawText", "ocrRawText") : "";
+      if (ocr) document.getElementById("ocrPreview").value = ocr;
+    }
+
+    async function analyzeBill() {
+      document.getElementById("status").innerText = "Analyzing...";
+
+      const fileInput = document.getElementById("file");
+      if (!fileInput.files.length) { alert("Upload a file."); return; }
+
+      const formData = new FormData();
+      formData.append("file", fileInput.files[0]);
+
+      const token = document.querySelector('input[name="__RequestVerificationToken"]')?.value;
+      if (token) formData.append("__RequestVerificationToken", token);
+
+      const response = await fetch("/OcrAI/DocumentAI/AnalyzeBill", { method: "POST", body: formData });
+
+      if (!response.ok) {
+        document.getElementById("status").innerText = "";
+        alert(await response.text());
+        return;
+      }
+
+      const data = await response.json();
+
+      // Fill from InvoiceAiViewModel
+      fillAll(data);
+
+      // Fallback if backend still returns separate ocrPreview
+      const currentOcr = document.getElementById("ocrPreview").value;
+      if (!currentOcr || currentOcr.trim() === "") {
+        document.getElementById("ocrPreview").value = (data.ocrPreview ?? data.OcrPreview ?? "");
+      }
+
+      document.getElementById("status").innerText = "Done ✅";
+    }
+
+        async function saveInvoice() {
+
+        const token = document.querySelector('input[name="__RequestVerificationToken"]')?.value;
+
+        // Build Invoice object
+        const invoice = {
+            Invoice: {
+                InvoiceType: document.getElementById("BillType").value,
+                InvoiceLanguageCode: document.getElementById("Language").value,
+
+                SupplierName: document.getElementById("SupplierName").value,
+                SupplierNUI: document.getElementById("SupplierNui").value,
+                SupplierAddress: document.getElementById("SupplierAddress").value,
+                SupplierEmail: document.getElementById("SupplierEmail").value,
+                SupplierPhone: document.getElementById("SupplierPhone").value,
+
+                BuyerName: document.getElementById("BuyerName").value,
+                BuyerNui: document.getElementById("BuyerNui").value,
+                BuyerAddress: document.getElementById("BuyerAddress").value,
+                BuyerContact: document.getElementById("BuyerContact").value,
+                BuyerEmail: document.getElementById("BuyerEmail").value,
+
+                InvoiceNumber: document.getElementById("InvoiceNumber").value,
+                InvoiceDate: document.getElementById("InvoiceDate").value,
+                InvoiceDueDate: document.getElementById("DueDate").value,
+                InvoiceCurrency: document.getElementById("Currency").value,
+
+                Subtotal: document.getElementById("Subtotal").value,
+                VatRate: document.getElementById("VatRate").value,
+                VatAmount: document.getElementById("VatAmount").value,
+                Total: document.getElementById("Total").value,
+
+                BankName: document.getElementById("BankName").value,
+                Iban: document.getElementById("Iban").value,
+                SwiftCode: document.getElementById("SwiftBic")?.value,
+                PaymentReference: document.getElementById("PaymentReference").value,
+
+                Notes: document.getElementById("Notes").value,
+                InvoiceReviewStatus: null
+            },
+            InvoiceLines: []
+        };
+
+        // Collect InvoiceLines
+        const rows = document.querySelectorAll("#linesBody tr");
+
+        rows.forEach((row, index) => {
+            const inputs = row.querySelectorAll("input");
+
+            invoice.InvoiceLines.push({
+                InvoiceLineId: 0,
+                InvoiceId: 0,
+                InvoiceLineNo: index + 1,
+                ProductId: null,
+                InvoiceLineDescription: inputs[0]?.value || "",
+                Quantity: parseInt(inputs[1]?.value) || null,
+                UnitPrice: parseInt(inputs[2]?.value) || null,
+                LineTotal: parseInt(inputs[3]?.value) || null,
+                Discount: null,
+                VatRate: null,
+                UnitOfMeasure: null,
+                Invoice: null
+            });
+        });
+
+        const request = {
+            Invoice: invoice,
+            RawJson: document.getElementById("AIRawJson").value,
+            OcrText: document.getElementById("ocrPreview").value
+        };
+
+        const response = await fetch("/DocumentAI/AddInvoice", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "RequestVerificationToken": token
+            },
+            body: JSON.stringify(request)
+        });
+
+        if (!response.ok) {
+            alert(await response.text());
+            return;
+        }
+
+        const result = await response.json();
+
+        alert("Invoice saved successfully! ID: " + result.invoiceId);
+    }
+
+</script>

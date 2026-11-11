@@ -1,0 +1,74 @@
+﻿
+<!-- DataGrid -->
+<ejs-grid id="Grid" dataSource=@Model gridLines="Both"
+          allowSorting="true" allowFiltering="true" allowPdfExport="true" allowExcelExport="true" allowGrouping="true" allowPaging="true" allowResizing="true"
+          toolbarClick="toolbarClick" toolbar="@ViewBag.ToolbarItems"  
+          contextMenuClick="contextMenuClick" contextMenuItems="@ViewBag.ContextMenuItems">
+    <e-grid-pagesettings pageCount="10"></e-grid-pagesettings>
+    <e-grid-filterSettings type="Excel"></e-grid-filterSettings>
+    <e-grid-columns>
+        <e-grid-column field="ConstantType" headerText="Constant Type" type="string" allowResizing="true"></e-grid-column>
+        <e-grid-column field="ConstantKey" headerText="Constant Key" type="string" allowResizing="true"></e-grid-column>
+        <e-grid-column field="ConstantValue" headerText="Constant Value" isPrimaryKey="true" allowResizing="true"></e-grid-column>
+        <e-grid-column field="ConstantDescription" headerText="Constant Description" type="string" allowResizing="true"></e-grid-column>
+        <e-grid-column field="LanguageCode" headerText="Language Code" type="string" allowResizing="true"></e-grid-column>
+        <e-grid-column field="LastModifiedAt" headerText="Last Modified At" type="datetime" format="yyyy:MM:dd HH:mm:ss" allowResizing="true"></e-grid-column>
+        <e-grid-column field="FirstName" headerText="First Name" type="string" allowResizing="true"></e-grid-column>
+        <e-grid-column field="LastName" headerText="Last Name" type="string" allowResizing="true"></e-grid-column>
+        <e-grid-column field="UserName" headerText="User Name" type="string" allowResizing="true"></e-grid-column>
+    </e-grid-columns>
+</ejs-grid>
+
+<script>
+
+    function toolbarClick(args) {
+        var gridObj = document.getElementById("Grid").ej2_instances[0];
+        if (args.item.id === 'Grid_pdfexport') {
+
+            let columns = gridObj.columns;
+            columns.forEach(column => {
+                if (column.type === 'datetime') {
+                    column.format = 'long'; // Set a simpler format for PDF export
+                }
+            });
+
+            gridObj.pdfExport();
+        }
+        else if (args.item.id === 'Grid_excelexport') {
+            let columns = gridObj.columns;
+            columns.forEach(column => {
+                if (column.type === 'datetime') {
+                    column.format = "yyyy.MM.dd HH:mm:ss"; // Set a simpler format for PDF export
+                }
+            });
+            gridObj.excelExport();
+        }
+    }
+
+    /* Context Menu */
+    function contextMenuClick(args) {
+        /* Enabling copy with header */
+        if (this.getSelectedRecords().length > 0) {
+            if (args.item.id === "Copy") {
+                this.copy();
+            } else if (args.item.id === "copyWithHeader") {
+                this.copy(true);
+            }
+        }
+    }
+
+    function setLocalizedTexts() {
+        document.getElementById("messageLabel").innerText = getLocalizedText("GlobalMessage", "SuccessInsert");
+        document.getElementById("textLabel").innerText = getLocalizedText("Label", "AppSting.StringType");
+        document.getElementById("actionButton").innerText = getLocalizedText("Button", "Add");
+    }
+</script>
+
+<style>
+    .custom-btn {
+        height: 30px;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+    }
+</style>

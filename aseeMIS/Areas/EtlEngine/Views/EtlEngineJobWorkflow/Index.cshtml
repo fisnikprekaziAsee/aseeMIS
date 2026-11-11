@@ -1,0 +1,825 @@
+@model dsEtlEngine.ViewModels.EtlEngineJobWorkflowPageViewModel
+@using Syncfusion.EJ2
+
+@{
+    ViewData["Title"] = "ETL Job Workflow";
+    var formId = (int)(ViewBag.FormId ?? Model.FormId);
+    var reportingDateValue = Model.ReportingDate != default
+        ? Model.ReportingDate.ToString("yyyy-MM-dd")
+        : "";
+}
+
+<link rel="stylesheet" href="~/css/dw-shared.css" />
+<style>
+    .wf-card { border: 0; box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+    .wf-step-card { border: 1px solid #e9ecef; border-radius: .5rem; padding: .75rem; margin-bottom: .5rem; background: #fff; }
+    .wf-status-passed { color: #198754; font-weight: 600; }
+    .wf-status-failed { color: #dc3545; font-weight: 600; }
+    .wf-status-running { color: #997404; font-weight: 600; }
+    .wf-status-default { color: #495057; font-weight: 600; }
+    #etlEngineJobId option.wf-job-completed { color: #198754; }
+    #etlEngineJobId option.wf-job-inprogress { color: #997404; }
+    #etlEngineJobId option.wf-job-pending { color: #6c757d; }
+    .wf-job-status-badge { font-size: .75rem; font-weight: 600; }
+    .wf-tab-pane { min-height: 280px; }
+    #wfStepsPanel.d-none-results { opacity: .45; pointer-events: none; }
+    .wf-summary-line { margin-bottom: .35rem; line-height: 1.4; }
+    .wf-summary-line:last-child { margin-bottom: 0; }
+    .wf-toolbar-col { display: flex; flex-direction: column; }
+    #wfSummaryMeta { min-height: 100%; }
+    #btnSearch { width: 100%; }
+    #wfBusyOverlay {
+        position: fixed;
+        inset: 0;
+        z-index: 2147483000;
+        background: rgba(255, 255, 255, 0.72);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    .wf-busy-box {
+        text-align: center;
+        padding: 1.25rem 1.5rem;
+        background: #fff;
+        border-radius: .5rem;
+        box-shadow: 0 4px 24px rgba(0, 0, 0, 0.12);
+    }
+    .wf-validation-summary { font-size: .875rem; line-height: 1.45; }
+    .wf-severity-filter .btn { font-size: .75rem; padding: .2rem .55rem; }
+    #stepDetailsEmpty { font-size: .875rem; }
+    #refIssuesGridWrap.d-none + #refIssuesEmpty { display: block !important; }
+    .wf-detail-msg-wrap { white-space: normal !important; line-height: 1.35; }
+    #StepDetailsGrid .e-rowcell.wf-detail-msg-wrap { vertical-align: top; }
+</style>
+
+<div id="wfBusyOverlay" class="d-none" aria-live="polite" aria-busy="true">
+    <div class="wf-busy-box">
+        <div class="spinner-border text-primary mb-2" role="status"></div>
+        <div class="small fw-semibold" id="wfBusyText">Please wait…</div>
+    </div>
+</div>
+
+<div class="container-fluid py-3" id="wfPage">
+    @Html.AntiForgeryToken()
+    <input type="hidden" id="formId" value="@formId" />
+    <input type="hidden" id="formSessionId" value="@ViewBag.FormSessionId" />
+    <input type="hidden" id="importFormHref" value="@Model.ImportFormHref" />
+    <input type="hidden" id="processRunId" value="0" />
+    <input type="hidden" id="wfJobId" value="0" />
+    <input type="hidden" id="wfImportLogIds" value="" />
+
+    <div class="card wf-card mb-3">
+        <div class="card-body py-3">
+            <h5 class="mb-3">ETL Job Workflow</h5>
+            <div class="row g-3 align-items-stretch">
+                <div class="col-md-4 wf-toolbar-col">
+                    <div class="mb-2">
+                        <label class="form-label small text-muted mb-1" for="reportingDate">Reporting Date</label>
+                        <input type="date" class="form-control form-control-sm" id="reportingDate" value="@reportingDateValue" />
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label small text-muted mb-1" for="etlEngineJobId">Job</label>
+                        <select class="form-select form-select-sm" id="etlEngineJobId">
+                            <option value="">— Select job —</option>
+                            @foreach (var job in Model.Jobs)
+                            {
+                                var label = !string.IsNullOrWhiteSpace(job.DropdownLabel) ? job.DropdownLabel : job.DisplayLabel;
+                                var statusClass = job.WorkflowStatusCode switch
+                                {
+                                    "COMPLETED" => "wf-job-completed",
+                                    "IN_PROGRESS" => "wf-job-inprogress",
+                                    _ => "wf-job-pending"
+                                };
+                                if (Model.EtlEngineJobId == job.EtlEngineJobId)
+                                {
+                                    <option value="@job.EtlEngineJobId" class="@statusClass" selected="selected">@label</option>
+                                }
+                                else
+                                {
+                                    <option value="@job.EtlEngineJobId" class="@statusClass">@label</option>
+                                }
+                            }
+                        </select>
+                    </div>
+                    <div class="mt-auto pt-1">
+                        <button type="button" class="btn btn-primary btn-sm w-100" id="btnSearch">
+                            <i class="bi bi-search"></i> Search
+                        </button>
+                    </div>
+                </div>
+                <div class="col-md-8 d-flex">
+                    <div class="small border rounded-3 p-3 bg-light flex-grow-1 w-100" id="wfSummaryMeta">
+                        <div class="text-muted">Select reporting date and job, then click Search.</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="workflowMsg" class="alert rounded-3 d-none mb-3 py-2" role="alert"></div>
+
+    <div class="row g-3">
+        <div class="col-lg-4">
+            <div class="card wf-card h-100">
+                <div class="card-header py-2 fw-semibold">Job Steps</div>
+                <div class="card-body" id="wfStepsPanel">
+                    <p class="text-muted small mb-0">Select reporting date and job, then click Search.</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-8">
+            <div class="card wf-card">
+                <div class="card-header py-2">
+                    <ul class="nav nav-tabs card-header-tabs" role="tablist">
+                        <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tabHistory" type="button">Execution History</button></li>
+                        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabDetails" type="button">Step Details</button></li>
+                        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabRefIssues" type="button">Reference Issues <span id="refIssueBadge" class="badge text-bg-secondary ms-1 d-none">0</span></button></li>
+                    </ul>
+                </div>
+                <div class="card-body tab-content wf-tab-pane p-2">
+                    <div class="tab-pane fade show active" id="tabHistory">
+                        <ejs-grid id="ExecutionHistoryGrid" height="280" gridLines="Horizontal" allowPaging="true" allowSorting="true" rowSelected="onHistoryRowSelected">
+                            <e-grid-pagesettings pageSize="10"></e-grid-pagesettings>
+                            <e-grid-columns>
+                                <e-grid-column field="EtlEngineProcessRunStepId" headerText="RunStepId" width="90" isPrimaryKey="true" textAlign="Right"></e-grid-column>
+                                <e-grid-column field="StepName" headerText="Step" width="120" clipMode="EllipsisWithTooltip"></e-grid-column>
+                                <e-grid-column field="AttemptNo" headerText="Try" width="50" textAlign="Right"></e-grid-column>
+                                <e-grid-column field="StatusCode" headerText="Status" width="80"></e-grid-column>
+                                <e-grid-column field="AffectedRows" headerText="Rows" width="64" textAlign="Right"></e-grid-column>
+                                <e-grid-column field="StartedAt" headerText="Started" width="130" type="datetime" format="yyyy-MM-dd HH:mm"></e-grid-column>
+                                <e-grid-column field="FinishedAt" headerText="Finished" width="130" type="datetime" format="yyyy-MM-dd HH:mm"></e-grid-column>
+                                <e-grid-column field="ErrorMessage" headerText="Error" width="140" clipMode="EllipsisWithTooltip"></e-grid-column>
+                            </e-grid-columns>
+                        </ejs-grid>
+                    </div>
+                    <div class="tab-pane fade" id="tabDetails">
+                        <div id="stepValidationSummary" class="wf-validation-summary border rounded-3 bg-light p-2 mb-2 text-muted">
+                            Select an execution attempt in Execution History.
+                        </div>
+                        <div class="d-flex flex-wrap align-items-center gap-2 mb-2 wf-severity-filter">
+                            <span class="small text-muted">Show:</span>
+                            <div class="btn-group btn-group-sm" role="group" id="detailSeverityFilter">
+                                <button type="button" class="btn btn-outline-secondary active" data-severity="ALL">All</button>
+                                <button type="button" class="btn btn-outline-secondary" data-severity="ERROR">Errors</button>
+                                <button type="button" class="btn btn-outline-secondary" data-severity="WARNING">Warnings</button>
+                            </div>
+                        </div>
+                        <p id="stepDetailsEmpty" class="text-muted d-none mb-2">No step details for this filter.</p>
+                        <ejs-grid id="StepDetailsGrid" height="320" gridLines="Horizontal"
+                                  allowPaging="true" allowSorting="true" allowFiltering="true" allowResizing="true"
+                                  allowExcelExport="true" enableHover="true"
+                                  actionBegin="onStepDetailsActionBegin"
+                                  queryCellInfo="onStepDetailsQueryCellInfo"
+                                  toolbarClick="onStepDetailsToolbarClick"
+                                  toolbar="@(new List<string>() { "Search", "ExcelExport" })">
+                            <e-grid-pagesettings pageSize="25" pageSizes="@(new string[] { "25", "50" })"></e-grid-pagesettings>
+                            <e-grid-filtersettings type="Excel" mode="Immediate" ignoreAccent="true"></e-grid-filtersettings>
+                            <e-grid-columns>
+                                <e-grid-column field="EtlEngineProcessRunStepDetailId" headerText="Id" width="80" isPrimaryKey="true" visible="false"></e-grid-column>
+                                <e-grid-column field="SeverityCode" headerText="Severity" width="88"></e-grid-column>
+                                <e-grid-column field="RuleCode" headerText="Rule" width="120"></e-grid-column>
+                                <e-grid-column field="SourceRowId" headerText="Row" width="70" textAlign="Right"></e-grid-column>
+                                <e-grid-column field="RecordKey" headerText="Customer Code" width="110" clipMode="EllipsisWithTooltip"></e-grid-column>
+                                <e-grid-column field="ColumnCode" headerText="Column" width="90"></e-grid-column>
+                                <e-grid-column field="SourceValue" headerText="Source Value" width="110" clipMode="EllipsisWithTooltip"></e-grid-column>
+                                <e-grid-column field="DetailMessage" headerText="Message" width="220" clipMode="Clip"></e-grid-column>
+                                <e-grid-column field="CreatedAt" headerText="Created" width="130" type="datetime" format="yyyy-MM-dd HH:mm"></e-grid-column>
+                            </e-grid-columns>
+                        </ejs-grid>
+                    </div>
+                    <div class="tab-pane fade" id="tabRefIssues">
+                        <p id="refIssuesEmpty" class="small text-muted mb-2">No reference issues recorded.</p>
+                        <div id="refIssuesGridWrap">
+                        <ejs-grid id="ReferenceIssuesGrid" height="280" gridLines="Horizontal" allowPaging="true" allowSorting="true" allowFiltering="true">
+                            <e-grid-pagesettings pageSize="10"></e-grid-pagesettings>
+                            <e-grid-filtersettings type="Excel"></e-grid-filtersettings>
+                            <e-grid-columns>
+                                <e-grid-column field="ReferenceType" headerText="Type" width="110"></e-grid-column>
+                                <e-grid-column field="SourceCode" headerText="Source" width="120" clipMode="EllipsisWithTooltip"></e-grid-column>
+                                <e-grid-column field="Occurrences" headerText="Count" width="70" textAlign="Right"></e-grid-column>
+                                <e-grid-column field="SampleRecordKey" headerText="Sample key" width="110" clipMode="EllipsisWithTooltip"></e-grid-column>
+                                <e-grid-column field="ResolutionStatus" headerText="Status" width="80"></e-grid-column>
+                                <e-grid-column field="ResolvedCode" headerText="Resolved" width="100"></e-grid-column>
+                                <e-grid-column field="ResolutionNotes" headerText="Notes" width="140" clipMode="EllipsisWithTooltip"></e-grid-column>
+                                <e-grid-column field="FirstSeenReportDate" headerText="First seen" width="100" type="date" format="yyyy-MM-dd"></e-grid-column>
+                                <e-grid-column field="LastSeenReportDate" headerText="Last seen" width="100" type="date" format="yyyy-MM-dd"></e-grid-column>
+                            </e-grid-columns>
+                        </ejs-grid>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    function getFormSessionId() {
+        return document.getElementById("formSessionId")?.value || "";
+    }
+
+    function syncFormSessionFromResponse(response) {
+        const id = response.headers.get("FormSessionId");
+        if (id) {
+            const el = document.getElementById("formSessionId");
+            if (el) el.value = id;
+        }
+    }
+
+    const loadWorkflowUrl = `@Url.Action("LoadWorkflow", "EtlEngineJobWorkflow", new { area = "EtlEngine", formId })`;
+    const runStepUrl = `@Url.Action("RunStep", "EtlEngineJobWorkflow", new { area = "EtlEngine" })`;
+    const historyUrl = `@Url.Action("ExecutionHistory", "EtlEngineJobWorkflow", new { area = "EtlEngine" })`;
+    const detailsBaseUrl = `@Url.Action("StepDetails", "EtlEngineJobWorkflow", new { area = "EtlEngine" })`;
+    const stepSummaryUrl = `@Url.Action("StepSummary", "EtlEngineJobWorkflow", new { area = "EtlEngine" })`;
+    const refIssuesBaseUrl = `@Url.Action("ReferenceIssues", "EtlEngineJobWorkflow", new { area = "EtlEngine" })`;
+
+    let historyGrid, detailsGrid, refGrid;
+    let workflowLoaded = false;
+    let selectedProcessRunStepId = null;
+    let detailSeverityFilter = "ALL";
+    let suppressHistorySelect = false;
+    let preferRunStepId = null;
+    let autoOpenStepDetailsTab = false;
+
+    function isValidateEtlHistoryRow(row) {
+        const stage = (prop(row, "StageCode") || "").toUpperCase();
+        if (stage === "ETL_VALIDATE") return true;
+        const name = (prop(row, "StepName") || "").toUpperCase();
+        return name.includes("VALIDATE");
+    }
+
+    function isLoadMasterHistoryRow(row) {
+        const stage = (prop(row, "StageCode") || "").toUpperCase();
+        if (stage === "ETL_LOAD_MASTER" || stage === "LOAD_MASTER") return true;
+        const name = (prop(row, "StepName") || "").toUpperCase();
+        return name.includes("LOAD") && name.includes("MASTER");
+    }
+
+    function pickLatestValidateAttempt(rows) {
+        if (!rows?.length) return null;
+        return rows.find(isValidateEtlHistoryRow) || null;
+    }
+
+    function setSeverityFilterUi(value) {
+        detailSeverityFilter = value || "ALL";
+        document.querySelectorAll("#detailSeverityFilter button").forEach(b => {
+            b.classList.toggle("active", (b.getAttribute("data-severity") || "") === detailSeverityFilter);
+        });
+    }
+
+    function activateStepDetailsTab() {
+        const tabBtn = document.querySelector('[data-bs-target="#tabDetails"]');
+        if (tabBtn && window.bootstrap?.Tab) {
+            bootstrap.Tab.getOrCreateInstance(tabBtn).show();
+        }
+    }
+
+    function activateExecutionHistoryTab() {
+        const tabBtn = document.querySelector('[data-bs-target="#tabHistory"]');
+        if (tabBtn && window.bootstrap?.Tab) {
+            bootstrap.Tab.getOrCreateInstance(tabBtn).show();
+        }
+    }
+
+    function createStepDetailsAdaptor() {
+        const adaptor = new ej.data.UrlAdaptor();
+        adaptor.beforeSend = function (args) {
+            const sessionId = getFormSessionId();
+            if (args?.httpRequest) {
+                args.httpRequest.setRequestHeader("FormSessionId", sessionId);
+            }
+        };
+        return adaptor;
+    }
+
+    function refreshStepDetailsGridWhenVisible() {
+        const el = document.getElementById("StepDetailsGrid");
+        if (!el || !detailsGrid) return;
+        const refresh = () => {
+            try {
+                detailsGrid.refresh();
+            } catch (e) {
+                console.warn(e);
+            }
+        };
+        if (el.offsetWidth > 0) {
+            refresh();
+            return;
+        }
+        const mo = new MutationObserver(() => {
+            if (el.offsetWidth > 0) {
+                refresh();
+                mo.disconnect();
+            }
+        });
+        mo.observe(document.body, { attributes: true, childList: true, subtree: true });
+    }
+
+    function prop(o, n) {
+        if (!o) return undefined;
+        const c = n.charAt(0).toLowerCase() + n.slice(1);
+        return o[n] ?? o[c];
+    }
+
+    function showMsg(ok, text, warning) {
+        const el = document.getElementById("workflowMsg");
+        if (!el) return;
+        el.classList.remove("d-none", "alert-success", "alert-danger", "alert-warning");
+        if (warning) el.classList.add("alert-warning");
+        else el.classList.add(ok ? "alert-success" : "alert-danger");
+        el.textContent = text || "";
+    }
+
+    function setWorkflowBusy(isBusy, message) {
+        const overlay = document.getElementById("wfBusyOverlay");
+        const text = document.getElementById("wfBusyText");
+        if (text && message) text.textContent = message;
+        overlay?.classList.toggle("d-none", !isBusy);
+        document.getElementById("wfPage")?.classList.toggle("pe-none", isBusy);
+        if (isBusy) overlay?.setAttribute("aria-busy", "true");
+        else overlay?.setAttribute("aria-busy", "false");
+    }
+
+    function invalidateResults() {
+        workflowLoaded = false;
+        const meta = document.getElementById("wfSummaryMeta");
+        if (meta) {
+            meta.innerHTML = `<div class="text-muted">Select reporting date and job, then click Search.</div>`;
+        }
+        document.getElementById("wfStepsPanel")?.classList.add("d-none-results");
+        document.getElementById("processRunId").value = "0";
+    }
+
+    function statusClass(code) {
+        const c = (code || "").toUpperCase();
+        if (c === "PASSED" || c === "COMPLETED") return "wf-status-passed";
+        if (c === "FAILED") return "wf-status-failed";
+        if (c === "RUNNING") return "wf-status-running";
+        return "wf-status-default";
+    }
+
+    function renderSummary(data) {
+        const el = document.getElementById("wfSummaryMeta");
+        if (!el) return;
+
+        const logs = prop(data, "ImportLogs") || [];
+        const logText = logs.length
+            ? logs.map(l => `#${prop(l, "EtlEngineFileImportLogId")} (${prop(l, "FileCode") || "file"}: ${Number(prop(l, "RecordsCount") || 0).toLocaleString()} rows)`).join("; ")
+            : "—";
+
+        const runId = prop(data, "EtlEngineProcessRunId") || 0;
+        const msg = prop(data, "ImportResolutionMessage");
+        const prereqWarning = prop(data, "JobPrerequisiteWarning");
+        const missingJob = prop(data, "MissingPrerequisiteJobDisplay");
+        const missingStatus = prop(data, "MissingPrerequisiteStatusDisplay");
+        const jobWfStatus = prop(data, "JobWorkflowStatusDisplay");
+        const jobWfCode = (prop(data, "JobWorkflowStatusCode") || "").toUpperCase();
+        const reportDate = prop(data, "ReportingDate");
+        const dateDisplay = typeof reportDate === "string" ? reportDate.split("T")[0] : reportDate;
+
+        const prereqBlock = (prereqWarning && String(prereqWarning).trim())
+            ? `<div class="wf-summary-line text-warning">${escapeHtml(String(prereqWarning))}${missingStatus ? ` <span class="text-muted">(Prerequisite status: ${escapeHtml(String(missingStatus))})</span>` : ""}</div>`
+            : "";
+        const jobStatusClass = jobWfCode === "COMPLETED" ? "wf-status-passed" : jobWfCode === "IN_PROGRESS" ? "wf-status-running" : "wf-status-default";
+
+        el.innerHTML = `
+            <div class="wf-summary-line"><strong>Job:</strong> ${escapeHtml(prop(data, "JobCode") || "")} — ${escapeHtml(prop(data, "JobName") || "")}</div>
+            <div class="wf-summary-line"><strong>Reporting date:</strong> ${escapeHtml(String(dateDisplay || "—"))}</div>
+            <div class="wf-summary-line"><strong>Job workflow:</strong> <span class="${jobStatusClass}">${escapeHtml(String(jobWfStatus || "—"))}</span></div>
+            <div class="wf-summary-line"><strong>Process run:</strong> ${runId > 0 ? runId : "—"}</div>
+            <div class="wf-summary-line"><strong>Status:</strong> ${escapeHtml(String(prop(data, "ProcessStatusDisplay") || "—"))}</div>
+            <div class="wf-summary-line"><strong>Import log(s):</strong> ${escapeHtml(logText)}</div>
+            ${prereqBlock}
+            ${msg ? `<div class="wf-summary-line text-warning">${escapeHtml(msg)}</div>` : ""}`;
+    }
+
+    function renderJobDropdown(jobs, selectedJobId) {
+        const select = document.getElementById("etlEngineJobId");
+        if (!select || !Array.isArray(jobs)) return;
+        const keep = selectedJobId || select.value;
+        select.innerHTML = `<option value="">— Select job —</option>` + jobs.map(j => {
+            const id = prop(j, "EtlEngineJobId");
+            const label = prop(j, "DropdownLabel") || prop(j, "DisplayLabel") || "";
+            const status = (prop(j, "WorkflowStatusCode") || "PENDING").toUpperCase();
+            const cls = status === "COMPLETED" ? "wf-job-completed" : status === "IN_PROGRESS" ? "wf-job-inprogress" : "wf-job-pending";
+            const selected = String(id) === String(keep) ? " selected" : "";
+            return `<option value="${id}" class="${cls}"${selected}>${escapeHtml(String(label))}</option>`;
+        }).join("");
+    }
+
+    function workflowRunButtonLabel(statusCode, canRun, showRetry) {
+        const status = (statusCode || "").toUpperCase();
+        if (!canRun || status === "RUNNING") return "Run";
+        if (status === "PASSED") return "Re-run";
+        if (status === "FAILED" || showRetry) return "Retry";
+        return "Run";
+    }
+
+    function renderSteps(data) {
+        const panel = document.getElementById("wfStepsPanel");
+        if (!panel) return;
+        panel.classList.remove("d-none-results");
+
+        const steps = prop(data, "Steps") || [];
+        if (!steps.length) {
+            panel.innerHTML = `<p class="text-muted small">No steps configured for this job.</p>`;
+            return;
+        }
+
+        panel.innerHTML = steps.map(s => {
+            const canRun = !!prop(s, "CanRun");
+            const showRetry = !!prop(s, "ShowRetry");
+            const statusCode = prop(s, "StatusCode");
+            const btnLabel = workflowRunButtonLabel(statusCode, canRun, showRetry);
+            const isImport = !!prop(s, "IsImportStep");
+            const importHref = document.getElementById("importFormHref")?.value || "";
+            const statusUpper = (statusCode || "").toUpperCase();
+            const reason = prop(s, "DisabledReason");
+            const tech = prop(s, "TechnicalDetails");
+            const warningMsg = prop(s, "WarningMessage");
+            const hideImportHint = isImport && (statusUpper === "PASSED" || statusUpper === "COMPLETED");
+            const reasonBlock = (!canRun && reason && String(reason).trim() && !hideImportHint)
+                ? `<div class="small text-warning mt-1">${escapeHtml(String(reason))}</div>`
+                : "";
+            const warningBlock = (canRun && warningMsg && String(warningMsg).trim() && !hideImportHint)
+                ? `<div class="small text-warning mt-1">${escapeHtml(String(warningMsg))}</div>`
+                : "";
+            const techBlock = (tech && String(tech).trim() && !hideImportHint)
+                ? `<details class="small mt-1"><summary class="text-muted">Technical details</summary><pre class="small mb-0 text-muted mt-1">${escapeHtml(String(tech))}</pre></details>`
+                : "";
+
+            let action = "";
+            if (isImport && importHref) {
+                action = `<a class="btn btn-outline-primary btn-sm" href="${importHref}">Import page</a>`;
+            } else if (!isImport) {
+                action = `<button type="button" class="btn btn-success btn-sm wf-run-btn" data-step-id="${prop(s, "EtlEngineJobStepId")}" ${canRun ? "" : "disabled"}><span class="wf-run-btn-label">${btnLabel}</span></button>`;
+            }
+
+            return `<div class="wf-step-card">
+                <div class="d-flex justify-content-between gap-2">
+                    <div>
+                        <div class="fw-semibold">${prop(s, "StepOrder")}. ${escapeHtml(prop(s, "StepName") || "")}</div>
+                        <div class="small text-muted">${prop(s, "StepCode")} · ${prop(s, "StepTypeCode")}</div>
+                        <div class="small ${statusClass(prop(s, "StatusCode"))}">${prop(s, "StatusDisplay")}</div>
+                        <div class="small text-muted">${prop(s, "LastExecutedAt") ? "Last: " + prop(s, "LastExecutedAt") : ""}${prop(s, "LastAffectedRows") != null ? " · Rows: " + prop(s, "LastAffectedRows") : ""}</div>
+                        ${reasonBlock}
+                        ${warningBlock}
+                        ${techBlock}
+                    </div>
+                    <div class="flex-shrink-0">${action}</div>
+                </div>
+            </div>`;
+        }).join("");
+
+        panel.querySelectorAll(".wf-run-btn").forEach(btn => {
+            btn.addEventListener("click", () => runStep(btn.getAttribute("data-step-id"), btn));
+        });
+    }
+
+    function escapeHtml(t) {
+        const d = document.createElement("div");
+        d.textContent = t ?? "";
+        return d.innerHTML;
+    }
+
+    async function loadHistory(selectRunStepId) {
+        const runId = document.getElementById("processRunId")?.value || "0";
+        if (!historyGrid || runId === "0") {
+            if (historyGrid) { historyGrid.dataSource = []; historyGrid.dataBind(); }
+            clearStepDetailsPanel();
+            return [];
+        }
+        const response = await fetch(`${historyUrl}?processRunId=${encodeURIComponent(runId)}`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "FormSessionId": getFormSessionId() },
+            body: JSON.stringify({ skip: 0, take: 500 }),
+            credentials: "same-origin"
+        });
+        syncFormSessionFromResponse(response);
+        const data = await response.json();
+        const rows = data.result || [];
+        historyGrid.dataSource = rows;
+        historyGrid.dataBind();
+
+        if (!rows.length) {
+            clearStepDetailsPanel();
+            return rows;
+        }
+
+        let rowIndex = 0;
+        let pick = null;
+        if (selectRunStepId) {
+            const idx = rows.findIndex(r => Number(prop(r, "EtlEngineProcessRunStepId")) === Number(selectRunStepId));
+            if (idx >= 0) {
+                rowIndex = idx;
+                pick = rows[idx];
+            }
+        }
+        if (!pick) {
+            pick = pickLatestValidateAttempt(rows);
+            if (pick) {
+                rowIndex = rows.findIndex(r => Number(prop(r, "EtlEngineProcessRunStepId")) === Number(prop(pick, "EtlEngineProcessRunStepId")));
+                if (rowIndex < 0) rowIndex = 0;
+            }
+        }
+
+        suppressHistorySelect = true;
+        if (pick) {
+            historyGrid.selectRow(rowIndex);
+            suppressHistorySelect = false;
+            await selectRunStep(prop(pick, "EtlEngineProcessRunStepId"), false);
+            if (autoOpenStepDetailsTab && isValidateEtlHistoryRow(pick)) {
+                activateStepDetailsTab();
+            } else if (selectRunStepId && isLoadMasterHistoryRow(pick)) {
+                activateExecutionHistoryTab();
+            }
+        } else {
+            historyGrid.clearSelection();
+            suppressHistorySelect = false;
+            clearStepDetailsPanel();
+        }
+        autoOpenStepDetailsTab = false;
+        return rows;
+    }
+
+    function clearStepDetailsPanel() {
+        selectedProcessRunStepId = null;
+        const summary = document.getElementById("stepValidationSummary");
+        if (summary) summary.textContent = "Select an execution attempt in Execution History.";
+        document.getElementById("stepDetailsEmpty")?.classList.add("d-none");
+        if (detailsGrid) {
+            detailsGrid.dataSource = [];
+            detailsGrid.dataBind();
+        }
+    }
+
+    function renderValidationSummary(summary) {
+        const el = document.getElementById("stepValidationSummary");
+        if (!el || !summary) return;
+        const status = (prop(summary, "StatusCode") || "—").toUpperCase();
+        const statusClass = status === "PASSED" ? "text-success" : status === "FAILED" ? "text-danger" : "text-body";
+        el.innerHTML = `
+            <div><strong>${escapeHtml(prop(summary, "StepName") || "Step")}</strong> · Try ${prop(summary, "AttemptNo") ?? "—"}</div>
+            <div class="${statusClass}"><strong>Status:</strong> ${escapeHtml(status)}</div>
+            <div><strong>Validated rows:</strong> ${Number(prop(summary, "ValidatedRows") ?? 0).toLocaleString()}
+                · <strong>Total findings:</strong> ${Number(prop(summary, "TotalFindings") ?? 0).toLocaleString()}
+                · <strong>Errors:</strong> ${Number(prop(summary, "ErrorCount") ?? 0).toLocaleString()}
+                · <strong>Warnings:</strong> ${Number(prop(summary, "WarningCount") ?? 0).toLocaleString()}</div>`;
+    }
+
+    async function loadStepSummary(runStepId) {
+        if (!runStepId) {
+            clearStepDetailsPanel();
+            return;
+        }
+        const response = await fetch(`${stepSummaryUrl}?processRunStepId=${encodeURIComponent(runStepId)}`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "FormSessionId": getFormSessionId() },
+            credentials: "same-origin"
+        });
+        syncFormSessionFromResponse(response);
+        const payload = await response.json();
+        if (payload?.data) {
+            renderValidationSummary(payload.data);
+        }
+    }
+
+    function bindStepDetailsGrid(runStepId) {
+        if (!detailsGrid || !runStepId) return;
+        selectedProcessRunStepId = runStepId;
+        const url = `${detailsBaseUrl}?processRunStepId=${encodeURIComponent(runStepId)}&severity=${encodeURIComponent(detailSeverityFilter)}`;
+        detailsGrid.dataSource = new ej.data.DataManager({
+            url: url,
+            adaptor: createStepDetailsAdaptor(),
+            crossDomain: false,
+            headers: [{ FormSessionId: getFormSessionId() }]
+        });
+        if (detailsGrid.pageSettings) {
+            detailsGrid.pageSettings.currentPage = 1;
+        }
+        try {
+            detailsGrid.clearFiltering();
+        } catch (e) { /* first bind */ }
+        detailsGrid.dataBind();
+        refreshStepDetailsGridWhenVisible();
+    }
+
+    async function selectRunStep(runStepId, reloadHistorySelection) {
+        if (!runStepId) {
+            clearStepDetailsPanel();
+            return;
+        }
+        await loadStepSummary(runStepId);
+        bindStepDetailsGrid(runStepId);
+        if (reloadHistorySelection && historyGrid) {
+            const rows = historyGrid.currentViewData || historyGrid.dataSource || [];
+            const idx = rows.findIndex(r => Number(prop(r, "EtlEngineProcessRunStepId")) === Number(runStepId));
+            if (idx >= 0) {
+                suppressHistorySelect = true;
+                historyGrid.selectRow(idx);
+                suppressHistorySelect = false;
+            }
+        }
+    }
+
+    async function loadReferenceIssues(jobId, reportingDate, importLogIds) {
+        if (!refGrid) return;
+        const qs = `etlEngineJobId=${jobId}&reportingDate=${encodeURIComponent(reportingDate)}&importLogIds=${encodeURIComponent(importLogIds)}`;
+        const response = await fetch(`${refIssuesBaseUrl}?${qs}`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "FormSessionId": getFormSessionId() },
+            body: JSON.stringify({ skip: 0, take: 500 }),
+            credentials: "same-origin"
+        });
+        syncFormSessionFromResponse(response);
+        const data = await response.json();
+        const rows = data.result || [];
+        refGrid.dataSource = rows;
+        refGrid.dataBind();
+        const badge = document.getElementById("refIssueBadge");
+        const empty = document.getElementById("refIssuesEmpty");
+        const wrap = document.getElementById("refIssuesGridWrap");
+        const open = data.openCount ?? 0;
+        if (badge) {
+            badge.textContent = String(open);
+            badge.classList.toggle("d-none", open <= 0);
+            badge.classList.toggle("text-bg-danger", open > 0);
+            badge.classList.toggle("text-bg-secondary", open <= 0);
+        }
+        const hasRows = rows.length > 0;
+        empty?.classList.toggle("d-none", hasRows);
+        wrap?.classList.toggle("d-none", !hasRows);
+    }
+
+    function onHistoryRowSelected(args) {
+        if (suppressHistorySelect) return;
+        const runStepId = prop(args?.data, "EtlEngineProcessRunStepId");
+        if (!runStepId) return;
+        selectRunStep(runStepId, false);
+    }
+
+    function onStepDetailsDataBound() {
+        const total = detailsGrid?.pageSettings?.totalRecordsCount ?? 0;
+        const empty = document.getElementById("stepDetailsEmpty");
+        empty?.classList.toggle("d-none", total > 0);
+    }
+
+    function onStepDetailsActionBegin(args) {
+        if (!args) return;
+        const type = (args.requestType || "").toLowerCase();
+        if (type === "filterchoicerequest" || type === "filtersearchbegin") {
+            args.filterChoiceCount = 15000;
+        }
+    }
+
+    function onStepDetailsQueryCellInfo(args) {
+        if (args.column?.field === "DetailMessage" && args.cell) {
+            args.cell.classList.add("wf-detail-msg-wrap");
+        }
+    }
+
+    function onStepDetailsToolbarClick(args) {
+        if (!detailsGrid) return;
+        const id = (args?.item?.id || "").toLowerCase();
+        if (id.includes("excelexport")) {
+            detailsGrid.excelExport();
+        }
+    }
+
+    async function runSearch(options) {
+        const reportingDate = document.getElementById("reportingDate")?.value;
+        const jobId = document.getElementById("etlEngineJobId")?.value;
+        if (!reportingDate) { showMsg(false, "Select a reporting date."); return; }
+        if (!jobId) { showMsg(false, "Select a job."); return; }
+
+        const token = document.querySelector("#wfPage input[name='__RequestVerificationToken']")?.value;
+        const formData = new FormData();
+        formData.append("etlEngineJobId", jobId);
+        formData.append("reportingDate", reportingDate);
+        formData.append("formSessionId", getFormSessionId());
+        if (token) formData.append("__RequestVerificationToken", token);
+
+        setWorkflowBusy(true, "Loading workflow…");
+        try {
+            const response = await fetch(loadWorkflowUrl, {
+                method: "POST",
+                headers: { "FormSessionId": getFormSessionId() },
+                body: formData,
+                credentials: "same-origin"
+            });
+            syncFormSessionFromResponse(response);
+            const payload = await response.json();
+            if (!payload?.ok) {
+                showMsg(false, payload?.message || "Search failed.");
+                return;
+            }
+
+            const data = payload.data;
+            workflowLoaded = true;
+            document.getElementById("wfJobId").value = String(prop(data, "EtlEngineJobId") || jobId);
+            document.getElementById("processRunId").value = String(prop(data, "EtlEngineProcessRunId") || 0);
+            const logs = prop(data, "ImportLogs") || [];
+            document.getElementById("wfImportLogIds").value = logs.map(l => prop(l, "EtlEngineFileImportLogId")).join(",");
+
+            renderSummary(data);
+            renderJobDropdown(prop(data, "Jobs") || [], prop(data, "EtlEngineJobId"));
+            renderSteps(data);
+            const selectId = preferRunStepId;
+            preferRunStepId = null;
+            if (!selectId) {
+                autoOpenStepDetailsTab = true;
+            }
+            await loadHistory(selectId);
+            await loadReferenceIssues(jobId, reportingDate, document.getElementById("wfImportLogIds").value);
+            if (!options?.suppressLoadedMsg) {
+                showMsg(true, "Workflow loaded.");
+            }
+        } finally {
+            setWorkflowBusy(false);
+        }
+    }
+
+    async function runStep(stepId, btn) {
+        const reportingDate = document.getElementById("reportingDate")?.value;
+        if (!stepId || !reportingDate) {
+            showMsg(false, "Select reporting date and search first.");
+            return;
+        }
+        if (!workflowLoaded) {
+            showMsg(false, "Click Search to load the workflow.");
+            return;
+        }
+        const token = document.querySelector("#wfPage input[name='__RequestVerificationToken']")?.value;
+        const formData = new FormData();
+        formData.append("etlEngineJobStepId", stepId);
+        formData.append("reportingDate", reportingDate);
+        formData.append("formSessionId", getFormSessionId());
+        if (token) formData.append("__RequestVerificationToken", token);
+
+        const labelEl = btn.querySelector(".wf-run-btn-label");
+        const originalLabel = labelEl?.textContent || "Run";
+        btn.disabled = true;
+        if (labelEl) labelEl.innerHTML = `<span class="spinner-border spinner-border-sm me-1"></span>${originalLabel}`;
+
+        setWorkflowBusy(true, "Running step…");
+        let resultMessage = null;
+        let resultOk = false;
+        let resultWarning = false;
+        try {
+            const response = await fetch(runStepUrl, {
+                method: "POST",
+                headers: { "FormSessionId": getFormSessionId() },
+                body: formData,
+                credentials: "same-origin"
+            });
+            syncFormSessionFromResponse(response);
+            const result = await response.json();
+            if (result?.processRunStepId) {
+                preferRunStepId = result.processRunStepId;
+            }
+            autoOpenStepDetailsTab = !!result?.validationCompletedWithIssues;
+            resultOk = !!result?.ok;
+            resultWarning = !!result?.validationCompletedWithIssues || !!result?.proceedWithValidationWarnings;
+            resultMessage = result?.message || "Done";
+            await runSearch({ suppressLoadedMsg: true });
+        } catch (e) {
+            showMsg(false, e.message);
+        } finally {
+            if (labelEl) labelEl.textContent = originalLabel;
+            btn.disabled = false;
+            setWorkflowBusy(false);
+        }
+        if (resultMessage !== null) {
+            showMsg(resultOk, resultMessage, resultWarning);
+        }
+    }
+
+    document.addEventListener("DOMContentLoaded", () => {
+        historyGrid = document.getElementById("ExecutionHistoryGrid")?.ej2_instances?.[0];
+        detailsGrid = document.getElementById("StepDetailsGrid")?.ej2_instances?.[0];
+        refGrid = document.getElementById("ReferenceIssuesGrid")?.ej2_instances?.[0];
+
+        if (detailsGrid) {
+            detailsGrid.dataBound = onStepDetailsDataBound;
+        }
+
+        document.querySelector('[data-bs-target="#tabDetails"]')?.addEventListener("shown.bs.tab", () => {
+            if (selectedProcessRunStepId) {
+                refreshStepDetailsGridWhenVisible();
+            }
+        });
+
+        document.getElementById("detailSeverityFilter")?.querySelectorAll("button[data-severity]").forEach(btn => {
+            btn.addEventListener("click", () => {
+                setSeverityFilterUi(btn.getAttribute("data-severity") || "ALL");
+                if (selectedProcessRunStepId) bindStepDetailsGrid(selectedProcessRunStepId);
+            });
+        });
+
+        document.getElementById("btnSearch")?.addEventListener("click", () => runSearch());
+
+        ["reportingDate", "etlEngineJobId"].forEach(id => {
+            document.getElementById(id)?.addEventListener("change", invalidateResults);
+        });
+    });
+</script>

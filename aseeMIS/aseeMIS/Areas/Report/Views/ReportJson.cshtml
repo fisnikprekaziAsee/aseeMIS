@@ -1,0 +1,89 @@
+﻿@using Syncfusion.EJ2.Spreadsheet
+@{
+    ViewData["Title"] = "Spreadsheet Template POC";
+}
+
+<div style="margin-bottom:10px">
+    <button onclick="saveTemplate()">💾 Save Template</button>
+    <button onclick="loadTemplate()">⚡ Load Template</button>
+    <button onclick="exportExcel()">Download Excel</button>
+</div>
+
+<ejs-spreadsheet id="spreadsheet" created="onCreated" allowOpen="true" allowSave="true" height="100vh" saveUrl="/Report/ReportJson/Save"
+                 openUrl="/Report/ReportSpreadsheet/Open">
+</ejs-spreadsheet>
+
+<script>
+    let spreadsheet;
+
+    function onCreated() {
+        spreadsheet = document.getElementById('spreadsheet').ej2_instances[0];
+        loadTemplate();
+    }
+
+    async function saveTemplate() {
+        const json = await spreadsheet.saveAsJson();
+
+        console.log(json);
+
+        fetch('/Report/ReportJson/SaveJson', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(json)
+        })
+        .then(() => alert('Template saved in memory'));
+    }
+
+    function loadTemplate() {
+
+        fetch('/Report/ReportJson/Load')
+            .then(r => {
+                return r.json();
+            })
+            .then(json => {
+
+                spreadsheet.openFromJson({
+                    file: json.jsonObject   // 🔑 THIS IS THE FIX
+                });
+
+                console.log('✅ Spreadsheet restored from JSON');
+            })
+            .catch(err => {
+                console.error('❌ loadTemplate() failed:', err);
+            });
+    }
+
+    async function exportExcel() {
+        const spreadsheet = document.getElementById('spreadsheet').ej2_instances[0];
+
+        // 1️⃣ Get spreadsheet JSON (FAST, in-memory)
+        const json = await spreadsheet.saveAsJson();
+
+        // 2️⃣ Send JSON to server
+        const response = await fetch('/Report/ReportJson/DownloadExcel', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(json)
+        });
+
+        if (!response.ok) {
+            console.error('Download failed');
+            return;
+        }
+
+        // 3️⃣ Download returned Excel file
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'template_processed.xlsx';
+        document.body.appendChild(a);
+        a.click();
+
+        document.body.removeChild(a);
+        window.URL.revokeObjectURL(url);
+    }
+</script>

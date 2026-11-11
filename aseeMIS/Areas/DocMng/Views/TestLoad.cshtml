@@ -1,0 +1,28 @@
+﻿@{
+    ViewData["Title"] = "Grid in Partial View Example";
+}
+
+<div class="container">
+    <h2>Grid in Partial View Example</h2>
+
+    <button type="button" onclick="loadGridPartial()">Load Grid via Ajax</button>
+
+    <div id="gridContainer"></div>
+</div>
+
+<script>
+    function loadGridPartial() {
+        var ajax = new ej.base.Ajax({
+            url: "/DocMng/TestGrid/GridPartial",
+            type: "GET"
+        });
+
+        ajax.send().then(function (data) {
+            var container = document.getElementById("gridContainer");
+            container.innerHTML = data;
+
+            // 🔥 REQUIRED for Syncfusion components loaded via Ajax
+            ej.base.parse(container);
+        });
+    }
+</script>

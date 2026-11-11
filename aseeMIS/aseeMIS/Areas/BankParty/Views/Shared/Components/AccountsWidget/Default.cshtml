@@ -1,0 +1,46 @@
+@using aseeMIS.Areas.BankParty.ViewModels
+@model List<BankClientSectionViewModel.AccountViewModel>
+
+@functions {
+    string Money(decimal v) => "$" + v.ToString("#,0.##");
+}
+
+<div class="card card-soft p-3 h-100">
+    <div class="d-flex justify-content-between align-items-center mb-2">
+        <div class="fw-bold">
+            <i class="bi bi-folder2 me-1"></i> Accounts (@Model.Count)
+        </div>
+        <a href="#" class="header-link">
+            <i class="bi bi-plus-lg me-1"></i>Start New
+        </a>
+    </div>
+
+    <div class="vstack gap-2">
+        @foreach (var a in Model)
+        {
+            <div class="card border-1 p-3">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <div class="fw-semibold">@a.Name</div>
+                        <div class="text-muted small">@a.Number</div>
+                    </div>
+                    <div class="d-flex align-items-start gap-2">
+                        @if (a.IsActive)
+                        {
+                            <span class="badge bg-success-subtle text-success border badge-pill">
+                                Active
+                            </span>
+                        }
+                        <button class="btn btn-sm btn-outline-secondary">
+                            <i class="bi bi-pencil"></i>
+                        </button>
+                    </div>
+                </div>
+                <div class="row pt-2 small">
+                    <div class="col-4 text-muted">Balance:</div>
+                    <div class="col-8 fw-semibold">@Money(a.Balance)</div>
+                </div>
+            </div>
+        }
+    </div>
+</div>

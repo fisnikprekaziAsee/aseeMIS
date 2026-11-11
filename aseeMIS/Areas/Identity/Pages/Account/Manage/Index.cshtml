@@ -1,0 +1,345 @@
+@page
+@addTagHelper *, Syncfusion.EJ2
+@model aseeMIS.Areas.Identity.Pages.Account.Manage.IndexModel
+@using Syncfusion.EJ2
+@using Syncfusion.EJ2.Popups
+
+@{
+    ViewData["SubTitle"] = "Profile";
+    ViewData["ActivePage"] = ManageNavPages.Index;
+
+    var currentPicturePath = string.IsNullOrEmpty(Model.ProfilePicturePath)
+        ? "~/images/ProfilePictures/user.png"
+        : $"~/{Model.ProfilePicturePath}";
+
+    var popupPosition = new DialogPositionData() { X = "center", Y = "100" };
+
+    var open = new { content = "Open", isPrimary = false, cssClass = "e-custom-img-btn e-img-custom-open" };
+    var reset = new { content = "Reset", isPrimary = false, cssClass = "e-custom-img-btn e-img-custom-reset" };
+    var rotate = new { content = "Rotate", isPrimary = false, cssClass = "e-custom-img-btn e-img-custom-rotate" };
+    var done = new { content = "Apply", isPrimary = true, cssClass = "e-custom-img-btn e-img-custom-apply" };
+
+    // Hide ImageEditor toolbar (your custom buttons are in dialog footer)
+    var imageTool = new string[] { };
+}
+
+<partial name="_StatusMessage" for="StatusMessage" />
+
+<style>
+    .profile-left {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 10px;
+    }
+
+    .e-custom-wrapper {
+        position: relative;
+        width: 200px;
+        height: 200px;
+    }
+
+    #img-canvas {
+        width: 200px !important;
+        height: 200px !important;
+        border-radius: 50%;
+        box-shadow: 0 .5rem 1rem rgba(0,0,0,.15);
+        background: #fff;
+    }
+
+    #custom-edit.e-custom-edit {
+        position: absolute;
+        right: 10px;
+        bottom: 10px;
+        width: 44px;
+        height: 44px;
+        border-radius: 50%;
+        background: #0d6efd;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        box-shadow: 0 .5rem 1rem rgba(0,0,0,.15);
+    }
+
+    #custom-edit .e-custom-icon::before {
+        content: "\F4C9"; /* bootstrap-icons pencil */
+        font-family: bootstrap-icons;
+        color: #fff;
+        font-size: 18px;
+    }
+
+    #dialog .e-dlg-content {
+        padding: 10px !important;
+    }
+
+    #dialog .e-image-editor {
+        height: 270px !important;
+    }
+</style>
+
+<form id="profile-form" method="post" enctype="multipart/form-data">
+    <div asp-validation-summary="ModelOnly" class="text-danger" role="alert"></div>
+
+    <!-- IMPORTANT: This is what the server reads -->
+    <input type="hidden" asp-for="Input.ProfilePicturePathBase64" id="ProfilePicturePathBase64" />
+
+    <div class="row align-items-start">
+        <!-- LEFT COLUMN -->
+        <div class="col-md-4">
+            <div class="profile-left">
+                <div class="e-custom-wrapper">
+                    <canvas id="img-canvas"></canvas>
+
+                    <!-- hidden image used for canvas drawing + dialog open -->
+                    <img alt="img" id="custom-img" crossorigin="anonymous"
+                         src="@Url.Content(currentPicturePath)"
+                         style="display:none" />
+
+                    <input type="file" id="img-upload" style="display:none" accept="image/*" />
+
+                    <span id="custom-edit" class="e-custom-edit" title="Edit photo">
+                        <span class="e-custom-icon"></span>
+                    </span>
+                </div>
+
+                <div class="text-muted small">Click the pencil to upload and crop.</div>
+            </div>
+        </div>
+
+        <!-- RIGHT COLUMN -->
+        <div class="col-md-8">
+            <div class="p-3">
+                <div class="form-floating mb-3">
+                    <input asp-for="Input.FullName" class="form-control" placeholder="Full Name" />
+                    <label asp-for="Input.FullName">Full Name</label>
+                    <span asp-validation-for="Input.FullName" class="text-danger"></span>
+                </div>
+
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="form-floating mb-3">
+                            <select asp-for="Input.GenderId" class="form-select">
+                                <option value="">-- Select Gender --</option>
+                                @foreach (var g in Model.Genders ?? Enumerable.Empty<dsDef.Core.DTOs.DefGenderDto>())
+                                {
+                                    <option value="@g.GenderId" selected="@(Model.Input?.GenderId == g.GenderId)">
+                                        @g.GenderName
+                                    </option>
+                                }
+                            </select>
+                            <label asp-for="Input.GenderId">Gender</label>
+                            <span asp-validation-for="Input.GenderId" class="text-danger"></span>
+                        </div>
+                    </div>
+
+                    <div class="col-md-6">
+                        <div class="form-floating mb-3">
+                            <input asp-for="Input.BirthDate" class="form-control" type="date" placeholder="Date of Birth" />
+                            <label asp-for="Input.BirthDate">Date of Birth</label>
+                            <span asp-validation-for="Input.BirthDate" class="text-danger"></span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="form-floating mb-3">
+                            <input asp-for="Input.PhoneNumber" class="form-control" placeholder="Phone number" />
+                            <label asp-for="Input.PhoneNumber">Phone number</label>
+                            <span asp-validation-for="Input.PhoneNumber" class="text-danger"></span>
+                        </div>
+                    </div>
+
+                    <div class="col-md-6">
+                        <div class="form-floating mb-3">
+                            <select asp-for="Input.LanguageCode" class="form-select">
+                                <option value="">-- Select Language --</option>
+                                @foreach (var l in Model.Languages ?? Enumerable.Empty<dsAppMng.Core.DTOs.AppLanguageDto>())
+                                {
+                                    <option value="@l.LanguageCode" selected="@(string.Equals(Model.Input?.LanguageCode, l.LanguageCode, StringComparison.OrdinalIgnoreCase))">
+                                        @l.DisplayText
+                                    </option>
+                                }
+                            </select>
+                            <label asp-for="Input.LanguageCode">Language</label>
+                            <span asp-validation-for="Input.LanguageCode" class="text-danger"></span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row align-items-end">
+                    <div class="col-md-6">
+                        <div class="form-floating mb-3">
+                            @if (Model.Input.TwoFactorEnabled == true)
+                            {
+                                <input type="text" id="twoFactorCodeInput" name="twoFactorCode" class="form-control" placeholder="Enter 2FA Code" required />
+                                <label for="twoFactorCodeInput">2FA Code</label>
+                            }
+                        </div>
+                    </div>
+
+                    <div class="col-md-6">
+                        <button id="update-profile-button" type="submit" class="w-100 btn btn-lg btn-primary">Save</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Dialog -->
+    <div id="profile-dialog">
+        <ejs-dialog id="dialog"
+                    height="420px"
+                    width="340px"
+                    target="body"
+                    position="@popupPosition"
+                    header="Edit Profile Image"
+                    showCloseIcon="true"
+                    visible="false"
+                    closeOnEscape="true"
+                    open="dialogOpen">
+            <e-content-template>
+                <div class="dlg-content">
+                    <ejs-imageeditor id="image-editor"
+                                     created="created"
+                                     fileOpened="imageEditorOpen"
+                                     toolbar="imageTool">
+                    </ejs-imageeditor>
+                </div>
+            </e-content-template>
+            <e-dialog-buttons>
+                <e-dialog-dialogbutton buttonModel="open" click="openBtn"></e-dialog-dialogbutton>
+                <e-dialog-dialogbutton buttonModel="reset" click="resetBtn"></e-dialog-dialogbutton>
+                <e-dialog-dialogbutton buttonModel="rotate" click="rotateBtn"></e-dialog-dialogbutton>
+                <e-dialog-dialogbutton buttonModel="done" click="doneBtn"></e-dialog-dialogbutton>
+            </e-dialog-buttons>
+        </ejs-dialog>
+    </div>
+</form>
+
+<script>
+    // -------- shared elements --------
+    const img = document.getElementById('custom-img');
+    const canvas = document.getElementById('img-canvas');
+    const ctx = canvas.getContext('2d');
+
+    canvas.width = 200;
+    canvas.height = 200;
+
+    function drawToCanvas(sourceImg) {
+        const size = Math.min(sourceImg.naturalWidth, sourceImg.naturalHeight);
+        const sx = (sourceImg.naturalWidth - size) / 2;
+        const sy = (sourceImg.naturalHeight - size) / 2;
+
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(sourceImg, sx, sy, size, size, 0, 0, canvas.width, canvas.height);
+    }
+
+    // initial draw
+    img.onload = function () { drawToCanvas(img); };
+
+    // ---------- IMPORTANT: expose Syncfusion callbacks globally ----------
+    window.openBtn = function () {
+        document.getElementById('img-upload').click();
+    };
+
+    window.imageEditorOpen = function () {
+        const imageEditor = ej.base.getComponent(document.getElementById('image-editor'), 'image-editor');
+        try { imageEditor.select('circle'); } catch { }
+    };
+
+    window.resetBtn = function () {
+        const imageEditor = ej.base.getComponent(document.getElementById('image-editor'), 'image-editor');
+        imageEditor.reset();
+        try { imageEditor.select('circle'); } catch { }
+    };
+
+    window.rotateBtn = function () {
+        const imageEditor = ej.base.getComponent(document.getElementById('image-editor'), 'image-editor');
+        imageEditor.rotate(-90);
+    };
+
+    // ✅ THIS IS THE KEY FIX: Apply sets hidden field + preview
+       window.doneBtn = function () {
+        const imageEditor = ej.base.getComponent(document.getElementById('image-editor'), 'image-editor');
+        if (!imageEditor) return;
+
+        // Crop first
+        try { imageEditor.crop(); } catch { }
+
+        // Get cropped ImageData (NOT export => no download)
+        const croppedData = imageEditor.getImageData();
+        if (!croppedData) return;
+
+        // Convert ImageData -> base64 using a temp canvas
+        const tempCanvas = document.createElement('canvas');
+        tempCanvas.width = croppedData.width;
+        tempCanvas.height = croppedData.height;
+
+        const tctx = tempCanvas.getContext('2d');
+        tctx.putImageData(croppedData, 0, 0);
+
+        const base64 = tempCanvas.toDataURL('image/png'); // "data:image/png;base64,..."
+
+        // 1) this will be posted to server (your OnPostAsync reads Input.ProfilePicturePathBase64)
+        document.getElementById('ProfilePicturePathBase64').value = base64;
+
+        // 2) update hidden image source (so dialogOpen uses latest)
+        const img = document.getElementById('custom-img');
+        img.src = base64;
+
+        // 3) update the preview canvas immediately (same logic you already use)
+        const canvas = document.getElementById('img-canvas');
+        const ctx = canvas.getContext('2d');
+
+        canvas.width = 200;
+        canvas.height = 200;
+
+        // center-crop from tempCanvas into 200x200 circle preview
+        const size = Math.min(tempCanvas.width, tempCanvas.height);
+        const sx = (tempCanvas.width - size) / 2;
+        const sy = (tempCanvas.height - size) / 2;
+
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(tempCanvas, sx, sy, size, size, 0, 0, canvas.width, canvas.height);
+
+        // Hide dialog
+        const dialogObj = ej.base.getComponent(document.getElementById('dialog'), 'dialog');
+        dialogObj.hide();
+    };
+
+
+    window.created = function () {
+        // keep minimal
+    };
+
+    window.dialogOpen = function () {
+        const imageEditor = ej.base.getComponent(document.getElementById('image-editor'), 'image-editor');
+        imageEditor.open(img.src);
+    };
+
+    // pencil click => open dialog
+    document.getElementById('custom-edit').onclick = function () {
+        const dialogObj = ej.base.getComponent(document.getElementById('dialog'), 'dialog');
+        dialogObj.show();
+    };
+
+    // file upload -> open in editor
+    document.getElementById('img-upload').onchange = function (args) {
+        const file = args.target.files && args.target.files[0];
+        if (!file) return;
+
+        const url = URL.createObjectURL(file);
+        const imageEditor = ej.base.getComponent(document.getElementById('image-editor'), 'image-editor');
+        imageEditor.open(url);
+
+        // clear input so selecting same file again works
+        document.getElementById('img-upload').value = null;
+    };
+</script>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}
+rujt me numirn e i

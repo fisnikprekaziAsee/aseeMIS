@@ -1,0 +1,526 @@
+﻿@using Syncfusion.EJ2
+@using Syncfusion.EJ2.Grids
+@using Syncfusion.EJ2.DocumentEditor
+@using Syncfusion.EJ2.Lists
+@using dsDocEng.Core.Models
+
+@{
+    Layout = "_Layout";
+    ViewBag.Title = "All Templates";
+    var templates = ViewBag.Templates;
+
+    var commands = new List<object>
+    {
+        new { type = "View", buttonOption = new { iconCss = "e-icons e-eye", cssClass = "e-flat" } },
+        new { type = "Edit", buttonOption = new { iconCss = "e-icons e-edit", cssClass = "e-flat" } }
+    };
+}
+
+<style>
+    .e-dialog .e-dlg-header {
+        background-color: #1065d4;
+        color: white;
+        padding: 4px 10px;
+        font-weight: 500;
+        font-size: 14px;
+        line-height: 1.2;
+    }
+
+    #documenteditor_title_name {
+        margin-left: 10px;
+    }
+
+    /* ✅ FORCE dialog itself to be real fullscreen */
+    #documentDialog {
+        width: 100vw !important;
+        height: 100vh !important;
+        max-width: 100vw !important;
+        max-height: 100vh !important;
+    }
+
+        /* ✅ CRITICAL: dialog content must be FLEX + fill */
+        #documentDialog .e-dlg-content {
+            height: 100% !important;
+            width: 100% !important;
+            padding: 0 !important;
+            overflow: hidden !important;
+            box-sizing: border-box;
+            display: flex !important;
+            flex-direction: column !important;
+            min-height: 0 !important;
+        }
+
+    /* ✅ editorMainContent is flex column */
+    #editorMainContent {
+        flex: 1 1 auto;
+        min-width: 0;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+        height: 100%;
+        position: relative;
+        overflow: hidden;
+    }
+
+    /* ✅ IMPORTANT: FIX unstable height */
+    #container {
+        flex: 1 1 auto;
+        min-height: 0 !important;
+        height: 100% !important; /* ✅ key */
+        width: 100% !important;
+    }
+
+        #container .e-documenteditorcontainer {
+            height: 100% !important;
+            width: 100% !important;
+        }
+
+        /* ✅ EXTRA: prevent toolbar/layout from collapsing heights */
+        #documentDialog,
+        #documentDialog .e-dlg-content,
+        #editorMainContent,
+        #container,
+        #container .e-documenteditorcontainer {
+            height: 100% !important;
+            width: 100% !important;
+            min-height: 0 !important;
+        }
+
+    /* ✅ Overlay drawer */
+    #fieldList {
+        position: absolute;
+        top: 60px;
+        left: 12px;
+        width: 320px;
+        height: calc(100% - 72px);
+        background: #f9f9f9;
+        border: 1px solid #d7d7d7;
+        border-radius: 10px;
+        padding: 10px;
+        box-sizing: border-box;
+        overflow-y: auto;
+        z-index: 20;
+        transform: translateX(-120%);
+        opacity: 0;
+        pointer-events: none;
+        transition: transform .18s ease, opacity .18s ease;
+    }
+
+        #fieldList.is-open {
+            transform: translateX(0);
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        #fieldList h5 {
+            font-size: 16px;
+            margin: 0 0 10px 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+    .drawer-close-btn {
+        border: none;
+        background: transparent;
+        cursor: pointer;
+        font-size: 18px;
+        line-height: 1;
+        padding: 2px 6px;
+        color: #333;
+    }
+
+    #drawerBackdrop {
+        position: absolute;
+        inset: 0;
+        z-index: 15;
+        background: rgba(0,0,0,0.10);
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity .18s ease;
+    }
+
+        #drawerBackdrop.is-open {
+            opacity: 1;
+            pointer-events: auto;
+        }
+</style>
+
+<ejs-message id="templateMessageTop" visible="false" severity="Success" cssClass="e-content-center" showCloseIcon="true"></ejs-message>
+
+<div class="control-section">
+    <div class="row">
+        <div class="col-lg-12">
+            <ejs-grid id="templateGrid" height="600" commandClick="onGridCommandClick" dataSource="templates">
+                <e-grid-columns>
+                    <e-grid-column field="DocumentTemplateId" headerText="File Index" width="100" textAlign="Right"></e-grid-column>
+                    <e-grid-column field="DocumentTemplateName" headerText="File Name" width="250"></e-grid-column>
+                    <e-grid-column headerText="Actions" width="120" textAlign="Center" commands="commands"></e-grid-column>
+                </e-grid-columns>
+            </ejs-grid>
+        </div>
+    </div>
+</div>
+
+<input type="hidden" id="formId" value="@ViewBag.FormId" />
+<input type="hidden" id="formSessionId" value="@ViewBag.FormSessionId" />
+
+<ejs-dialog id="documentDialog"
+            isModal="true" showCloseIcon="true"
+            visible="false" enableResize="false" allowDragging="false"
+            width="100vw" height="100vh" zIndex="1500"
+            open="onDialogOpen"
+            close="onClose">
+
+    <e-content-template>
+        <!-- ✅ message INSIDE dialog -->
+        <ejs-message id="templateMessage" visible="false" severity="Success" cssClass="e-content-center" showCloseIcon="true"></ejs-message>
+
+        <div id="editorMainContent">
+            <div class="e-dlg-header" style="height: 50px; display:flex; align-items:center; justify-content:space-between; padding:0 10px;">
+                <label id="documenteditor_title_name"></label>
+
+                <button id="toggle-fieldlist-btn"
+                        type="button"
+                        style="display:none; border:1px solid rgba(255,255,255,.7); background:transparent; color:white; border-radius:8px; padding:4px 10px; cursor:pointer;">
+                    Fields
+                </button>
+            </div>
+
+            <div id="drawerBackdrop"></div>
+
+            <div id="fieldList">
+                <h5>
+                    Insert Field
+                    <button type="button" class="drawer-close-btn" id="close-fieldlist-btn" title="Close">×</button>
+                </h5>
+                <ejs-listview id="mergeFieldList" select="onFieldSelect">
+                    <e-listview-fieldsettings text="text"></e-listview-fieldsettings>
+                </ejs-listview>
+            </div>
+
+            <ejs-documenteditorcontainer id="container"
+                                         enableToolbar="true"
+                                         enableMailMerge="true"
+                                         style="height:100%; width:100%;">
+            </ejs-documenteditorcontainer>
+        </div>
+    </e-content-template>
+</ejs-dialog>
+
+<script>
+    let zoomEdit = null;
+    let zoomView = null;
+
+    // Track what mode is currently open
+    let currentIsEdit = false;
+
+    // ✅ messages
+    function showDialogSuccess(msg) {
+        const inst = document.getElementById("templateMessage")?.ej2_instances?.[0];
+        if (!inst) return;
+        inst.severity = "Success";
+        inst.content = msg;
+        inst.visible = true;
+        inst.dataBind();
+        setTimeout(() => { try { inst.visible = false; inst.dataBind(); } catch { } }, 2500);
+    }
+
+    function showDialogError(msg) {
+        const inst = document.getElementById("templateMessage")?.ej2_instances?.[0];
+        if (!inst) return;
+        inst.severity = "Error";
+        inst.content = msg;
+        inst.visible = true;
+        inst.dataBind();
+        setTimeout(() => { try { inst.visible = false; inst.dataBind(); } catch { } }, 3500);
+    }
+
+    // ✅ zoom helpers
+    function rememberZoom(editor, isEdit) {
+        try {
+            if (!editor || typeof editor.zoomFactor !== "number") return;
+            if (isEdit) zoomEdit = editor.zoomFactor;
+            else zoomView = editor.zoomFactor;
+        } catch { }
+    }
+
+    function restoreZoom(editor, isEdit) {
+        try {
+            const z = isEdit ? zoomEdit : zoomView;
+            if (editor && typeof z === "number") editor.zoomFactor = z;
+        } catch { }
+    }
+
+    // ✅ basic resize
+    function stabilizeEditorSize(container, editor) {
+        try {
+            container.resize();
+            editor.resize();
+        } catch { }
+    }
+
+    // ✅ HARD stabilize: forces dialog/container heights again (prevents “minimize” feeling)
+    function hardStabilize() {
+        try {
+            const dialog = document.getElementById("documentDialog")?.ej2_instances?.[0];
+            const container = document.getElementById("container")?.ej2_instances?.[0];
+            const editor = container?.documentEditor;
+            if (!dialog || !container || !editor) return;
+
+            const dlgEl = document.getElementById("documentDialog");
+            const content = dlgEl?.querySelector(".e-dlg-content");
+            if (content) {
+                content.style.height = "100%";
+                content.style.overflow = "hidden";
+            }
+
+            const containerEl = document.getElementById("container");
+            if (containerEl) {
+                containerEl.style.height = "100%";
+                containerEl.style.width = "100%";
+            }
+
+            dialog.refreshPosition();
+            container.resize();
+            editor.resize();
+        } catch { }
+    }
+
+    // ✅ drawer
+    function openDrawer() {
+        document.getElementById("fieldList")?.classList.add("is-open");
+        document.getElementById("drawerBackdrop")?.classList.add("is-open");
+    }
+    function closeDrawer() {
+        document.getElementById("fieldList")?.classList.remove("is-open");
+        document.getElementById("drawerBackdrop")?.classList.remove("is-open");
+    }
+    function toggleDrawer() {
+        const el = document.getElementById("fieldList");
+        if (!el) return;
+        el.classList.contains("is-open") ? closeDrawer() : openDrawer();
+    }
+
+    // ✅ dialog open hook (Syncfusion sometimes reflows on open)
+    function onDialogOpen() {
+        // multiple passes – Syncfusion renders in phases
+        setTimeout(hardStabilize, 0);
+        setTimeout(hardStabilize, 60);
+        setTimeout(hardStabilize, 160);
+        setTimeout(hardStabilize, 320);
+    }
+
+    // ✅ keep size on browser resize
+    window.addEventListener("resize", () => {
+        // Only enforce hard stabilize in edit mode (your request)
+        if (currentIsEdit) {
+            setTimeout(hardStabilize, 0);
+            setTimeout(hardStabilize, 80);
+        }
+    });
+
+    async function onGridCommandClick(args) {
+        const id = args.rowData.DocumentTemplateId;
+        const name = args.rowData.DocumentTemplateName;
+        const mode = args.commandColumn.type;
+        const isEdit = mode === "Edit";
+        currentIsEdit = isEdit;
+
+        const formId = document.getElementById("formId").value;
+        const formSessionId = document.getElementById("formSessionId").value;
+
+        const container = document.getElementById("container").ej2_instances[0];
+        const dialog = document.getElementById("documentDialog").ej2_instances[0];
+        const editor = container.documentEditor;
+
+        const toggleBtn = document.getElementById("toggle-fieldlist-btn");
+        const closeBtn = document.getElementById("close-fieldlist-btn");
+        const backdrop = document.getElementById("drawerBackdrop");
+
+        try {
+            const loadAjax = new ej.base.Ajax({
+                url: "/DocEng/DocEditor/LoadTemplate",
+                type: "POST",
+                contentType: "application/json",
+                data: JSON.stringify({ id, formId, mode }),
+                beforeSend: function (args) {
+                    if (formSessionId) args.httpRequest.setRequestHeader("FormSessionId", formSessionId);
+                }
+            });
+
+            const loadText = await loadAjax.send();
+            const result = JSON.parse(loadText);
+
+            container.showPropertiesPane = false;
+
+            editor.isReadOnly = !isEdit;
+            editor.enableContextMenu = isEdit;
+
+            container.toolbarItems = isEdit ? [
+                { prefixIcon: 'e-save', tooltipText: 'Save', id: 'save-template-button', text: 'Save' },
+                'New', 'Open', 'Undo', 'Redo',
+                'Image', 'Table', 'Bookmark', 'TableOfContents',
+                'Header', 'Footer', 'PageSetup', 'PageNumber', 'Break',
+                'InsertFootnote', 'InsertEndnote', 'Find',
+                'Comments', 'TrackChanges', 'LocalClipboard',
+                'RestrictEditing', 'FormFields', 'UpdateFields',
+            ] : [
+                'Open', 'Find',
+                { prefixIcon: 'e-print', tooltipText: 'Print', id: 'print-button', text: 'Print' }
+            ];
+
+            container.dataBind();
+
+            // ✅ show dialog first (important)
+            dialog.show();
+
+            document.getElementById("documenteditor_title_name").textContent = `${mode}: ${name}`;
+
+            // Drawer controls only in edit
+            closeDrawer();
+            toggleBtn.style.display = isEdit ? "inline-block" : "none";
+            toggleBtn.onclick = toggleDrawer;
+            closeBtn.onclick = closeDrawer;
+            backdrop.onclick = closeDrawer;
+
+            // ✅ Strong stabilization for EDIT mode (prevents losing size)
+            if (isEdit) {
+                setTimeout(hardStabilize, 0);
+                setTimeout(hardStabilize, 60);
+                setTimeout(hardStabilize, 160);
+                setTimeout(hardStabilize, 320);
+            }
+
+            // ✅ Delay open for stable size
+            setTimeout(() => {
+                editor.open(result.sfdt);
+                editor.updateFields();
+
+                // Stabilize after open (editor creates DOM)
+                setTimeout(() => {
+                    stabilizeEditorSize(container, editor);
+                    if (isEdit) hardStabilize();
+                }, 80);
+
+                // zoom restore AFTER open
+                restoreZoom(editor, isEdit);
+                setTimeout(() => rememberZoom(editor, isEdit), 200);
+            }, 80);
+
+            // Load fields (edit only)
+            if (isEdit) {
+                const fieldsAjax = new ej.base.Ajax({
+                    url: `/DocEng/DocEditor/GetFieldNames?templateId=${id}`,
+                    type: "GET",
+                    beforeSend: function (args) {
+                        if (formSessionId) args.httpRequest.setRequestHeader("FormSessionId", formSessionId);
+                    }
+                });
+
+                const fieldsText = await fieldsAjax.send();
+                const fields = JSON.parse(fieldsText);
+
+                const listview = document.getElementById("mergeFieldList").ej2_instances[0];
+                listview.dataSource = fields;
+                listview.dataBind();
+            }
+
+            // Print (view only)
+            setTimeout(() => {
+                if (!isEdit) {
+                    const printBtn = document.getElementById("print-button");
+                    if (printBtn) {
+                        printBtn.onclick = () => {
+                            editor.focusIn();
+                            editor.print();
+                        };
+                    }
+                }
+            }, 220);
+
+            // Save (bind every open)
+            const saveBtn = document.getElementById("save-template-button");
+            if (saveBtn) {
+                saveBtn.onclick = async function () {
+                    try {
+                        const blob = await editor.saveAsBlob('Docx');
+                        const reader = new FileReader();
+                        reader.onloadend = async function () {
+                            const base64 = reader.result.split(',')[1];
+
+                            const saveAjax = new ej.base.Ajax({
+                                url: "/DocEng/DocEditor/SaveTemplate",
+                                type: "POST",
+                                contentType: "application/json",
+                                data: JSON.stringify({ templateId: id, fileBase64: base64, formId }),
+                                beforeSend: function (args) {
+                                    if (formSessionId) args.httpRequest.setRequestHeader("FormSessionId", formSessionId);
+                                }
+                            });
+
+                            await saveAjax.send();
+
+                            showDialogSuccess("Template saved successfully");
+
+                            // keep size stable after save too (edit mode)
+                            if (currentIsEdit) {
+                                setTimeout(hardStabilize, 0);
+                                setTimeout(hardStabilize, 120);
+                            }
+
+                            setTimeout(() => dialog.hide(), 1500);
+                        };
+                        reader.readAsDataURL(blob);
+                    } catch (e) {
+                        showDialogError("Saving failed ");
+                        console.error(e);
+                    }
+                };
+            }
+
+        } catch (err) {
+            showDialogError("Error loading document ");
+            console.error(err);
+        }
+    }
+
+    function clearListSelection() {
+        const lv = document.getElementById("mergeFieldList")?.ej2_instances?.[0];
+        if (!lv) return;
+        const el = lv.element;
+        el.querySelectorAll(".e-list-item.e-active").forEach(x => x.classList.remove("e-active"));
+        try { lv.selectedItem = null; } catch { }
+    }
+
+    function onFieldSelect(args) {
+        const container = document.getElementById("container").ej2_instances[0];
+        const editor = container.documentEditor;
+        const fieldName = args.text;
+        if (!fieldName) return;
+
+        editor.editor.insertField(`MERGEFIELD ${fieldName} \\* MERGEFORMAT`, `{{${fieldName}}}`);
+        editor.focusIn();
+        editor.updateFields();
+
+        setTimeout(() => clearListSelection(), 0);
+        rememberZoom(editor, true);
+
+        // stabilize after inserting field (this is when it often “jumps”)
+        setTimeout(() => {
+            stabilizeEditorSize(container, editor);
+            hardStabilize();
+        }, 60);
+    }
+
+    document.addEventListener("keydown", (e) => {
+        if (e.key === "Escape") closeDrawer();
+    });
+
+    function onClose() {
+        closeDrawer();
+        // Syncfusion will hide automatically when close is triggered;
+        // calling dialog.hide() again can sometimes cause reflow issues.
+        currentIsEdit = false;
+    }
+</script>

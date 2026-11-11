@@ -1,0 +1,222 @@
+@using System.ComponentModel
+@using dsMIS.Core.Attributes
+@using System.ComponentModel.DataAnnotations
+@using System.ComponentModel.DataAnnotations.Schema
+@{
+    var formId = ViewBag.FormId; // Retrieve the form ID
+    var modelType = (Type)ViewBag.Type; // Retrieve the model type
+    var gridName = ViewBag.Type + "_Grid"; // Retrieve the model type
+    var properties = modelType.GetProperties(); // Get the properties of the model
+    var primaryKeys = properties.Where(p => p.GetCustomAttributes(typeof(KeyAttribute), true).Any()).Select(p => p.Name).ToList(); // Identify primary keys
+    var foreignKeys = properties.Where(p => p.GetCustomAttributes(typeof(ForeignKeyAttribute), true).Any()).Select(p => p.Name).ToList(); // Identify foreign keys
+    var readOnlyProperties = properties.Where(p => p.GetCustomAttributes(typeof(ReadOnlyAttribute), true).Cast<ReadOnlyAttribute>().Any(a => a.IsReadOnly)).Select(p => p.Name).ToList();
+}
+
+
+<div class="row justify-content-center">
+    <!-- Language 1 Dropdown -->
+    <div class="col-lg-3 control-section">
+        <ejs-dropdownlist id="langCode1" dataSource="@ViewBag.Languages" placeholder="Select Source Language" popupHeight="220px">
+            <e-dropdownlist-fields text="LanguageName" value="LanguageCode"></e-dropdownlist-fields>
+        </ejs-dropdownlist>
+    </div>
+
+    <div class="col-lg-auto d-flex align-items-center justify-content-center mb-2">
+        <span><i class="bi bi-arrow-right"></i></span>
+    </div>
+
+    <!-- Language 2 Dropdown -->
+    <div class="col-lg-3 control-section">
+        <ejs-dropdownlist id="langCode2" dataSource="@ViewBag.Languages" placeholder="Select Destination Language" popupHeight="220px">
+            <e-dropdownlist-fields text="LanguageName" value="LanguageCode"></e-dropdownlist-fields>
+        </ejs-dropdownlist>
+    </div>
+
+    <!-- Button to trigger onLanguageChange -->
+    <div class="col-lg-2 text-center d-flex align-items-center">
+        <button type="button" class="btn btn-primary custom-btn" onclick="onLanguageChange()">Show Forms</button>
+    </div>
+</div>
+<br />
+
+<div class="col-lg-12 control-section msg-default-section">
+    <div class="content-section">
+        <ejs-message id="Grid_MSG" visible="false" showCloseIcon="true"></ejs-message>
+    </div>
+</div>
+
+<!-- DataGrid for AppFormLanguage -->
+<ejs-grid id="Grid" actionBegin="actionBegin" TValue="@modelType" dataSource="@Model" gridLines="Both" 
+          allowReordering="true" allowSorting="true" allowFiltering="true" allowPdfExport="true" allowExcelExport="true"  allowResizing="true" allowPaging="true"
+          toolbar="@ViewBag.ToolbarItems" contextMenuItems="@ViewBag.ContextMenuItems" contextMenuClick="contextMenuClick" toolbarClick="toolbarClick"
+          height="50vh">
+  
+    <e-grid-editSettings allowAdding="true" allowEditing="true" mode="Normal"></e-grid-editSettings>
+    <e-grid-pagesettings pageCount="10" pageSizes="true"></e-grid-pagesettings>
+    <e-grid-filterSettings type="Excel"></e-grid-filterSettings>
+    <e-grid-columns>
+        @foreach (var property in properties)
+        {
+            var fieldType = property.PropertyType.Name.ToLower(); // Determine property type
+            var isPrimaryKey = primaryKeys.Contains(property.Name); // Check if it is a primary key
+
+
+
+            // Check for the ExtendedForeignKeyAttribute on the property
+            var extendedFkAttribute = property.GetCustomAttributes(typeof(ExtendedForeignKeyAttribute), false)
+            .FirstOrDefault() as ExtendedForeignKeyAttribute;
+            bool isForeignKey = extendedFkAttribute != null;
+            var headerText = property.Name; // Use property name as header
+
+            // Special template column for "IsApproved"
+            if (property.Name == "IsApproved")
+            {
+                <e-grid-column field="@property.Name" headerText="Is Approved" type="boolean" template="#statusTemplate"
+                               textAlign="Center" allowEditing="false" allowResizing="true">
+                </e-grid-column>
+            }
+            else if (property.Name == "LanguageCode")
+            {
+                <e-grid-column field="@property.Name" isPrimaryKey="true" allowEditing="false" allowResizing="true" visible="false">
+                </e-grid-column>
+            }
+            // Handle foreign key columns as dropdowns using a generic lookup from ViewData
+            else if (isForeignKey)
+            {
+                // Declare variables in a code block that persists for the markup below.
+                string fkField = "";
+                string fkValue = "";
+                var fkData = ViewData["FK_" + property.Name];
+
+                // If fkData exists and has at least one element, use reflection to pick the first two properties.
+                if (fkData is IEnumerable<dynamic> dataEnum && dataEnum.Any())
+                {
+                    // Get the first item in the collection.
+                    var firstItem = dataEnum.First();
+                    var props = firstItem.GetType().GetProperties();
+                    if (props.Length >= 2)
+                    {
+                        fkField = props[0].Name;  // First column/property name (the key)
+                        fkValue = props[1].Name;  // Second column/property name (the display value)
+                    }
+                }
+                <e-grid-column field="@property.Name" headerText="@headerText" type="string"
+                               allowResizing="true" textAlign="Left"
+                               dataSource="@(ViewData["FK_" + property.Name])"
+                               foreignKeyField="@fkField" foreignKeyValue="@fkValue" editType="dropdownedit">
+                </e-grid-column>
+            }
+            // Handle boolean fields as checkboxes
+            else if (fieldType == "boolean")
+            {
+                <e-grid-column field="@property.Name" headerText="@headerText" type="boolean"
+                               editType="booleanedit" displayAsCheckBox="true" textAlign="Center"
+                               allowResizing="true">
+                </e-grid-column>
+            }
+            else
+            {
+                // Determine the editor template based on the data type
+                string editType = fieldType switch
+                {
+                    "datetime" => "DatePicker",
+                    "string" => "TextBox",
+                    "int32" or "int64" or "decimal" or "double" => "NumericTextBox",
+                    _ => "Default"
+                };
+
+                <e-grid-column field="@property.Name" headerText="@headerText" type="@fieldType"
+                               editType="@editType" textAlign="Left" isPrimaryKey="@isPrimaryKey"
+                               allowEditing="@(isPrimaryKey || readOnlyProperties.Contains(property.Name) ? false : true)"
+                               allowResizing="true">
+                </e-grid-column>
+            }
+        }
+
+    </e-grid-columns>
+</ejs-grid>
+
+<ejs-dialog id="ApprovalDialog" isModal="true" width="90%" height="80%" showCloseIcon="true" visible="false">
+    <e-content-template>
+        <div id="dialogContent">
+            <!-- Content will be dynamically loaded here -->
+        </div>
+    </e-content-template>
+</ejs-dialog>
+
+<!-- Scripts -->
+<script type="text/x-jsrender" id="statusTemplate">
+    ${statusDetail(data)}
+</script>
+
+<script src="~/js/gridHelperTranslatorGeneric.js" asp-append-version="true"></script>
+
+<script>
+
+    function onLanguageChange() {
+        hideMessages("Grid_MSG");
+        // Get the selected language codes from both dropdowns
+        var langDropdown1 = document.getElementById("langCode1").ej2_instances[0];
+        var langDropdown2 = document.getElementById("langCode2").ej2_instances[0];
+        var langCode1 = langDropdown1.value;
+        var langCode2 = langDropdown2.value;
+        if (langCode1 && langCode2) {
+            var grid = document.getElementById("Grid").ej2_instances[0];
+            var changeErrorMessage = document.getElementById("Grid_MSG").ej2_instances[0];
+
+            // Update column headers with selected language names
+            grid.columns.forEach(function (col) {
+                if (col.field.includes("Source")) {
+                    col.headerText = getAreaLocalizedText("lblAppMng", col.field) + " [" + langCode1 + "]";
+                } else if (col.field.includes("Destination")) {
+                    col.headerText = getAreaLocalizedText("lblAppMng", col.field) + " [" + langCode2 + "]";
+                }
+            });
+
+            // Refresh the grid headers to apply changes
+            grid.refreshHeader();
+
+           
+
+            // AJAX request to fetch form data based on selected languages
+            var url = '@Url.Action("GetTranslator", "Translator")';
+            $.ajax({
+                url: url,
+                type: 'GET',
+                data: {
+                    langCode1: langCode1,
+                    langCode2: langCode2
+                },
+                success: function (data) {
+                    grid.dataSource = data;
+
+                    grid.refresh();
+                },
+                error: function (xhr) {
+                    //Error Messages
+                    changeErrorMessage.content = "Error while loading forms";
+                    changeErrorMessage.visible = true;
+                }
+            });
+        }
+    }
+
+    document.addEventListener("DOMContentLoaded", function () {
+        gridDataBound(document.getElementById("Grid").ej2_instances[0], "lblAppMng");
+
+    });
+</script>
+
+<style>
+    .custom-btn {
+        height: 30px;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+    }
+
+    .e-toolbar-item .e-tbar-btn-text {
+        display: none;
+    }
+</style>
+

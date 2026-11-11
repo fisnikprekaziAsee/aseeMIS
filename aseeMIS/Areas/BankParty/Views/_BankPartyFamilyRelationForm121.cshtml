@@ -1,0 +1,242 @@
+@model dsBankParty.Core.ViewModels.BankPartyFamilyRelationViewModel
+@using System.Reflection
+@using aseeMIS.Areas.Common.ViewModels
+
+@{
+    var request = ViewData["EntityDetailRequest"] as aseeMIS.Areas.Common.DTOs.EntityDetailRequest
+        ?? throw new InvalidOperationException("EntityDetailRequest is required.");
+
+    var formSessionId = request.FormSessionId;
+    var formId = request.FormId;
+    var isAdd = request.IsAdd || (Model?.PartyFamilyRelationId ?? 0) == 0;
+    var isGridDialog = request.IsGridDialog;
+    var gridName = request.GridName ?? "";
+    var formDomId = "familyRelationForm_" + request.FormSessionId;
+    var bankPartySearchId = "BankPartySearch_" + request.FormSessionId;
+    var familyRelationSearchId = "FamilyRelationSearch_" + request.FormSessionId;
+    var bankPartySelectFn = "select_Form121_BankParty_" + request.FormSessionId;
+    var familyRelationSelectFn = "select_Form121_FamilyRelation_" + request.FormSessionId;
+    var searchIndividualsUrl = Url.Action("SearchIndividuals", "BankParty", new { area = "BankParty" }) ?? "/BankParty/BankParty/SearchIndividuals";
+
+    var relationTypes = (ViewData["FK_FamilyRelationTypeId"] as IEnumerable<object>) ?? [];
+
+    static object? ReadProp(object row, string name)
+    {
+        return row.GetType().GetProperty(name, BindingFlags.Public | BindingFlags.Instance | BindingFlags.IgnoreCase)?.GetValue(row);
+    }
+
+    static string DateValue(DateOnly? value) => value.HasValue ? value.Value.ToString("yyyy-MM-dd") : string.Empty;
+}
+
+<form id="@formDomId" onsubmit="return false;">
+    <div class="form-container ds-family-relation-form"
+         data-form-session-id="@formSessionId"
+         data-form-id="@formId"
+         data-primary-key="PartyFamilyRelationId">
+
+        <input type="hidden" id="PartyFamilyRelationId" name="PartyFamilyRelationId" value="@(Model?.PartyFamilyRelationId ?? 0)" />
+        <input type="hidden" id="BankPartyId" name="BankPartyId" value="@(Model?.BankPartyId ?? 0)" />
+        <input type="hidden" id="FamilyRelationId" name="FamilyRelationId" value="@(Model?.FamilyRelationId ?? 0)" />
+        <input type="hidden" id="BankPartyName" name="BankPartyName" value="@(Model?.BankPartyName ?? string.Empty)" />
+        <input type="hidden" id="FamilyRelationName" name="FamilyRelationName" value="@(Model?.FamilyRelationName ?? string.Empty)" />
+
+        <div class="ds-card">
+            <div class="ds-card-h d-flex align-items-center gap-2">
+                <i class="bi bi-people"></i>
+                <span class="ds-card-title">Family Relationship</span>
+            </div>
+            <div class="ds-card-b">
+                <div class="row g-3">
+                    <div class="col-12 col-lg-6">
+                        @await Component.InvokeAsync("SearchAutocomplete", new SearchAutocompleteOptions
+                        {
+                            SearchUrl = searchIndividualsUrl,
+                            Placeholder = "Search client...",
+                            Id = bankPartySearchId,
+                            ValueField = "BankPartyId",
+                            TextField = "DisplayText",
+                            OnSelectFn = bankPartySelectFn
+                        })
+                    </div>
+
+                    <div class="col-12 col-lg-6">
+                        @await Component.InvokeAsync("SearchAutocomplete", new SearchAutocompleteOptions
+                        {
+                            SearchUrl = searchIndividualsUrl,
+                            Placeholder = "Search related person...",
+                            Id = familyRelationSearchId,
+                            ValueField = "BankPartyId",
+                            TextField = "DisplayText",
+                            OnSelectFn = familyRelationSelectFn
+                        })
+                    </div>
+
+                    <div class="col-12 col-lg-4">
+                        <label class="form-label fw-semibold" for="FamilyRelationTypeId">Relation Type</label>
+                        <select id="FamilyRelationTypeId" name="FamilyRelationTypeId" class="form-select">
+                            <option value="">Select...</option>
+                            @foreach (var row in relationTypes)
+                            {
+                                var id = ReadProp(row, "FamilyRelationTypeId")?.ToString();
+                                var text = ReadProp(row, "FamilyRelationTypeName")?.ToString() ?? id;
+                                <option value="@id" selected="@(id == (Model?.FamilyRelationTypeId.ToString() ?? string.Empty))">@text</option>
+                            }
+                        </select>
+                    </div>
+
+                    <div class="col-12 col-lg-4">
+                        <label class="form-label fw-semibold" for="ValidFrom">Valid From</label>
+                        <input id="ValidFrom" name="ValidFrom" class="form-control" type="date" value="@DateValue(Model?.ValidFrom)" />
+                    </div>
+
+                    <div class="col-12 col-lg-4">
+                        <label class="form-label fw-semibold" for="ValidTo">Valid To</label>
+                        <input id="ValidTo" name="ValidTo" class="form-control" type="date" value="@DateValue(Model?.ValidTo)" />
+                    </div>
+
+                    <div class="col-12">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="IsActive" name="IsActive" @(Model?.IsActive != false ? "checked" : "")>
+                            <label class="form-check-label fw-semibold" for="IsActive">Active</label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="d-flex justify-content-end gap-2 mt-3">
+            @if (isGridDialog)
+            {
+                <button type="button" class="btn btn-light" onclick="closeGridPartialDialogEditor('@gridName')">Cancel</button>
+            }
+            <button type="button" class="btn btn-primary" onclick="saveFamilyRelationForm121(this)">
+                <i class="bi bi-check2-square"></i>
+                @(isAdd ? "Create Relation" : "Update Relation")
+            </button>
+        </div>
+    </div>
+</form>
+
+<script>
+    (function () {
+        const formId = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(formDomId));
+        const isGridDialog = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(isGridDialog));
+        const gridName = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(gridName));
+        const bankPartySearchId = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(bankPartySearchId));
+        const familyRelationSearchId = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(familyRelationSearchId));
+        const initialBankPartyName = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model?.BankPartyName ?? string.Empty));
+        const initialFamilyRelationName = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model?.FamilyRelationName ?? string.Empty));
+        const form = document.getElementById(formId);
+        if (!form) return;
+
+        function field(id) {
+            return form.querySelector("#" + id);
+        }
+
+        function value(id) {
+            const el = field(id);
+            return el ? el.value : null;
+        }
+
+        function setValue(id, next) {
+            const el = field(id);
+            if (el) el.value = next ?? "";
+        }
+
+        function toIntOrNull(next) {
+            const parsed = Number(next);
+            return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+        }
+
+        function toDateOrNull(next) {
+            return next && String(next).trim() ? next : null;
+        }
+
+        function read(row, name) {
+            return row?.[name] ?? row?.[name.charAt(0).toLowerCase() + name.slice(1)] ?? null;
+        }
+
+        function setAutocompleteText(id, text) {
+            if (!text) return;
+
+            let tries = 0;
+            const timer = setInterval(function () {
+                const control = document.getElementById(id)?.ej2_instances?.[0];
+                if (!control && ++tries > 50) {
+                    clearInterval(timer);
+                    return;
+                }
+
+                if (!control) return;
+
+                clearInterval(timer);
+                control.text = text;
+                control.value = text;
+                if (control.element) control.element.value = text;
+                control.dataBind();
+            }, 50);
+        }
+
+        window[@Html.Raw(System.Text.Json.JsonSerializer.Serialize(bankPartySelectFn))] = function (args) {
+            const row = args?.itemData;
+            setValue("BankPartyId", read(row, "BankPartyId"));
+            setValue("BankPartyName", read(row, "DisplayText") || read(row, "FullName"));
+        };
+
+        window[@Html.Raw(System.Text.Json.JsonSerializer.Serialize(familyRelationSelectFn))] = function (args) {
+            const row = args?.itemData;
+            setValue("FamilyRelationId", read(row, "BankPartyId"));
+            setValue("FamilyRelationName", read(row, "DisplayText") || read(row, "FullName"));
+        };
+
+        setAutocompleteText(bankPartySearchId, initialBankPartyName);
+        setAutocompleteText(familyRelationSearchId, initialFamilyRelationName);
+
+        window.saveFamilyRelationForm121 = function () {
+            const model = {
+                PartyFamilyRelationId: toIntOrNull(value("PartyFamilyRelationId")) || 0,
+                BankPartyId: toIntOrNull(value("BankPartyId")),
+                BankPartyName: value("BankPartyName"),
+                FamilyRelationId: toIntOrNull(value("FamilyRelationId")),
+                FamilyRelationName: value("FamilyRelationName"),
+                FamilyRelationTypeId: toIntOrNull(value("FamilyRelationTypeId")),
+                ValidFrom: toDateOrNull(value("ValidFrom")),
+                ValidTo: toDateOrNull(value("ValidTo")),
+                IsActive: !!field("IsActive")?.checked
+            };
+
+            ds.entity.collectModel = function () {
+                return model;
+            };
+
+            if (isGridDialog) {
+                saveGridPartialDialogEditor(gridName, model);
+                return;
+            }
+
+            ds.entity.save();
+        };
+    })();
+</script>
+
+<style>
+    .ds-family-relation-form .ds-card {
+        border: 1px solid #e3e8ef;
+        border-radius: 8px;
+        background: #fff;
+        box-shadow: 0 8px 18px rgba(16, 24, 40, .06);
+    }
+
+    .ds-family-relation-form .ds-card-h {
+        padding: 12px 14px;
+        border-bottom: 1px solid #edf1f5;
+    }
+
+    .ds-family-relation-form .ds-card-title {
+        font-weight: 700;
+    }
+
+    .ds-family-relation-form .ds-card-b {
+        padding: 16px;
+    }
+</style>

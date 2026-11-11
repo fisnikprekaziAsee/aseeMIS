@@ -1,0 +1,134 @@
+﻿@{
+    var htmlAttributes = new Dictionary<string, object> { { "controllerName", "/AppMng/AppConstant" } };
+}
+
+<div class="row justify-content-center">
+    <!-- Language 1 Dropdown -->
+    <div class="col-lg-3 control-section">
+        <ejs-dropdownlist id="langCode1" dataSource="@ViewBag.Languages" placeholder="Select Source Language" popupHeight="220px">
+            <e-dropdownlist-fields text="LanguageName" value="LanguageCode"></e-dropdownlist-fields>
+        </ejs-dropdownlist>
+    </div>
+
+    <div class="col-lg-auto d-flex align-items-center justify-content-center mb-2">
+        <span><i class="bi bi-arrow-right"></i></span>
+    </div>
+
+    <!-- Language 2 Dropdown -->
+    <div class="col-lg-3 control-section">
+        <ejs-dropdownlist id="langCode2" dataSource="@ViewBag.Languages" placeholder="Select Destination Language" popupHeight="220px">
+            <e-dropdownlist-fields text="LanguageName" value="LanguageCode"></e-dropdownlist-fields>
+        </ejs-dropdownlist>
+    </div>
+
+    <!-- Button to trigger onLanguageChange -->
+    <div class="col-lg-2 text-center d-flex align-items-center">
+        <button type="button" class="btn btn-primary custom-btn" onclick="onLanguageChange()">Show Constants</button>
+    </div>
+</div>
+<br />
+
+<div class="col-lg-12 control-section msg-default-section">
+    <div class="content-section">
+        <ejs-message id="AppConstant_Grid_MSG" visible="false" showCloseIcon="true"></ejs-message>
+    </div>
+</div>
+
+<!-- DataGrid -->
+<ejs-grid id="AppConstant_Grid" actionBegin="actionBegin" gridLines="Both"
+          allowSorting="true" allowFiltering="true" allowPdfExport="true" allowExcelExport="true" allowGrouping="true" allowPaging="true" allowResizing="true"
+          toolbarClick="toolbarClick" toolbar="@ViewBag.ToolbarItems" HtmlAttributes="htmlAttributes"
+          contextMenuClick="contextMenuClick" contextMenuItems="@ViewBag.ContextMenuItems" height="45vh">
+    <e-grid-editSettings allowEditing="true" mode="Normal"></e-grid-editSettings>
+    <e-grid-pagesettings pageCount="10"></e-grid-pagesettings>
+    <e-grid-filterSettings type="Excel"></e-grid-filterSettings>
+    <e-grid-columns>
+        <e-grid-column field="DestinationConstantType" headerText="Type" type="string" isPrimaryKey="true" allowEditing="false" allowResizing="true"></e-grid-column>
+        <e-grid-column field="DestinationLanguageCode" headerText="Language Code" isPrimaryKey="true" allowEditing="false" allowResizing="true" visible="false"></e-grid-column>
+        <e-grid-column field="DestinationConstantKey" headerText="Key" type="string" isPrimaryKey="true" allowEditing="false" allowResizing="true"></e-grid-column>
+        <e-grid-column field="SourceConstantValue" headerText="Value Source"     allowEditing="false" allowResizing="true"></e-grid-column>
+        <e-grid-column field="DestinationConstantValue" headerText="Value Destination" type="string" allowResizing="true" validationRules="@(new { required = true })"></e-grid-column>
+        <e-grid-column field="SourceConstantDescription" headerText="Description Source" type="string" allowEditing="false" allowResizing="true"></e-grid-column>
+        <e-grid-column field="DestinationConstantDescription" headerText="Description Destination" type="string" allowResizing="true"></e-grid-column>
+        <e-grid-column field="IsApproved" headerText="Is Approved" template="#statusTemplate" textAlign="Center" allowEditing="false"></e-grid-column>
+    </e-grid-columns>
+</ejs-grid>
+
+<div id="popupModal" class="modal fade" tabindex="-1" role="dialog" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Record Details</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div id="popupContent">
+                    <!-- Form content will be loaded dynamically here -->
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Scripts -->
+<script type="text/x-jsrender" id="statusTemplate">
+    ${statusDetail(data)}
+</script>
+
+<script src="~/js/gridHelper.js" asp-append-version="true"></script>
+
+<script>
+    function onLanguageChange() {
+        hideMessages("AppConstant_Grid");
+        // Get the selected language codes and names
+        var langDropdown1 = document.getElementById("langCode1").ej2_instances[0];
+        var langDropdown2 = document.getElementById("langCode2").ej2_instances[0];
+        var langCode1 = langDropdown1.value;
+        var langCode2 = langDropdown2.value;
+
+        if (langCode1 && langCode2) {
+            var grid = document.getElementById("AppConstant_Grid").ej2_instances[0];
+            var changeErrorMessage = document.getElementById("AppConstant_Grid_MSG").ej2_instances[0];
+
+            // Update column headers with selected language names
+            grid.getColumnByField("SourceConstantValue").headerText = getAreaLocalizedText("lblAppMng", "SourceConstantValue") + " [" + langCode1 + "]";
+            grid.getColumnByField("SourceConstantDescription").headerText = getAreaLocalizedText("lblAppMng", "SourceConstantDescription") + " [" + langCode1 + "]";
+
+            grid.getColumnByField("DestinationConstantValue").headerText = getAreaLocalizedText("lblAppMng", "DestinationConstantValue") + " [" + langCode2 + "]";
+            grid.getColumnByField("DestinationConstantDescription").headerText = getAreaLocalizedText("lblAppMng", "DestinationConstantDescription") + " [" + langCode2 + "]";
+
+            var url = '@Url.Action("GetTranslator", "AppConstant")';
+            $.ajax({
+                url: url,
+                type: 'GET',
+                data: {
+                    langCode1: langCode1,
+                    langCode2: langCode2
+                },
+                success: function (data) {
+                    grid.dataSource = data;
+                    grid.refresh();
+                },
+                error: function (xhr) {
+                    //Error Messages
+                    changeErrorMessage.content = "Error while generating constants";
+                    changeErrorMessage.visible = true;
+                }
+            });
+        }
+    }
+
+    document.addEventListener("DOMContentLoaded", function () {
+        gridDataBound(document.getElementById("AppConstant_Grid").ej2_instances[0], "lblAppMng");
+
+    });
+</script>
+
+<style>
+    .custom-btn {
+        height: 30px;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+    }
+</style>

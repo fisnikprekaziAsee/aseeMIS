@@ -1,0 +1,673 @@
+@model aseeMIS.Areas.Credit.ViewModels.CreditFinancialAnalysisMasterViewModel
+
+<style>
+    .fa-shell {
+        background: linear-gradient(180deg, #f8fbff 0%, #ffffff 100%);
+        border: 1px solid #dbe7f3;
+        border-radius: 16px;
+        padding: 20px;
+    }
+
+    .fa-summary {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+        gap: 12px;
+        margin-bottom: 18px;
+    }
+
+    .fa-summary-card {
+        border: 1px solid #d8e7f5;
+        border-radius: 12px;
+        background: #fff;
+        padding: 14px 16px;
+    }
+
+    .fa-summary-label {
+        font-size: 12px;
+        color: #6b7f94;
+        margin-bottom: 4px;
+    }
+
+    .fa-summary-value {
+        font-size: 20px;
+        font-weight: 700;
+        color: #15324d;
+    }
+
+    .fa-section-card {
+        border: 1px solid #d9e5f1;
+        border-radius: 14px;
+        background: #fff;
+        overflow: hidden;
+        margin-bottom: 18px;
+    }
+
+    .fa-section-header {
+        padding: 14px 18px;
+        border-bottom: 1px solid #e7eef5;
+        background: #fcfeff;
+        font-weight: 600;
+        color: #163654;
+    }
+
+    .fa-section-body {
+        padding: 16px 18px;
+    }
+
+    .fa-grid-two {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 18px;
+    }
+
+    .fa-block-title {
+        color: #58738e;
+        font-size: 13px;
+        text-transform: uppercase;
+        margin-bottom: 10px;
+        letter-spacing: .03em;
+    }
+
+    .fa-table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+
+    .fa-table th {
+        font-size: 12px;
+        color: #6f8297;
+        font-weight: 600;
+        padding: 8px 10px;
+        border-bottom: 1px solid #e4edf5;
+    }
+
+    .fa-table td {
+        padding: 6px 8px;
+        border-bottom: 1px solid #eef4f8;
+        vertical-align: middle;
+    }
+
+    .fa-table input,
+    .fa-table textarea,
+    .fa-table select {
+        width: 100%;
+        border: 1px solid #d5e3ef;
+        border-radius: 8px;
+        padding: 8px 10px;
+        background: #fff;
+    }
+
+    .fa-table tfoot td {
+        font-weight: 700;
+        color: #173754;
+        background: #eef7ff;
+    }
+
+    .fa-add-row {
+        border: 0;
+        background: transparent;
+        color: #5078a5;
+        padding: 8px 0 0;
+    }
+
+    .fa-action-bar {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 16px;
+    }
+
+    .fa-note-box {
+        min-height: 96px;
+    }
+
+    .fa-delete-btn {
+        border: 0;
+        background: transparent;
+        color: #d9534f;
+    }
+
+    @@media (max-width: 991px) {
+        .fa-grid-two {
+            grid-template-columns: 1fr;
+        }
+    }
+</style>
+
+<div class="fa-shell" id="creditFinancialAnalysisRoot"
+     data-credit-case-id="@Model.CreditCaseId"
+     data-framework-id="@Model.FrameworkId"
+     data-form-session-id="@Model.FormSessionId">
+
+    <div class="fa-action-bar">
+        <div>
+            <div class="fw-semibold text-dark">Financial Analysis</div>
+            <div class="text-muted small">Case @Model.CaseNumber</div>
+        </div>
+
+        <div class="d-flex align-items-end gap-3">
+            <div>
+                <label class="form-label small text-muted mb-1">Period 1</label>
+                <input type="date" id="faPeriodDate1" class="form-control" value="@Model.PeriodDate1.ToString("yyyy-MM-dd")" />
+            </div>
+            <div>
+                <label class="form-label small text-muted mb-1">Period 2</label>
+                <input type="date" id="faPeriodDate2" class="form-control" value="@Model.PeriodDate2.ToString("yyyy-MM-dd")" />
+            </div>
+            <button type="button" class="btn btn-primary" onclick="saveCreditFinancialAnalysis()">
+                <i class="bi bi-save me-1"></i>Save Financials
+            </button>
+        </div>
+    </div>
+
+    <div class="fa-summary">
+        <div class="fa-summary-card">
+            <div class="fa-summary-label">Total Assets</div>
+            <div class="fa-summary-value" id="faSummaryAssets">@Model.CommitteeSummary.TotalAssets.ToString("N2")</div>
+        </div>
+        <div class="fa-summary-card">
+            <div class="fa-summary-label">Total Liabilities</div>
+            <div class="fa-summary-value" id="faSummaryLiabilities">@Model.CommitteeSummary.TotalLiabilities.ToString("N2")</div>
+        </div>
+        <div class="fa-summary-card">
+            <div class="fa-summary-label">Equity</div>
+            <div class="fa-summary-value" id="faSummaryEquity">@Model.CommitteeSummary.Equity.ToString("N2")</div>
+        </div>
+        <div class="fa-summary-card">
+            <div class="fa-summary-label">Net Income</div>
+            <div class="fa-summary-value" id="faSummaryNetIncome">@Model.CommitteeSummary.NetIncome.ToString("N2")</div>
+        </div>
+    </div>
+
+    <ul class="nav nav-tabs mb-3" id="creditFinancialTabs" role="tablist">
+        <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#fa-balance">Balance Sheet</button></li>
+        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#fa-income">Income</button></li>
+        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#fa-sales">Sales</button></li>
+        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#fa-clients">Clients & Suppliers</button></li>
+        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#fa-obligations">Obligations</button></li>
+        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#fa-margins">Margins</button></li>
+        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#fa-ratios">Ratios</button></li>
+        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#fa-committee">Committee Summary</button></li>
+    </ul>
+
+    <div class="tab-content">
+        <div class="tab-pane fade show active" id="fa-balance">
+            <div class="fa-grid-two">
+                <div class="fa-section-card">
+                    <div class="fa-section-header">Assets</div>
+                    <div class="fa-section-body">
+                        @foreach (var block in Model.BalanceLeftBlocks)
+                        {
+                            <div class="fa-block-title">@block.Title</div>
+                            <table class="fa-table fa-static-table" data-block-code="@block.Code">
+                                <thead>
+                                    <tr>
+                                        <th>Item</th>
+                                        <th>@Model.PeriodDate1.ToString("dd.MM.yyyy")</th>
+                                        <th>@Model.PeriodDate2.ToString("dd.MM.yyyy")</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                @foreach (var row in block.Rows)
+                                {
+                                    <tr class="fa-static-row"
+                                        data-item-code="@row.ItemCode"
+                                        data-period1-value-id="@row.Period1ValueId"
+                                        data-period2-value-id="@row.Period2ValueId">
+                                        <td>@row.Label</td>
+                                        <td><input type="number" step="0.01" value="@row.Period1Amount.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture)" class="fa-period1" /></td>
+                                        <td><input type="number" step="0.01" value="@row.Period2Amount.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture)" class="fa-period2" /></td>
+                                    </tr>
+                                }
+                                </tbody>
+                                <tfoot>
+                                    <tr>
+                                        <td>Total @block.Title</td>
+                                        <td>@block.Period1Total.ToString("N2")</td>
+                                        <td>@block.Period2Total.ToString("N2")</td>
+                                    </tr>
+                                </tfoot>
+                            </table>
+                        }
+                    </div>
+                </div>
+
+                <div class="fa-section-card">
+                    <div class="fa-section-header">Liabilities & Equity</div>
+                    <div class="fa-section-body">
+                        @foreach (var block in Model.BalanceRightBlocks)
+                        {
+                            <div class="fa-block-title">@block.Title</div>
+                            <table class="fa-table fa-static-table" data-block-code="@block.Code">
+                                <thead>
+                                    <tr>
+                                        <th>Item</th>
+                                        <th>@Model.PeriodDate1.ToString("dd.MM.yyyy")</th>
+                                        <th>@Model.PeriodDate2.ToString("dd.MM.yyyy")</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                @foreach (var row in block.Rows)
+                                {
+                                    <tr class="fa-static-row"
+                                        data-item-code="@row.ItemCode"
+                                        data-period1-value-id="@row.Period1ValueId"
+                                        data-period2-value-id="@row.Period2ValueId">
+                                        <td>@row.Label</td>
+                                        <td><input type="number" step="0.01" value="@row.Period1Amount.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture)" class="fa-period1" /></td>
+                                        <td><input type="number" step="0.01" value="@row.Period2Amount.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture)" class="fa-period2" /></td>
+                                    </tr>
+                                }
+                                </tbody>
+                                <tfoot>
+                                    <tr>
+                                        <td>Total @block.Title</td>
+                                        <td>@block.Period1Total.ToString("N2")</td>
+                                        <td>@block.Period2Total.ToString("N2")</td>
+                                    </tr>
+                                </tfoot>
+                            </table>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="tab-pane fade" id="fa-income">
+            <div class="fa-grid-two">
+                <div class="fa-section-card">
+                    <div class="fa-section-header">Revenues</div>
+                    <div class="fa-section-body">
+                        @foreach (var block in Model.IncomeLeftBlocks)
+                        {
+                            <table class="fa-table fa-static-table" data-block-code="@block.Code">
+                                <thead>
+                                    <tr>
+                                        <th>Item</th>
+                                        <th>@Model.PeriodDate1.ToString("dd.MM.yyyy")</th>
+                                        <th>@Model.PeriodDate2.ToString("dd.MM.yyyy")</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                @foreach (var row in block.Rows)
+                                {
+                                    <tr class="fa-static-row"
+                                        data-item-code="@row.ItemCode"
+                                        data-period1-value-id="@row.Period1ValueId"
+                                        data-period2-value-id="@row.Period2ValueId">
+                                        <td>@row.Label</td>
+                                        <td><input type="number" step="0.01" value="@row.Period1Amount.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture)" class="fa-period1" /></td>
+                                        <td><input type="number" step="0.01" value="@row.Period2Amount.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture)" class="fa-period2" /></td>
+                                    </tr>
+                                }
+                                </tbody>
+                            </table>
+                        }
+                    </div>
+                </div>
+                <div class="fa-section-card">
+                    <div class="fa-section-header">Expenses</div>
+                    <div class="fa-section-body">
+                        @foreach (var block in Model.IncomeRightBlocks)
+                        {
+                            <table class="fa-table fa-static-table" data-block-code="@block.Code">
+                                <thead>
+                                    <tr>
+                                        <th>Item</th>
+                                        <th>@Model.PeriodDate1.ToString("dd.MM.yyyy")</th>
+                                        <th>@Model.PeriodDate2.ToString("dd.MM.yyyy")</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                @foreach (var row in block.Rows)
+                                {
+                                    <tr class="fa-static-row"
+                                        data-item-code="@row.ItemCode"
+                                        data-period1-value-id="@row.Period1ValueId"
+                                        data-period2-value-id="@row.Period2ValueId">
+                                        <td>@row.Label</td>
+                                        <td><input type="number" step="0.01" value="@row.Period1Amount.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture)" class="fa-period1" /></td>
+                                        <td><input type="number" step="0.01" value="@row.Period2Amount.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture)" class="fa-period2" /></td>
+                                    </tr>
+                                }
+                                </tbody>
+                            </table>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="tab-pane fade" id="fa-sales">
+            <div class="fa-section-card">
+                <div class="fa-section-header">Sales Breakdown</div>
+                <div class="fa-section-body">
+                    <table class="fa-table" id="faSalesTable">
+                        <thead>
+                            <tr>
+                                <th>Item</th>
+                                <th>@Model.PeriodDate1.ToString("dd.MM.yyyy")</th>
+                                <th>@Model.PeriodDate2.ToString("dd.MM.yyyy")</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                        @foreach (var row in Model.SalesRows)
+                        {
+                            <tr class="fa-dynamic-row" data-item-code="SALES_LINE" data-entry-key="@row.EntryKey" data-period1-value-id="@row.Period1ValueId" data-period2-value-id="@row.Period2ValueId">
+                                <td><input type="text" class="fa-name" value="@row.Name" /></td>
+                                <td><input type="number" step="0.01" class="fa-period1" value="@row.Period1Amount.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture)" /></td>
+                                <td><input type="number" step="0.01" class="fa-period2" value="@row.Period2Amount.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture)" /></td>
+                                <td><button type="button" class="fa-delete-btn" onclick="this.closest('tr').remove()"><i class="bi bi-trash"></i></button></td>
+                            </tr>
+                        }
+                        </tbody>
+                    </table>
+                    <button type="button" class="fa-add-row" onclick="addFinancialDynamicRow('faSalesTable','SALES_LINE')">+ Add row</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="tab-pane fade" id="fa-clients">
+            <div class="fa-section-card">
+                <div class="fa-section-header">Clients & Suppliers</div>
+                <div class="fa-section-body">
+                    <div class="fa-block-title">Top Clients</div>
+                    <table class="fa-table" id="faClientsTable">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Type</th>
+                                <th>@Model.PeriodDate1.ToString("dd.MM.yyyy")</th>
+                                <th>@Model.PeriodDate2.ToString("dd.MM.yyyy")</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                        @foreach (var row in Model.ClientRows)
+                        {
+                            <tr class="fa-dynamic-row" data-item-code="TOP_CLIENT" data-entry-key="@row.EntryKey" data-period1-value-id="@row.Period1ValueId" data-period2-value-id="@row.Period2ValueId">
+                                <td><input type="text" class="fa-name" value="@row.Name" /></td>
+                                <td><input type="text" class="fa-type" value="@row.Type" /></td>
+                                <td><input type="number" step="0.01" class="fa-period1" value="@row.Period1Amount.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture)" /></td>
+                                <td><input type="number" step="0.01" class="fa-period2" value="@row.Period2Amount.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture)" /></td>
+                                <td><button type="button" class="fa-delete-btn" onclick="this.closest('tr').remove()"><i class="bi bi-trash"></i></button></td>
+                            </tr>
+                        }
+                        </tbody>
+                    </table>
+                    <button type="button" class="fa-add-row" onclick="addFinancialDynamicRow('faClientsTable','TOP_CLIENT',true)">+ Add row</button>
+
+                    <div class="fa-block-title mt-4">Top Suppliers</div>
+                    <table class="fa-table" id="faSuppliersTable">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Type</th>
+                                <th>@Model.PeriodDate1.ToString("dd.MM.yyyy")</th>
+                                <th>@Model.PeriodDate2.ToString("dd.MM.yyyy")</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                        @foreach (var row in Model.SupplierRows)
+                        {
+                            <tr class="fa-dynamic-row" data-item-code="TOP_SUPPLIER" data-entry-key="@row.EntryKey" data-period1-value-id="@row.Period1ValueId" data-period2-value-id="@row.Period2ValueId">
+                                <td><input type="text" class="fa-name" value="@row.Name" /></td>
+                                <td><input type="text" class="fa-type" value="@row.Type" /></td>
+                                <td><input type="number" step="0.01" class="fa-period1" value="@row.Period1Amount.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture)" /></td>
+                                <td><input type="number" step="0.01" class="fa-period2" value="@row.Period2Amount.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture)" /></td>
+                                <td><button type="button" class="fa-delete-btn" onclick="this.closest('tr').remove()"><i class="bi bi-trash"></i></button></td>
+                            </tr>
+                        }
+                        </tbody>
+                    </table>
+                    <button type="button" class="fa-add-row" onclick="addFinancialDynamicRow('faSuppliersTable','TOP_SUPPLIER',true)">+ Add row</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="tab-pane fade" id="fa-obligations">
+            <div class="fa-section-card">
+                <div class="fa-section-header">Existing Obligations</div>
+                <div class="fa-section-body">
+                    <table class="fa-table" id="faObligationsTable">
+                        <thead>
+                            <tr>
+                                <th>Institution</th>
+                                <th>Type</th>
+                                <th>Outstanding</th>
+                                <th>Monthly Payment</th>
+                                <th>Maturity</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                        @foreach (var row in Model.ObligationRows)
+                        {
+                            <tr class="fa-dynamic-row" data-item-code="EXIST_OBLIG" data-entry-key="@row.EntryKey" data-period1-value-id="@row.Period1ValueId" data-period2-value-id="@row.Period2ValueId">
+                                <td><input type="text" class="fa-name" value="@row.Name" /></td>
+                                <td><input type="text" class="fa-type" value="@row.Type" /></td>
+                                <td><input type="number" step="0.01" class="fa-period2" value="@row.Period2Amount.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture)" /></td>
+                                <td><input type="number" step="0.01" class="fa-extra-decimal" value="@((row.ExtraDecimal ?? 0m).ToString("0.##", System.Globalization.CultureInfo.InvariantCulture))" /></td>
+                                <td><input type="date" class="fa-extra-date" value="@(row.ExtraDate?.ToString("yyyy-MM-dd") ?? string.Empty)" /></td>
+                                <td><button type="button" class="fa-delete-btn" onclick="this.closest('tr').remove()"><i class="bi bi-trash"></i></button></td>
+                            </tr>
+                        }
+                        </tbody>
+                    </table>
+                    <button type="button" class="fa-add-row" onclick="addFinancialDynamicRow('faObligationsTable','EXIST_OBLIG',true,true)">+ Add row</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="tab-pane fade" id="fa-margins">
+            <div class="fa-section-card">
+                <div class="fa-section-header">Margin Analysis</div>
+                <div class="fa-section-body">
+                    <table class="fa-table">
+                        <thead>
+                            <tr>
+                                <th>Metric</th>
+                                <th>@Model.PeriodDate1.ToString("dd.MM.yyyy")</th>
+                                <th>@Model.PeriodDate2.ToString("dd.MM.yyyy")</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                        @foreach (var row in Model.MarginRows)
+                        {
+                            <tr>
+                                <td>@row.MetricName</td>
+                                <td>@(row.IsPercentage ? row.Period1Value.ToString("N2") + "%" : row.Period1Value.ToString("N2"))</td>
+                                <td>@(row.IsPercentage ? row.Period2Value.ToString("N2") + "%" : row.Period2Value.ToString("N2"))</td>
+                            </tr>
+                        }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div class="tab-pane fade" id="fa-ratios">
+            <div class="fa-section-card">
+                <div class="fa-section-header">Financial Ratios</div>
+                <div class="fa-section-body">
+                    <table class="fa-table">
+                        <thead>
+                            <tr>
+                                <th>Ratio</th>
+                                <th>@Model.PeriodDate1.ToString("dd.MM.yyyy")</th>
+                                <th>@Model.PeriodDate2.ToString("dd.MM.yyyy")</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                        @foreach (var row in Model.RatioRows)
+                        {
+                            <tr>
+                                <td>@row.MetricName</td>
+                                <td>@(row.IsPercentage ? row.Period1Value.ToString("N2") + "%" : row.Period1Value.ToString("N2"))</td>
+                                <td>@(row.IsPercentage ? row.Period2Value.ToString("N2") + "%" : row.Period2Value.ToString("N2"))</td>
+                            </tr>
+                        }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div class="tab-pane fade" id="fa-committee">
+            <div class="fa-section-card">
+                <div class="fa-section-header">Committee Summary</div>
+                <div class="fa-section-body">
+                    <div class="fa-summary">
+                        <div class="fa-summary-card"><div class="fa-summary-label">Current Ratio</div><div class="fa-summary-value">@Model.CommitteeSummary.CurrentRatio.ToString("N2")</div></div>
+                        <div class="fa-summary-card"><div class="fa-summary-label">Debt/Equity</div><div class="fa-summary-value">@Model.CommitteeSummary.DebtToEquity.ToString("N2")</div></div>
+                        <div class="fa-summary-card"><div class="fa-summary-label">Profit Margin</div><div class="fa-summary-value">@Model.CommitteeSummary.ProfitMarginPercent.ToString("N2")%</div></div>
+                        <div class="fa-summary-card"><div class="fa-summary-label">ROA</div><div class="fa-summary-value">@Model.CommitteeSummary.RoaPercent.ToString("N2")%</div></div>
+                    </div>
+                    <label class="form-label small text-muted">Committee Notes / Decision</label>
+                    <textarea id="faCommitteeNotes" class="fa-note-box">@Model.CommitteeSummary.CommitteeNotes</textarea>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    (function () {
+        function createDynamicRowHtml(itemCode, includeType, obligationMode) {
+            const entryKey = (window.crypto?.randomUUID?.() || ("row_" + Date.now() + "_" + Math.floor(Math.random() * 10000))).replaceAll("-", "");
+            if (obligationMode) {
+                return `<tr class="fa-dynamic-row" data-item-code="${itemCode}" data-entry-key="${entryKey}" data-period1-value-id="0" data-period2-value-id="0">
+                    <td><input type="text" class="fa-name" /></td>
+                    <td><input type="text" class="fa-type" /></td>
+                    <td><input type="number" step="0.01" class="fa-period2" value="0" /></td>
+                    <td><input type="number" step="0.01" class="fa-extra-decimal" value="0" /></td>
+                    <td><input type="date" class="fa-extra-date" /></td>
+                    <td><button type="button" class="fa-delete-btn" onclick="this.closest('tr').remove()"><i class="bi bi-trash"></i></button></td>
+                </tr>`;
+            }
+
+            return `<tr class="fa-dynamic-row" data-item-code="${itemCode}" data-entry-key="${entryKey}" data-period1-value-id="0" data-period2-value-id="0">
+                <td><input type="text" class="fa-name" /></td>
+                ${includeType ? '<td><input type="text" class="fa-type" /></td>' : ''}
+                <td><input type="number" step="0.01" class="fa-period1" value="0" /></td>
+                <td><input type="number" step="0.01" class="fa-period2" value="0" /></td>
+                <td><button type="button" class="fa-delete-btn" onclick="this.closest('tr').remove()"><i class="bi bi-trash"></i></button></td>
+            </tr>`;
+        }
+
+        window.addFinancialDynamicRow = function (tableId, itemCode, includeType, obligationMode) {
+            const tbody = document.querySelector(`#${tableId} tbody`);
+            if (!tbody) {
+                return;
+            }
+
+            tbody.insertAdjacentHTML("beforeend", createDynamicRowHtml(itemCode, includeType, obligationMode));
+        };
+
+        window.saveCreditFinancialAnalysis = function () {
+            const root = document.getElementById("creditFinancialAnalysisRoot");
+            if (!root) {
+                return;
+            }
+
+            const payload = {
+                creditCaseId: parseInt(root.dataset.creditCaseId || "0"),
+                frameworkId: root.dataset.frameworkId ? parseInt(root.dataset.frameworkId) : null,
+                currencyCode: "@Model.CurrencyCode",
+                periodDate1: document.getElementById("faPeriodDate1")?.value,
+                periodDate2: document.getElementById("faPeriodDate2")?.value,
+                committeeNotes: document.getElementById("faCommitteeNotes")?.value || "",
+                staticValues: [],
+                salesRows: collectDynamicRows("#faSalesTable tbody tr", false, false),
+                clientRows: collectDynamicRows("#faClientsTable tbody tr", true, false),
+                supplierRows: collectDynamicRows("#faSuppliersTable tbody tr", true, false),
+                obligationRows: collectDynamicRows("#faObligationsTable tbody tr", true, true)
+            };
+
+            document.querySelectorAll(".fa-static-row").forEach(function (row) {
+                payload.staticValues.push({
+                    itemCode: row.dataset.itemCode,
+                    period1ValueId: parseInt(row.dataset.period1ValueId || "0"),
+                    period2ValueId: parseInt(row.dataset.period2ValueId || "0"),
+                    label: "",
+                    period1Amount: parseDecimal(row.querySelector(".fa-period1")?.value),
+                    period2Amount: parseDecimal(row.querySelector(".fa-period2")?.value)
+                });
+            });
+
+            $.ajax({
+                url: "/Credit/CreditFinancialAnalysis/Save",
+                type: "POST",
+                contentType: "application/json",
+                headers: {
+                    "FormSessionId": root.dataset.formSessionId || ""
+                },
+                data: JSON.stringify(payload),
+                success: function (response) {
+                    if (response?.success) {
+                        if (window.dsAlertSuccess) {
+                            dsAlertSuccess(response.message || "Financial analysis saved successfully.");
+                        } else {
+                            alert(response.message || "Financial analysis saved successfully.");
+                        }
+
+                        if (window.loadFinancialAnalysis) {
+                            window.loadFinancialAnalysis(true);
+                        }
+                        return;
+                    }
+
+                    const message = response?.message || "Failed to save financial analysis.";
+                    if (window.dsAlertError) {
+                        dsAlertError(message);
+                    } else {
+                        alert(message);
+                    }
+                },
+                error: function () {
+                    if (window.dsAlertError) {
+                        dsAlertError("Failed to save financial analysis.");
+                    } else {
+                        alert("Failed to save financial analysis.");
+                    }
+                }
+            });
+        };
+
+        function collectDynamicRows(selector, includeType, obligationMode) {
+            const rows = [];
+            document.querySelectorAll(selector).forEach(function (row) {
+                rows.push({
+                    itemCode: row.dataset.itemCode || "",
+                    entryKey: row.dataset.entryKey || "",
+                    period1ValueId: parseInt(row.dataset.period1ValueId || "0"),
+                    period2ValueId: parseInt(row.dataset.period2ValueId || "0"),
+                    name: row.querySelector(".fa-name")?.value || "",
+                    type: includeType ? (row.querySelector(".fa-type")?.value || "") : null,
+                    period1Amount: obligationMode ? 0 : parseDecimal(row.querySelector(".fa-period1")?.value),
+                    period2Amount: parseDecimal(row.querySelector(".fa-period2")?.value),
+                    extraDecimal: obligationMode ? parseNullableDecimal(row.querySelector(".fa-extra-decimal")?.value) : null,
+                    extraDate: obligationMode ? (row.querySelector(".fa-extra-date")?.value || null) : null
+                });
+            });
+            return rows;
+        }
+
+        function parseDecimal(value) {
+            const parsed = parseFloat(value || "0");
+            return Number.isFinite(parsed) ? parsed : 0;
+        }
+
+        function parseNullableDecimal(value) {
+            if (value === undefined || value === null || value === "") {
+                return null;
+            }
+
+            const parsed = parseFloat(value);
+            return Number.isFinite(parsed) ? parsed : null;
+        }
+    })();
+</script>

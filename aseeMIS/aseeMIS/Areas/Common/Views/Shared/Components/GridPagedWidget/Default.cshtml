@@ -1,0 +1,1334 @@
+@model GridWidgetViewModel
+@using System.ComponentModel
+@using System.ComponentModel.DataAnnotations
+@using System.ComponentModel.DataAnnotations.Schema
+@using System.Reflection
+@using dsMIS.Core.Attributes
+@using aseeMIS.Areas.Common.ViewModels
+@inject dsMIS.Core.Services.Interfaces.IAttributePresetService PresetService
+
+@{
+    static bool IsGridScalarType(Type type)
+    {
+        var underlying = Nullable.GetUnderlyingType(type) ?? type;
+
+        return underlying.IsPrimitive
+               || underlying.IsEnum
+               || underlying == typeof(string)
+               || underlying == typeof(decimal)
+               || underlying == typeof(DateTime)
+               || underlying == typeof(DateOnly)
+               || underlying == typeof(TimeOnly)
+               || underlying == typeof(Guid);
+    }
+
+    static List<(string FieldPath, PropertyInfo Property)> BuildGridProperties(Type type, string prefix = "", HashSet<Type>? stack = null)
+    {
+        stack ??= [];
+
+        if (!stack.Add(type))
+            return [];
+
+        var result = new List<(string FieldPath, PropertyInfo Property)>();
+
+        foreach (var prop in type.GetProperties(BindingFlags.Public | BindingFlags.Instance))
+        {
+            var isHidden = prop.GetCustomAttributes(typeof(BrowsableAttribute), true)
+                .Cast<BrowsableAttribute>()
+                .Any(a => a.Browsable == false);
+
+            if (isHidden)
+                continue;
+
+            var propType = prop.PropertyType;
+            var isCollection = propType != typeof(string) && typeof(System.Collections.IEnumerable).IsAssignableFrom(propType);
+            var fieldPath = string.IsNullOrWhiteSpace(prefix) ? prop.Name : $"{prefix}.{prop.Name}";
+
+            // Complex nested view-models are flattened for the grid so Syncfusion does not render "[object Object]".
+            if (!isCollection && !IsGridScalarType(propType))
+            {
+                result.AddRange(BuildGridProperties(propType, fieldPath, stack));
+                continue;
+            }
+
+            result.Add((fieldPath, prop));
+        }
+
+        stack.Remove(type);
+        return result;
+    }
+
+    var formType = Model.ModelType;
+    var hasPartialDialogEditor =
+        !string.IsNullOrWhiteSpace(Model.EditorPartialViewPath)
+        || !string.IsNullOrWhiteSpace(Model.EditorPartialAddPath)
+        || !string.IsNullOrWhiteSpace(Model.EditorPartialEditPath);
+
+    var toolbar = new List<object>();
+    if (Model.ToolbarItems is IEnumerable<object> objList)
+    {
+        toolbar.AddRange(objList);
+    }
+
+    // Partial-dialog editor is opt-in: if a custom partial is configured, Inline/Dialog mode selector is hidden
+    // because Add/Edit are handled by the custom template instead of Syncfusion's built-in editor.
+    if (!hasPartialDialogEditor)
+    {
+        toolbar.Add(new
+        {
+            template = $@"<select id='{Model.GridName}_EditModeDDL'
+                   class='form-select form-select-sm toolbar-select'
+                   onchange=""onEditModeChange(this, '{Model.GridName}')"">
+              <option value='Normal' selected>Inline</option>
+              <option value='Dialog'>Dialog</option>
+          </select>",
+            id = "Grid_EditModeDDLItem",
+            align = "Right"
+        });
+    }
+
+    toolbar.Add(new
+    {
+        template = $@"
+        <select id='{Model.GridName}_RowHeightDDL'
+                class='form-select form-select-sm toolbar-select'
+                onchange=""onRowHeightChange(this, '{Model.GridName}')"">
+            <option value=''>Default</option>
+            <option value='28'>Small</option>
+            <option value='40'>Medium</option>
+            <option value='56'>Large</option>
+        </select>",
+        id = "Grid_RowHeightDDLItem",
+        align = "Right"
+    });
+    var rootProperties = Model.ModelType.GetProperties();
+    var properties = BuildGridProperties(Model.ModelType);
+
+    var primaryKeys = rootProperties
+        .Where(p => p.GetCustomAttributes(typeof(KeyAttribute), true).Any())
+        .Select(p => p.Name)
+        .ToList();
+
+    var identityKeys = rootProperties
+        .Where(p => p.GetCustomAttributes(typeof(DatabaseGeneratedAttribute), true).Any())
+        .Select(p => p.Name)
+        .ToList();
+
+    var readOnlyProps = rootProperties
+        .Where(p => p.GetCustomAttributes(typeof(ReadOnlyAttribute), true)
+                    .Cast<ReadOnlyAttribute>()
+                    .Any(a => a.IsReadOnly))
+        .Select(p => p.Name)
+        .ToList();
+
+    var localArea = Model.Area;
+    var allowGridAdd = !Model.IsGridReadOnly;
+    var allowGridEdit = !Model.IsGridReadOnly;
+    var allowGridDelete = !Model.IsGridReadOnly;
+    var aggregateSumFields = Model.AgregateFunctionSumFields ?? Array.Empty<string>();
+    var displayColumnIndex = -1;
+}
+
+@if (Model.ForeignKeyData != null || Model.ForeignKeyDataSourceMap != null || (Model.CascadeMap?.Any() ?? false))
+{
+    <script>
+        (function () {
+        @if (Model.ForeignKeyData != null)
+        {
+                    foreach (var kv in Model.ForeignKeyData)
+                    {
+                                @:window["@kv.Key"] = @Html.Raw(Json.Serialize(kv.Value));
+                    }
+        }
+        window["@($"{Model.GridName}_FKDataSourceMap")"] = @Html.Raw(Json.Serialize(Model.ForeignKeyDataSourceMap ?? new Dictionary<string, string>()));
+        window["@($"{Model.GridName}_CascadeMap")"] = @Html.Raw(Json.Serialize(Model.CascadeMap ?? new List<object>()));
+        window.cascadeMap = window["@($"{Model.GridName}_CascadeMap")"]; // legacy fallback for older grid helpers
+        })();
+    </script>
+}
+
+<div class="col-lg-12 control-section msg-default-section">
+    <div class="content-section">
+        <ejs-message id="@(Model.GridName)_MSG" visible="false" showCloseIcon="true"></ejs-message>
+    </div>
+</div>
+
+<ejs-grid id="@Model.GridName"
+          data-form-id="@Model.FormId"
+          data-form-session-id="@Model.FormSessionId"
+          data-form-config-id="@Model.Form360Id"
+          data-context-form-type="@((int)Model.ContextFormType)"
+          data-primary-key-fields="@string.Join("|", primaryKeys)"
+          data-editor-mode="@(hasPartialDialogEditor ? "PartialDialog" : "")"
+          data-editor-partial-view-path="@(Model.EditorPartialViewPath ?? "")"
+          data-editor-partial-add-path="@(Model.EditorPartialAddPath ?? "")"
+          data-editor-partial-edit-path="@(Model.EditorPartialEditPath ?? "")"
+          data-editor-dialog-title="@(Model.EditorDialogTitle ?? "Details")"
+          data-editor-dialog-description="@(Model.EditorDialogDescription ?? "")"
+          data-editor-dialog-layout="@(Model.EditorDialogLayoutJson ?? "")"
+          data-preferred-edit-mode="@(Model.PreferredEditMode ?? "")"
+          data-parent-foreign-attribute-name="@(Model.ParentForeignAttributeName ?? "")"
+          data-parent-target-id="@(Model.ParentTargetId ?? "")"
+          data-parent-target-text="@(Model.ParentTargetText ?? "")"
+          TValue="@Model.ModelType"
+          actionBegin="actionBegin"
+          actionComplete="actionComplete"
+          frozenColumns="@((double)Model.FrozenColumns)"
+          frozenRows="@((double)Model.FrozenRows)"
+          gridLines="Both"
+          height="54vh"
+          AllowReordering="true"
+          allowSorting="true"
+          allowFiltering="true"
+          allowPdfExport="true"
+          allowExcelExport="true"
+          allowGrouping="@((bool)Model.AllowGrouping)"
+          allowResizing="true"
+          allowPaging="true"
+          showColumnChooser="true"
+          toolbarClick="toolbarClick"
+          ExcelQueryCellInfo="exportQueryCellInfo"
+          pdfQueryCellInfo="exportQueryCellInfo"
+          toolbar="@toolbar"
+          contextMenuItems="@Model.ContextMenuItems"
+          contextMenuClick="contextMenuClick"
+          enableStickyHeader="true">
+
+    <e-grid-pagesettings pageCount="10" pageSizes="true"></e-grid-pagesettings>
+    @* Menu filter sends a single WhereFilter that DataManagerRequestExtensions maps to a dynamic LINQ
+       predicate, so it works out-of-the-box in RemoteMode. Excel filter would require a custom
+       filterchoicerequest endpoint to fetch distinct values per column. *@
+    <e-grid-filterSettings type="Menu"></e-grid-filterSettings>
+    <e-grid-groupsettings showDropArea="true"
+                          showGroupedColumn="true"
+                          columns="@(Model.GroupBy?.ToArray())"></e-grid-groupsettings>
+
+    <e-grid-columns>
+        @foreach (var column in properties)
+        {
+            var property = column.Property;
+            var columnField = column.FieldPath;
+            var maskAttri = property.GetCustomAttributes(typeof(MaskedTextBoxAttribute), true)
+                                    .FirstOrDefault() as MaskedTextBoxAttribute;
+
+            var defaultValueAttr = property.GetCustomAttributes(typeof(DefaultValueAttribute), true).Cast<DefaultValueAttribute>().FirstOrDefault();
+
+            var defaultValue = defaultValueAttr?.Value;
+            var formUiHint = property.GetCustomAttributes(typeof(FormUIHintAttribute), true)
+                                     .FirstOrDefault() as FormUIHintAttribute;
+            var useTextArea = string.Equals(formUiHint?.UIControlType, "textarea", StringComparison.OrdinalIgnoreCase);
+
+            var underlyingType = Nullable.GetUnderlyingType(property.PropertyType) ?? property.PropertyType;
+            var fieldType = underlyingType.Name.ToLowerInvariant();
+
+            var isRootColumn = !columnField.Contains('.');
+            var isPrimary = isRootColumn && primaryKeys.Contains(property.Name);
+            var isIdentity = isRootColumn && identityKeys.Contains(property.Name);
+            var isHidden = false;
+            var headerText = property.Name;
+
+            var fileUploadAttr = property.GetCustomAttributes(typeof(FileUploadAttribute), true)
+                                         .FirstOrDefault() as FileUploadAttribute;
+            bool isFileUpload = fileUploadAttr != null;
+
+            var extendedFk = property.GetCustomAttributes(typeof(ExtendedForeignKeyAttribute), false)
+                                     .FirstOrDefault() as ExtendedForeignKeyAttribute;
+
+            if (extendedFk == null)
+            {
+                var presetMarker = property.GetCustomAttributes(typeof(UsePresetAttribute), false)
+                                           .FirstOrDefault() as UsePresetAttribute;
+                if (presetMarker != null)
+                {
+                    extendedFk = PresetService.TryGet(presetMarker.Name, presetMarker.LoadingType);
+                }
+            }
+
+            var autoCompleteIdField = property.Name;
+            if (extendedFk == null)
+            {
+                var displayFkSource = rootProperties
+                    .Select(p => new
+                    {
+                        Property = p,
+                        Fk = p.GetCustomAttributes(typeof(ExtendedForeignKeyAttribute), false)
+                              .FirstOrDefault() as ExtendedForeignKeyAttribute
+                    })
+                    .FirstOrDefault(x => x.Fk?.IsAutoComplete == true
+                        && string.Equals(x.Fk.ColumnName, property.Name, StringComparison.OrdinalIgnoreCase));
+
+                if (displayFkSource != null)
+                {
+                    extendedFk = displayFkSource.Fk;
+                    autoCompleteIdField = displayFkSource.Property.Name;
+                }
+            }
+
+            bool useAutocomplete = extendedFk?.IsAutoComplete ?? false;
+            string? autoCompleteUrl = extendedFk?.AutoCompleteUrl;
+            var isFk = extendedFk != null;
+            var isParentForeignKeyAutocomplete = useAutocomplete
+                && !string.IsNullOrWhiteSpace(Model.ParentForeignAttributeName)
+                && string.Equals(Model.ParentForeignAttributeName, autoCompleteIdField, StringComparison.OrdinalIgnoreCase);
+
+            if (!isHidden)
+            {
+                displayColumnIndex++;
+                var isColumnVisibleByDefault = !Model.HasColumnIndexDefaultVisibility
+                    || Model.ColumnIndexDefaultVisibility.Contains(displayColumnIndex);
+                var editorColumnField = useAutocomplete && !string.IsNullOrWhiteSpace(extendedFk?.ColumnName)
+                    ? extendedFk.ColumnName
+                    : columnField;
+
+                if (property.Name == "IsApproved")
+                {
+                    if (Model.FreezeApproveColumn)
+                    {
+                        <e-grid-column field="@columnField"
+                                       type="boolean"
+                                       edittype="boolean"
+                                       template="#statusTemplate"
+                                       edittemplate="#statusTemplate"
+                                       textAlign="Center"
+                                       allowEditing="false"
+                                       allowResizing="true"
+                                       width="90"
+                                       visible="@isColumnVisibleByDefault"
+                                       showInColumnChooser="true"
+                                       freeze="Right">
+                        </e-grid-column>
+                    }
+                    else
+                    {
+                        <e-grid-column field="@columnField"
+                                       type="boolean"
+                                       edittype="boolean"
+                                       template="#statusTemplate"
+                                       edittemplate="#statusTemplate"
+                                       textAlign="Center"
+                                       allowEditing="false"
+                                       allowResizing="true"
+                                       visible="@isColumnVisibleByDefault"
+                                       showInColumnChooser="true"
+                                       width="90">
+                        </e-grid-column>
+                    }
+                }
+                else if (isFk)
+                {
+                    if (useAutocomplete)
+                    {
+                        headerText = (property.GetCustomAttributes(typeof(DisplayAttribute), false).FirstOrDefault() as DisplayAttribute)?.GetName() ?? property.Name;
+
+                        if (isParentForeignKeyAutocomplete)
+                        {
+                            <e-grid-column field="@columnField"
+                                           headerText="@headerText"
+                                           type="string"
+                                           textAlign="Left"
+                                           allowEditing="false"
+                                           allowResizing="true"
+                                           visible="@isColumnVisibleByDefault"
+                                           showInColumnChooser="true">
+                            </e-grid-column>
+                        }
+                        else
+                        {
+                            <e-grid-column field="@editorColumnField"
+                                           headerText="@headerText"
+                                           type="string"
+                                           textAlign="Left"
+                                           editType="stringedit"
+                                           allowEditing="@(Model.IsGridReadOnly ? false : !(isPrimary || readOnlyProps.Contains(property.Name)))"
+                                           customAttributes="@(new Dictionary<string, object>
+                                                             {
+                                                                 { "data-autocomplete-url", autoCompleteUrl ?? string.Empty },
+                                                                 { "data-autocomplete-id-field", autoCompleteIdField },
+                                                                 { "data-autocomplete-value-field", extendedFk?.AutoCompleteValueField ?? "id" },
+                                                                 { "data-autocomplete-text-field", extendedFk?.AutoCompleteTextField ?? "display" },
+                                                                 { "data-autocomplete-search-parameter", extendedFk?.AutoCompleteSearchParameter ?? "searchText" },
+                                                                 { "data-autocomplete-min-length", extendedFk?.AutoCompleteMinLength ?? 3 },
+                                                                 { "data-autocomplete-suggestion-count", extendedFk?.AutoCompleteSuggestionCount ?? 20 }
+                                                             })"
+                                           visible="@isColumnVisibleByDefault"
+                                           showInColumnChooser="true"
+                                           edit="@(new { create = "customAutoCompleteCreate", read = "customAutoCompleteRead", write = "customAutoCompleteWrite" })">
+                            </e-grid-column>
+                        }
+                    }
+                    else
+                    {
+                        headerText = (property.GetCustomAttributes(typeof(DisplayAttribute), false).FirstOrDefault() as DisplayAttribute)?.GetName() ?? property.Name;
+
+                        object fkObj = null;
+                        string fkField = "";
+                        string fkValue = "";
+                        var fkDataPropertyName = property.Name;
+                        if (Model.ForeignKeyDataSourceMap != null
+                            && Model.ForeignKeyDataSourceMap.TryGetValue(property.Name, out var sharedDataSourceKey)
+                            && !string.IsNullOrWhiteSpace(sharedDataSourceKey))
+                        {
+                            fkDataPropertyName = sharedDataSourceKey;
+                        }
+
+                        var fkDataKey = "FK_" + fkDataPropertyName;
+                        var hasFkData = Model.ForeignKeyData != null && Model.ForeignKeyData.TryGetValue(fkDataKey, out fkObj);
+                        var fkDataObj = hasFkData ? fkObj : null;
+
+                        object? defaultValueObj = null;
+                        var fkValueName = "";
+
+                        if (fkDataObj is IEnumerable<dynamic> enumData)
+                        {
+                            var first = enumData.Cast<object>().FirstOrDefault();
+                            if (first != null)
+                            {
+                                var props = first.GetType().GetProperties();
+                                if (props.Length >= 2)
+                                {
+                                    fkField = props[0].Name;
+                                    fkValue = props[1].Name;
+                                    fkValueName = string.IsNullOrWhiteSpace(extendedFk.ColumnName) ? props[1].Name : extendedFk.ColumnName;
+                                }
+
+                                if (enumData.Count() == 1)
+                                {
+                                    var singleProps = first.GetType().GetProperties();
+                                    if (singleProps.Length >= 1)
+                                    {
+                                        var keyProp = singleProps.FirstOrDefault(p => p.Name == fkField) ?? singleProps[0];
+                                        defaultValueObj = keyProp.GetValue(first);
+                                    }
+                                }
+                            }
+                        }
+
+                        var canEdit = !(Model.IsGridReadOnly || isPrimary || readOnlyProps.Contains(property.Name));
+                        if (canEdit)
+                        {
+                            <e-grid-column field="@columnField"
+                                           headerText="@headerText"
+                                           type="string"
+                                           textAlign="Left"
+                                           editType="dropdownedit"
+                                           foreignKeyField="@fkField"
+                                           foreignKeyValue="@fkValue"
+                                           dataSource="@(fkDataObj ?? Model.Data)"
+                                           customAttributes="@(new Dictionary<string, object> { { "data-custom-foreign-column-name", fkValueName } })"
+                                           allowEditing="true"
+                                           visible="@isColumnVisibleByDefault"
+                                           showInColumnChooser="true"
+                                           edit="@(new { create = "customDropDownCreate", read = "customDropDownRead", write = "customDropDownWrite" })">
+                            </e-grid-column>
+                        }
+                        else
+                        {
+                            <e-grid-column field="@columnField"
+                                           headerText="@headerText"
+                                           type="string"
+                                           textAlign="Left"
+                                           editType="dropdownedit"
+                                           foreignKeyField="@fkField"
+                                           foreignKeyValue="@fkValue"
+                                           dataSource="@(fkDataObj ?? Model.Data)"
+                                           defaultValue="@defaultValueObj"
+                                           customAttributes="@(new Dictionary<string, object> { { "data-custom-foreign-column-name", fkValueName } })"
+                                           visible="@isColumnVisibleByDefault"
+                                           showInColumnChooser="true"
+                                           allowEditing="false">
+                            </e-grid-column>
+                        }
+                    }
+                }
+                else if (fieldType == "boolean")
+                {
+                    <e-grid-column field="@columnField"
+                                   headerText="@headerText"
+                                   type="boolean"
+                                   editType="booleanedit"
+                                   displayAsCheckBox="true"
+                                   textAlign="Center"
+                                   allowResizing="true"
+                                   visible="@isColumnVisibleByDefault"
+                                   defaultValue="@defaultValue"
+                                   showInColumnChooser="true"
+                                   allowEditing="@(Model.IsGridReadOnly ? false : !(isPrimary || readOnlyProps.Contains(property.Name)))">
+                    </e-grid-column>
+                }
+                else if (maskAttri != null)
+                {
+                    <e-grid-column field="@columnField"
+                                   headerText="@headerText"
+                                   type="string"
+                                   textAlign="Left"
+                                   allowResizing="true"
+                                   allowEditing="@(Model.IsGridReadOnly ? false : !(isPrimary || readOnlyProps.Contains(property.Name)))"
+                                   visible="@isColumnVisibleByDefault"
+                                   showInColumnChooser="true"
+                                   edit="@(new { create = "maskBoxCreate", write = "maskBoxWrite", read = "maskBoxRead", destroy = "maskBoxDestroy" })"
+                                   customAttributes="@(new Dictionary<string, object>
+                                                                                                         {
+                                                                                                             { "data-mask", maskAttri.Mask },
+                                                                                                             { "data-prompt", maskAttri.PromptChar }
+                                                                                                         })">
+                    </e-grid-column>
+                }
+                else if (isFileUpload)
+                {
+                    string fieldName = columnField;
+                    string primaryKeyField = primaryKeys.FirstOrDefault() ?? "Id";
+                    string downloadUrl = fileUploadAttr?.DownloadRoute ?? "/Common/CRUD/Download";
+                    string previewUrl = "/Common/CRUD/Preview";
+
+                    string transportField =
+                        !string.IsNullOrWhiteSpace(fileUploadAttr?.UploadTransportFieldName)
+                            ? fileUploadAttr.UploadTransportFieldName
+                            : fieldName + "Base64";
+
+                    string originalFileNameField =
+                        !string.IsNullOrWhiteSpace(fileUploadAttr?.OriginalFileNameField)
+                            ? fileUploadAttr.OriginalFileNameField
+                            : fieldName + "OriginalFileName";
+
+                    string contentTypeField =
+                        !string.IsNullOrWhiteSpace(fileUploadAttr?.ContentTypeField)
+                            ? fileUploadAttr.ContentTypeField
+                            : fieldName + "ContentType";
+
+                    string headerTextResolved =
+                        (property.GetCustomAttributes(typeof(DisplayAttribute), false).FirstOrDefault() as DisplayAttribute)?.GetName()
+                        ?? fileUploadAttr?.DisplayName
+                        ?? fieldName;
+
+                    bool isImage = fileUploadAttr?.FileType == dsMIS.Core.Attributes.FileType.Image;
+                    bool allowGridEdit = fileUploadAttr?.AllowGridEdit ?? true;
+                    bool useDefaultWhenEmpty = fileUploadAttr?.UseDefaultWhenEmpty ?? true;
+                    bool isReadOnlyPreview = fileUploadAttr?.IsReadOnlyPreview ?? false;
+                    bool showInlinePreview = fileUploadAttr?.ShowInlinePreview ?? true;
+                    bool showDownloadLink = fileUploadAttr?.ShowDownloadLink ?? true;
+                    bool clickToDownload = fileUploadAttr?.ClickToDownload ?? true;
+                    bool clickToPreview = fileUploadAttr?.ClickToPreview ?? false;
+                    string iconCssClass = fileUploadAttr?.IconCssClass ?? "bi bi-download text-primary";
+
+                    var defaultImagePath = useDefaultWhenEmpty
+                        ? (fileUploadAttr?.DefaultDocument ?? "/images/profilePictures/user.png")
+                        : "";
+
+                    var customAttrs = new Dictionary<string, object>
+                    {
+                        { "data-file-field", fieldName },
+                        { "data-file-kind", isImage ? "image" : "document" },
+                        { "data-file-download-url", downloadUrl },
+                        { "data-file-preview-url", previewUrl },
+                        { "data-primary-key-field", primaryKeyField },
+                        { "data-show-download-link", showDownloadLink ? "1" : "0" },
+                        { "data-click-to-download", clickToDownload ? "1" : "0" },
+                        { "data-click-to-preview", clickToPreview ? "1" : "0" },
+                        { "data-show-inline-preview", showInlinePreview ? "1" : "0" },
+                        { "data-file-icon-class", iconCssClass },
+                        { "data-export-image", isImage && showInlinePreview ? "1" : "0" },
+                        { "data-img-fields", fieldName },
+                        { "data-img-default", defaultImagePath ?? "" },
+                        { "data-transport-field", transportField },
+                        { "data-original-file-name-field", originalFileNameField },
+                        { "data-content-type-field", contentTypeField }
+                    };
+
+                    <e-grid-column field="@fieldName"
+                                   headerText="@headerTextResolved"
+                                   textAlign="Center"
+                                   width="120"
+                                   allowFiltering="false"
+                                   allowSorting="false"
+                                   template="#fileCellTemplate"
+                                   customAttributes="customAttrs"
+                                   allowEditing="@(Model.IsGridReadOnly ? false : allowGridEdit && !isReadOnlyPreview)"
+                                   visible="@isColumnVisibleByDefault"
+                                   showInColumnChooser="true"
+                                   edit="@(new { create = "fileUploadCreate", write = "fileUploadWrite", read = "fileUploadRead", destroy = "fileUploadDestroy" })">
+                    </e-grid-column>
+                }
+                else if (fieldType == "datetime" || fieldType == "dateonly")
+                {
+                    var gridDateType = fieldType == "dateonly" ? "date" : fieldType;
+                    <e-grid-column field="@columnField"
+                                   headerText="@headerText"
+                                   type="@gridDateType"
+                                   format="yyyy-MM-dd"
+                                   allowResizing="true"
+                                   textAlign="Left"
+                                   editType="datepickeredit"
+                                   allowEditing="@(Model.IsGridReadOnly ? false : !(isPrimary || readOnlyProps.Contains(property.Name)))"
+                                   visible="@isColumnVisibleByDefault"
+                                   showInColumnChooser="true">
+                    </e-grid-column>
+                }
+                else
+                {
+                    string ej2Type = fieldType switch
+                    {
+                        "string" => "string",
+                        "int16" or "int32" or "int64" or "decimal" or "double" or "single" => "number",
+                        "datetime" => "datetime",
+                        "dateonly" => "date",
+                        "boolean" => "boolean",
+                        _ => "string"
+                    };
+
+                    string editType = isPrimary
+                        ? "readonlyedit"
+                        : ej2Type switch
+                        {
+                            "number" => "numericedit",
+                            "date" => "datepickeredit",
+                            "datetime" => "datetimepickeredit",
+                            "boolean" => "booleanedit",
+                            _ => "defaultedit"
+                        };
+
+                    if (useTextArea)
+                    {
+                        <e-grid-column field="@columnField"
+                                       headerText="@headerText"
+                                       type="@ej2Type"
+                                       editType="@editType"
+                                       textAlign="Left"
+                                       isPrimaryKey="@isPrimary"
+                                       isIdentity="@isIdentity"
+                                       allowEditing="@(Model.IsGridReadOnly ? false : !(isPrimary || readOnlyProps.Contains(property.Name)))"
+                                       allowResizing="true"
+                                       visible="@isColumnVisibleByDefault" defaultValue="@defaultValue"
+                                       showInColumnChooser="true"
+                                       edit="@(new { create = "customTextAreaCreate", read = "customTextAreaRead", write = "customTextAreaWrite", destroy = "customTextAreaDestroy" })">
+                        </e-grid-column>
+                    }
+                    else
+                    {
+                        <e-grid-column field="@columnField"
+                                       headerText="@headerText"
+                                       type="@ej2Type"
+                                       editType="@editType"
+                                       textAlign="Left"
+                                       isPrimaryKey="@isPrimary"
+                                       isIdentity="@isIdentity"
+                                       allowEditing="@(Model.IsGridReadOnly ? false : !(isPrimary || readOnlyProps.Contains(property.Name)))"
+                                       allowResizing="true"
+                                       visible="@isColumnVisibleByDefault" defaultValue="@defaultValue"
+                                       showInColumnChooser="true">
+                        </e-grid-column>
+                    }
+                }
+            }
+        }
+    </e-grid-columns>
+
+    <e-grid-aggregates>
+        <e-grid-aggregate>
+            <e-aggregate-columns>
+                @foreach (var totalField in aggregateSumFields)
+                {
+                    <e-aggregate-column field="@totalField" type="Sum" format="N" footerTemplate="Total:${Sum}"></e-aggregate-column>
+                }
+            </e-aggregate-columns>
+        </e-grid-aggregate>
+    </e-grid-aggregates>
+
+    <e-grid-editsettings allowAdding="@allowGridAdd"
+                         allowEditing="@allowGridEdit"
+                         allowDeleting="@allowGridDelete"
+                         mode="Normal"
+                         showDeleteConfirmDialog="true">
+    </e-grid-editsettings>
+</ejs-grid>
+
+@if (hasPartialDialogEditor)
+{
+    <ejs-dialog id="@(Model.GridName)_PartialEditorDialog"
+                header="@(Model.EditorDialogTitle ?? "Details")"
+                visible="false"
+                isModal="true"
+                showCloseIcon="true"
+                width="90vw"
+                height="90vh"
+                target="body">
+        <e-content-template>
+            <div id="@(Model.GridName)_PartialEditorContent" class="p-3">
+                Loading...
+            </div>
+        </e-content-template>
+    </ejs-dialog>
+}
+
+<script type="text/x-jsrender" id="statusTemplate">
+    ${statusDetail(data)}
+</script>
+
+<script id="fileCellTemplate" type="text/x-template">
+    ${renderFileCell(data)}
+</script>
+
+<script>
+    window.openGridPartialDialogEditor = async function (grid, action, rowData, rowIndex) {
+        const gridEl = grid?.element;
+        if (!gridEl || gridEl.dataset.editorMode !== "PartialDialog") {
+            return false;
+        }
+
+        const gridName = gridEl.id;
+        const dialog = document.getElementById(`${gridName}_PartialEditorDialog`)?.ej2_instances?.[0];
+        const content = document.getElementById(`${gridName}_PartialEditorContent`);
+        const formSessionId = gridEl.dataset.formSessionId || gridEl.getAttribute("data-form-session-id") || "";
+
+        if (!dialog || !content) {
+            showGridPartialEditorNotification(
+                "Partial editor dialog is not configured.",
+                "error",
+                gridName);
+            return true;
+        }
+
+        const parentFk = gridEl.dataset.parentForeignAttributeName;
+        const parentTargetId = gridEl.dataset.parentTargetId;
+        const parentTargetText = gridEl.dataset.parentTargetText;
+
+        grid.__partialEditorAction = action;
+        grid.__partialEditorRowIndex = rowIndex ?? -1;
+        grid.__partialEditorPayload = null;
+
+        content.innerHTML = "Loading...";
+        dialog.header = gridEl.dataset.editorDialogTitle || "Details";
+        dialog.show();
+
+        try {
+            const response = await fetch("/Common/Entity360/EntityDetail", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "FormSessionId": formSessionId
+                },
+                body: JSON.stringify({
+                    source: 1,
+                    gridName: gridName,
+                    gridEditorAction: action,
+                    isAdd: action === "add",
+                    entityPrimaryKeyValue: action === "add" ? "" : resolveGridRowPrimaryKey(gridEl, rowData || {}),
+                    parentForeignAttributeName: parentFk || "",
+                    parentTargetId: parentTargetId || "",
+                    parentTargetText: parentTargetText || ""
+                })
+            });
+
+            const refreshedFormSessionId = response.headers.get("FormSessionId");
+            if (refreshedFormSessionId) {
+                gridEl.dataset.formSessionId = refreshedFormSessionId;
+                gridEl.setAttribute("data-form-session-id", refreshedFormSessionId);
+            }
+
+            if (!response.ok) {
+                const errorText = await response.text();
+                content.innerHTML = errorText || `Failed to load editor. (${response.status})`;
+                return true;
+            }
+
+            const html = await response.text();
+            content.innerHTML = html;
+
+            await executeAjaxEditorScripts(content);
+
+            if (window.ds?.entity?.init) {
+                ds.entity.init();
+            }
+
+            if (window.ej?.base) {
+                ej.base.enableRipple(true);
+                if (typeof ej.base.init === "function") {
+                    try {
+                        ej.base.init(content);
+                    } catch {
+                        ej.base.init();
+                    }
+                }
+            }
+        } catch (error) {
+            console.error(error);
+            content.innerHTML = "Unexpected error while loading editor.";
+        }
+
+        return true;
+    };
+
+    function resolveGridRowPrimaryKey(gridEl, rowData) {
+        const fields = String(gridEl.dataset.primaryKeyFields || "")
+            .split("|")
+            .map(x => x.trim())
+            .filter(Boolean);
+
+        if (!fields.length) {
+            return "";
+        }
+
+        return fields
+            .map(field => resolveGridScalarValue(rowData?.[field]))
+            .filter(value => value !== undefined && value !== null && value !== "")
+            .join("|");
+    }
+
+    function resolveGridScalarValue(value) {
+        if (value && typeof value === "object") {
+            return value.value ?? value.Value ?? value.id ?? value.Id ?? value.key ?? value.Key ?? "";
+        }
+
+        return value ?? "";
+    }
+
+    async function executeAjaxEditorScripts(container) {
+        const scripts = Array.from(container.querySelectorAll("script"));
+
+        for (const oldScript of scripts) {
+            const newScript = document.createElement("script");
+
+            Array.from(oldScript.attributes).forEach(attr => {
+                newScript.setAttribute(attr.name, attr.value);
+            });
+
+            if (oldScript.src) {
+                await new Promise((resolve, reject) => {
+                    newScript.onload = resolve;
+                    newScript.onerror = () => reject(
+                        new Error(`Failed to load editor script: ${oldScript.src}`));
+                    oldScript.parentNode?.replaceChild(newScript, oldScript);
+                });
+            } else {
+                newScript.text = oldScript.text || oldScript.textContent || "";
+                oldScript.parentNode?.replaceChild(newScript, oldScript);
+            }
+        }
+    }
+
+    function showGridPartialEditorNotification(message, type, gridName) {
+        const notificationType = String(type || "info").toLowerCase();
+        const notifier = window.notify?.[notificationType];
+
+        if (typeof notifier === "function") {
+            notifier(message);
+            return;
+        }
+
+        const fallbackType = notificationType.charAt(0).toUpperCase() + notificationType.slice(1);
+        showMessage(message, fallbackType, gridName);
+    }
+
+    window.saveGridPartialDialogEditor = async function (gridName, payload) {
+        const grid = document.getElementById(gridName)?.ej2_instances?.[0];
+        if (!grid) {
+            return;
+        }
+
+        const action = grid.__partialEditorAction === "add" ? "Add" : "Update";
+        const formSessionId = grid.element.dataset.formSessionId || grid.element.getAttribute("data-form-session-id") || "";
+        const editorContainer =
+            document.querySelector(".e-dialog .form-container[data-form-session-id]") ||
+            document.querySelector(".form-container[data-form-session-id]");
+
+        if (window.ds?.entity?.hydrateForeignKeyDisplayFields) {
+            payload = window.ds.entity.hydrateForeignKeyDisplayFields(payload || {}, editorContainer);
+        }
+
+        try {
+            const response = await fetch(`/Common/CRUD/${action}`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "FormSessionId": formSessionId
+                },
+                body: JSON.stringify(payload || {})
+            });
+
+            const result = await response.json();
+
+            if (!response.ok || !result.success) {
+                showGridPartialEditorNotification(
+                    result.message || "Save failed.",
+                    "error",
+                    gridName);
+                return result;
+            }
+
+            await window.reloadGenericGrid(grid);
+
+            document.getElementById(`${gridName}_PartialEditorDialog`)?.ej2_instances?.[0]?.hide();
+            showGridPartialEditorNotification(
+                result.message || "Saved successfully.",
+                "success",
+                gridName);
+            return result;
+        } catch (error) {
+            console.error(error);
+            showGridPartialEditorNotification(
+                error?.message || "Unexpected error while saving.",
+                "error",
+                gridName);
+            return { success: false, message: error?.message };
+        }
+    };
+
+    window.closeGridPartialDialogEditor = function (gridName) {
+        document.getElementById(`${gridName}_PartialEditorDialog`)?.ej2_instances?.[0]?.hide();
+    };
+
+    function getTemplateColumnCustomAttributes(e) {
+        return e?.column?.customAttributes
+            || e?.column?.CustomAttributes
+            || e?.column?.customAttributes?.attributes
+            || {};
+    }
+
+    // Returns the URL that should be used as <img src>.
+    //   • Absolute / public paths (starts with "/" or "http(s)://") render directly.
+    //   • Everything else is assumed to live under {ContentRoot}/SecureStorage and is
+    //     streamed through /Common/CRUD/Preview, which transparently decrypts ".bin" files
+    //     and resolves the right content-type. This fixes 404s for SecureStorage paths.
+    function buildFileImgSrc(rawPath, previewUrl, formSessionId) {
+        if (!rawPath) return "";
+        const s = String(rawPath).trim();
+        if (!s) return "";
+        if (/^https?:\/\//i.test(s) || s.charAt(0) === "/") return s;
+        return `${previewUrl}?path=${encodeURIComponent(s)}&formSessionId=${encodeURIComponent(formSessionId || "")}`;
+    }
+
+    function renderFileCell(e) {
+        const col = e?.column || e?.Column || null;
+        const row = e?.data || e;
+        const ca = getTemplateColumnCustomAttributes(e);
+
+        const fieldName = (ca["data-file-field"] || "").toString();
+        const primaryKeyField = (ca["data-primary-key-field"] || "Id").toString();
+        const downloadUrl = (ca["data-file-download-url"] || "/Common/CRUD/Download").toString();
+        const previewUrl = (ca["data-file-preview-url"] || "/Common/CRUD/Preview").toString();
+        const fileKind = (ca["data-file-kind"] || "document").toString();
+        const clickToDownload = (ca["data-click-to-download"] || "0").toString() === "1";
+        const clickToPreview = (ca["data-click-to-preview"] || "0").toString() === "1";
+        const showDownloadLink = (ca["data-show-download-link"] || "0").toString() === "1";
+        const showInlinePreview = (ca["data-show-inline-preview"] || "1").toString() === "1";
+        const iconCssClass = (ca["data-file-icon-class"] || "bi bi-download text-primary").toString();
+        const defaultImg = (ca["data-img-default"] || "/images/profilePictures/user.png").toString();
+
+        const value = row?.[fieldName];
+        const pk = row?.[primaryKeyField];
+        const formSessionId = '@Model.FormSessionId';
+
+        if (!value && fileKind !== "image") return "";
+
+        if (pk == null) {
+            if (fileKind === "image" && defaultImg) {
+                return `<img src="${defaultImg}" alt="Image" style="width:36px;height:36px;object-fit:cover;border-radius:6px;" />`;
+            }
+            return "";
+        }
+
+        const downloadHref = `${downloadUrl}?path=${encodeURIComponent(value || "")}&formSessionId=${encodeURIComponent(formSessionId)}`;
+        const previewHref = `${previewUrl}?path=${encodeURIComponent(value || "")}&formSessionId=${encodeURIComponent(formSessionId)}`;
+
+        if (fileKind === "image") {
+            const src = value
+                ? buildFileImgSrc(value, previewUrl, formSessionId)
+                : defaultImg;
+            if (!src) return "";
+
+            const imgHtml = `<img src="${src}"
+                                  alt="Image"
+                                  style="width:36px;height:36px;object-fit:cover;border-radius:6px;${(clickToDownload || clickToPreview) ? 'cursor:pointer;' : ''}" />`;
+
+            if (clickToPreview && value) {
+                return `<a href="${previewHref}" target="_blank" title="Preview image">${imgHtml}</a>`;
+            }
+            if (clickToDownload && showDownloadLink && value) {
+                return `<a href="${downloadHref}" target="_blank" title="Download image">${imgHtml}</a>`;
+            }
+            return imgHtml;
+        }
+
+        if (!value) return "";
+
+        if (clickToPreview) {
+            return `<a href="${previewHref}" target="_blank" title="Preview file"><i class="${iconCssClass}"></i></a>`;
+        }
+        if (!showDownloadLink) return "";
+        return `<a href="${downloadHref}" target="_blank" title="Download file"><i class="${iconCssClass}"></i></a>`;
+    }
+
+    function getGlobalGridPrefs() {
+        try {
+            return JSON.parse(localStorage.getItem('GlobalGridPrefs') || '{}');
+        } catch {
+            return {};
+        }
+    }
+
+    function saveGlobalGridPrefs(patch) {
+        const prefs = {
+            ...getGlobalGridPrefs(),
+            ...patch
+        };
+
+        localStorage.setItem('GlobalGridPrefs', JSON.stringify(prefs));
+        return prefs;
+    }
+
+    function applyGridEditModeUI(gridName, mode) {
+        if (mode === "Dialog") {
+            document.getElementById(`${gridName}_update`)?.style && (document.getElementById(`${gridName}_update`).style.display = 'none');
+            document.getElementById(`${gridName}_cancel`)?.style && (document.getElementById(`${gridName}_cancel`).style.display = 'none');
+        } else {
+            document.getElementById(`${gridName}_update`)?.style && (document.getElementById(`${gridName}_update`).style.display = 'block');
+            document.getElementById(`${gridName}_cancel`)?.style && (document.getElementById(`${gridName}_cancel`).style.display = 'block');
+        }
+    }
+
+    function applySavedGridPreferences(gridName) {
+        const grid = document.getElementById(gridName)?.ej2_instances?.[0];
+        if (!grid) return;
+
+        const prefs = getGlobalGridPrefs();
+
+        const editModeDDL = document.getElementById(`${gridName}_EditModeDDL`);
+        const rowHeightDDL = document.getElementById(`${gridName}_RowHeightDDL`);
+
+        const preferredMode = grid.element?.dataset?.preferredEditMode;
+        const hasDialogLayout = !!grid.element?.dataset?.editorDialogLayout;
+        const mode = preferredMode || (hasDialogLayout ? "Dialog" : (prefs.editMode || "Normal"));
+        const rowHeight = prefs.rowHeight ?? "";
+
+        grid.editSettings = Object.assign({}, grid.editSettings || {}, {
+            mode: mode
+        });
+
+        if (editModeDDL) {
+            editModeDDL.value = mode;
+        }
+
+        if (rowHeight === "" || rowHeight == null) {
+            grid.rowHeight = null;
+        } else {
+            grid.rowHeight = parseInt(rowHeight);
+        }
+
+        if (rowHeightDDL) {
+            rowHeightDDL.value = rowHeight.toString();
+        }
+
+        applyGridEditModeUI(gridName, mode);
+        grid.refresh();
+    }
+
+    function onEditModeChange(select, gridName) {
+        const grid = document.getElementById(gridName)?.ej2_instances?.[0];
+        if (!grid) return;
+
+        const mode = select.value === 'Dialog' ? 'Dialog' : 'Normal';
+
+        grid.editSettings = Object.assign({}, grid.editSettings || {}, {
+            mode: mode
+        });
+
+        applyGridEditModeUI(gridName, mode);
+
+        saveGlobalGridPrefs({
+            editMode: mode
+        });
+
+        grid.refresh();
+    }
+
+    function onRowHeightChange(select, gridName) {
+        const grid = document.getElementById(gridName)?.ej2_instances?.[0];
+        if (!grid) return;
+
+        const value = select.value;
+
+        if (!value) {
+            grid.rowHeight = null;
+
+            saveGlobalGridPrefs({
+                rowHeight: ""
+            });
+        } else {
+            const parsed = parseInt(value);
+            grid.rowHeight = parsed;
+
+            saveGlobalGridPrefs({
+                rowHeight: parsed
+            });
+        }
+
+        grid.refresh();
+    }
+
+    (function () {
+        const gridName = '@Model.GridName';
+        const localArea = '@Model.Area';
+
+        function afterInit() {
+            const gridEl = document.getElementById(gridName);
+            const grid = gridEl?.ej2_instances?.[0];
+            if (!grid) { requestAnimationFrame(afterInit); return; }
+
+            window.__msgInstances = window.__msgInstances || {};
+            window.__msgInstances[gridName] = document.getElementById(gridName + "_MSG")?.ej2_instances?.[0];
+
+            try {
+                // Server-side mode: bind DataManager once. The grid issues one POST per page/sort/filter/search
+                // change to the configured URL (paged or translator-paged endpoint on GridDataController).
+                // The FormSessionId header is required by AppAuthorizeHelper on the backend to scope auth to this form.
+                const __pageSize = @(Model.PageSize ?? 20);
+                const __remoteUrl = '@Html.Raw(Model.RemoteUrl ?? "/api/griddata/paged")';
+
+                grid.pageSettings = grid.pageSettings || {};
+                grid.pageSettings.pageSize = __pageSize;
+                grid.allowPaging = true;
+
+                // Default Menu-filter operator for strings is "startswith" which is unintuitive for free-text
+                // search ("ab" never matches "lab"). Make Contains the first (= default) operator so the user
+                // gets substring matching out of the box; the other operators stay available in the dropdown.
+                grid.filterSettings = grid.filterSettings || {};
+                grid.filterSettings.operators = Object.assign({}, grid.filterSettings.operators, {
+                    stringOperator: [
+                        { value: 'contains',          text: 'Contains' },
+                        { value: 'startswith',        text: 'Starts With' },
+                        { value: 'endswith',          text: 'Ends With' },
+                        { value: 'equal',             text: 'Equal' },
+                        { value: 'notequal',          text: 'Not Equal' }
+                    ]
+                });
+
+                grid.dataSource = new ej.data.DataManager({
+                    url: __remoteUrl,
+                    adaptor: new ej.data.UrlAdaptor(),
+                    crossDomain: false,
+                    headers: [{ FormSessionId: '@Model.FormSessionId' }]
+                });
+
+                // Toolbar Search: fire only on Enter (or when user clears it), not on every keystroke.
+                // Syncfusion's default behavior wires the searchbar input's keyup straight to grid.search(value)
+                // — with a DataManager that means one POST per character (bad UX on a paged grid). We block
+                // the default keyup handler in capture phase for any key other than Enter; Enter passes through
+                // and triggers the normal search. The browser still updates the input's displayed text because
+                // text rendering happens via input/keydown defaults, not the keyup we intercept.
+                const __wireSearchOnEnter = () => {
+                    const __searchInput = document.getElementById(gridName + '_searchbar');
+                    if (!__searchInput || __searchInput.__searchOnEnterOnly) return false;
+                    __searchInput.__searchOnEnterOnly = true;
+
+                    __searchInput.addEventListener('keyup', function (e) {
+                        if (e.key === 'Enter' || e.key === 'Escape') return;
+                        e.stopImmediatePropagation();
+                    }, true);
+
+                    return true;
+                };
+
+                if (!__wireSearchOnEnter()) {
+                    // Toolbar may render slightly after the grid; retry briefly until the searchbar exists.
+                    let __wireRetries = 0;
+                    const __wireTimer = setInterval(() => {
+                        if (__wireSearchOnEnter() || ++__wireRetries > 20) clearInterval(__wireTimer);
+                    }, 100);
+                }
+            } catch (e) { console.warn(e); }
+
+            if (typeof gridDataBound === "function") {
+                try { gridDataBound(grid, localArea); } catch (e) { console.warn(e); }
+            }
+
+            applySavedGridPreferences(gridName);
+
+            const hasEditBtn = !!document.querySelector(`.e-toolbar-item[title='Edit'], #${gridName}_Edit`);
+            if (!hasEditBtn) {
+                grid.editSettings = Object.assign({}, grid.editSettings || {}, {
+                    allowEditing: false,
+                    allowEditOnDblClick: false
+                });
+                grid.dataBind();
+                gridEl.addEventListener("dblclick", function (e) { e.stopPropagation(); }, true);
+            }
+
+            if (gridEl.offsetWidth === 0) {
+                const mo = new MutationObserver(() => {
+                    if (gridEl.offsetWidth > 0) {
+                        try { grid.refresh(); } catch { }
+                        mo.disconnect();
+                    }
+                });
+                mo.observe(document.body, { attributes: true, childList: true, subtree: true });
+            }
+
+            const visibleCols = (grid.getColumns?.() ?? grid.columns ?? []).filter(c => c.visible !== false);
+            // if (visibleCols.length > 5) {
+                 //setTimeout(() => grid.autoFitColumns(), 0);
+            // }
+        }
+
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', afterInit, { once: true });
+        } else {
+            afterInit();
+        }
+    })();
+</script>
+
+
+
+
+
+<style>
+    .e-dialog.e-edit-dialog {
+        width: 900px !important;
+    }
+
+    .e-dialog.e-edit-dialog .ds-grid-editor-layout {
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+        padding: 4px 0;
+    }
+
+    .e-dialog.e-edit-dialog .ds-grid-editor-intro {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 16px;
+        margin-bottom: 2px;
+    }
+
+    .e-dialog.e-edit-dialog .ds-grid-editor-context {
+        min-width: 220px;
+        flex: 1 1 280px;
+    }
+
+    .e-dialog.e-edit-dialog .ds-grid-editor-context .ds-grid-editor-field {
+        max-width: 360px;
+    }
+
+    .e-dialog.e-edit-dialog .ds-grid-editor-meta {
+        display: flex;
+        flex: 1 1 360px;
+        flex-direction: column;
+        align-items: flex-start;
+        justify-content: flex-end;
+        gap: 4px;
+        text-align: right;
+    }
+
+    .e-dialog.e-edit-dialog .ds-grid-editor-meta .badge {
+        align-self: flex-end;
+    }
+
+    .e-dialog.e-edit-dialog .ds-grid-editor-card {
+        border: 1px solid #d9dee3;
+        border-radius: 4px;
+        background: #fff;
+        overflow: hidden;
+    }
+
+    .e-dialog.e-edit-dialog .ds-grid-editor-card-header {
+        padding: 8px 14px;
+        border-bottom: 1px solid #d9dee3;
+        font-weight: 600;
+        background: #fff;
+    }
+
+    .e-dialog.e-edit-dialog .ds-grid-editor-card-body {
+        display: grid;
+        grid-template-columns: repeat(var(--ds-dialog-columns, 2), minmax(0, 1fr));
+        gap: 18px;
+        padding: 18px 14px 14px;
+    }
+
+    .e-dialog.e-edit-dialog .ds-grid-editor-note {
+        align-self: center;
+        line-height: 1.4;
+    }
+
+    .e-dialog.e-edit-dialog .ds-grid-editor-field tr,
+    .e-dialog.e-edit-dialog .ds-grid-editor-field tbody,
+    .e-dialog.e-edit-dialog .ds-grid-editor-field table {
+        display: block;
+        width: 100%;
+    }
+
+    .e-dialog.e-edit-dialog .ds-grid-editor-field td {
+        display: block;
+        width: 100% !important;
+        padding: 0 !important;
+        border: 0 !important;
+    }
+
+    .e-dialog.e-edit-dialog .ds-grid-editor-field .e-input-group,
+    .e-dialog.e-edit-dialog .ds-grid-editor-field .e-control-wrapper,
+    .e-dialog.e-edit-dialog .ds-grid-editor-field .e-dropdownlist,
+    .e-dialog.e-edit-dialog .ds-grid-editor-field .e-numerictextbox,
+    .e-dialog.e-edit-dialog .ds-grid-editor-field .e-datepicker {
+        width: 100% !important;
+    }
+
+    .e-toolbar-item .e-tbar-btn-text {
+        display: none;
+    }
+
+    #Grid_Inline {
+        background-color: #86b7fe;
+    }
+
+    .toolbar-select {
+        width: 90px;
+        height: 32px;
+        padding: 2px 28px 2px 10px;
+        border-radius: 6px;
+        line-height: 1.25;
+    }
+
+    .e-toolbar-item #Grid_EditModeDDL {
+        margin-left: 6px;
+    }
+
+    .e-grid .e-editcell .file-uploader-wide {
+        width: 180px !important;
+        max-width: 180px !important;
+    }
+
+    .e-grid .e-rowcell,
+    .e-grid .e-editcell {
+        padding-top: 4px !important;
+        padding-bottom: 4px !important;
+    }
+
+        .e-grid .e-editcell .e-control-wrapper,
+        .e-grid .e-editcell .e-input-group {
+            height: 100%;
+            width: 100%;
+            display: flex;
+            align-items: center;
+        }
+
+    .ds-editdlg-2col table.ds-two-col tbody {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 14px 14px;
+    }
+
+        .ds-editdlg-2col table.ds-two-col tbody tr {
+            display: contents;
+        }
+
+    .ds-editdlg-2col table.ds-two-col td.e-rowcell {
+        width: 400px !important;
+        min-width: 400px !important;
+        max-width: 400px !important;
+        box-sizing: border-box;
+    }
+
+        .ds-editdlg-2col table.ds-two-col td.e-rowcell > * {
+            width: 100% !important;
+            max-width: none !important;
+        }
+</style>

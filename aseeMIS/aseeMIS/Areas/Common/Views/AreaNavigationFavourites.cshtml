@@ -1,0 +1,766 @@
+<style>
+    .favourites-layout {
+        display: flex;
+        gap: 1rem;
+    }
+
+    .favourites-tree-pane {
+        flex: 1 1 80%;
+        min-width: 0;
+    }
+
+    .favourites-cards-pane {
+        flex: 0 0 20%;
+        max-width: 420px;
+    }
+
+    .favourites-tree-scroll {
+        height: 80vh;
+        overflow: auto;
+        border: 1px solid #eee;
+        border-radius: 8px;
+        padding: .5rem;
+        background: #fff;
+    }
+
+    .favourites-list {
+        display: flex;
+        flex-direction: column;
+        gap: .5rem;
+    }
+
+    .favourites-panel {
+        display: flex;
+        flex-direction: column;
+        gap: .65rem;
+        max-height: 80vh;
+        overflow: auto;
+    }
+
+    .favourites-search-wrap {
+        position: sticky;
+        z-index: 2;
+        top: 0;
+        display: flex;
+        align-items: center;
+        gap: .5rem;
+        background: #f8fafc;
+    }
+
+    .favourites-search {
+        min-width: 0;
+        flex: 1 1 auto;
+        padding: .55rem .75rem;
+        border: 1px solid #ced4da;
+        border-radius: 10px;
+        background: #fff;
+    }
+
+    .favourites-search-wrap .e-input-group {
+        min-width: 0;
+        flex: 1 1 auto;
+    }
+
+    .favourites-filter-button {
+        flex: 0 0 auto;
+        width: 32px;
+        height: 32px;
+        padding: 0;
+        border: 0;
+        background: transparent;
+        color: inherit;
+        font-size: 1.05rem;
+    }
+
+    .favourites-filter-button.e-btn,
+    .favourites-filter-button.e-btn:hover,
+    .favourites-filter-button.e-btn:focus {
+        border: 0;
+        background: transparent;
+        color: inherit;
+        box-shadow: none;
+    }
+
+    .favourites-filter-button .e-caret {
+        display: none;
+    }
+
+    .favourite-pill {
+        display: flex;
+        align-items: center;
+        width: 100%;
+        border: 0;
+        border-bottom: 1px solid #eee;
+        border-radius: 0;
+        background: transparent;
+        overflow: hidden;
+    }
+
+    .favourite-pill:hover {
+        background: transparent;
+    }
+
+    .favourite-open {
+        display: flex;
+        align-items: center;
+        justify-content: flex-start;
+        gap: .5rem;
+        min-width: 0;
+        flex: 1 1 auto;
+        padding: .4rem .5rem;
+        border: 0;
+        background: transparent;
+        cursor: pointer;
+        text-align: left;
+    }
+
+    .favourite-open.e-btn,
+    .favourite-open.e-btn:hover,
+    .favourite-open.e-btn:focus {
+        width: calc(100% - 34px);
+        min-height: 32px;
+        border: 0;
+        background: transparent;
+        box-shadow: none;
+        text-align: left;
+    }
+
+    .favourite-open .icon {
+        flex: 0 0 20px;
+        width: 20px;
+        color: #0d9dda;
+        font-size: 1rem;
+        text-align: center;
+    }
+
+    .favourite-open .title {
+        min-width: 0;
+        flex: 1 1 auto;
+        display: block;
+        overflow: hidden;
+        font-size: .86rem;
+        font-weight: 500;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .favourite-remove {
+        align-self: center;
+        flex: 0 0 auto;
+        width: 26px;
+        height: 26px;
+        margin-right: .25rem;
+        padding: 0;
+        border: 0;
+        background: transparent;
+        color: #6c757d;
+        font-size: .8rem;
+        line-height: 1;
+    }
+
+    .favourite-remove.e-btn:hover,
+    .favourite-remove.e-btn:focus {
+        border: 0;
+        background: transparent;
+        color: #dc3545;
+        box-shadow: none;
+    }
+
+    .favourite-remove:disabled {
+        cursor: wait;
+        opacity: .5;
+    }
+
+    #favouritesList.e-listview {
+        border: 0;
+        background: transparent;
+    }
+
+    #favouritesList.e-listview .e-list-item {
+        height: auto;
+        padding: 0;
+        border-bottom: 0;
+        min-height: 34px;
+    }
+
+    .tv-favourite-node {
+        display: flex;
+        align-items: center;
+        width: 100%;
+        min-width: 0;
+    }
+
+    .tv-favourite-node .node-title {
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .tv-favourite-node .favourite-toggle {
+        flex: 0 0 auto;
+        margin-left: auto;
+        padding: 0 .35rem;
+        border: 0;
+        background: transparent;
+        color: #f6c000;
+        font-size: 1.05rem;
+        line-height: 1.5;
+    }
+
+    .tv-favourite-node .favourite-toggle:disabled {
+        cursor: wait;
+        opacity: .55;
+    }
+
+    .favourites-empty {
+        padding: 1rem;
+        border: 1px dashed #ccc;
+        border-radius: 12px;
+        color: #6c757d;
+        text-align: center;
+    }
+
+    @@media (max-width: 992px) {
+        .favourites-layout {
+            flex-direction: column;
+        }
+
+        .favourites-cards-pane {
+            flex-basis: auto;
+            max-width: none;
+        }
+
+        .favourites-panel {
+            max-height: none;
+        }
+    }
+</style>
+
+@Html.AntiForgeryToken()
+
+<div class="favourites-layout">
+    <div class="favourites-tree-pane">
+        <div class="favourites-tree-scroll">
+            <div id="favouritesMenuTree"></div>
+        </div>
+    </div>
+
+    <aside class="favourites-cards-pane">
+        <div class="favourites-panel">
+            <div class="favourites-search-wrap">
+                <input id="favouritesSearch" class="favourites-search" type="search"
+                       placeholder="Search favourites..." aria-label="Search favourites" autocomplete="off" />
+                <button id="favouritesFilterButton" class="favourites-filter-button" type="button"
+                        title="Filtro favourites" aria-label="Filtro favourites"></button>
+            </div>
+            <div id="favouritesList" class="favourites-list" aria-live="polite"></div>
+            <div id="favouritesEmpty" class="favourites-empty d-none" aria-live="polite"></div>
+        </div>
+    </aside>
+</div>
+
+<script id="favouriteListTemplate" type="text/x-template">
+    <div class="favourite-pill" data-id="${id}">
+        <button type="button" class="e-btn e-flat favourite-open" data-id="${id}">
+            <i class="${icon} icon" aria-hidden="true"></i>
+            <span class="title">${name}</span>
+        </button>
+        <button type="button" class="e-btn e-flat e-icon-btn favourite-remove" data-id="${id}"
+                title="Hiqe nga favourites" aria-label="Hiqe ${name} nga favourites">
+            <i class="bi bi-x-lg" aria-hidden="true"></i>
+        </button>
+    </div>
+</script>
+
+<script id="favouritesMenuNodeTemplate" type="text/x-template">
+    <div class="tv-favourite-node" data-node-id="${id}" data-desc="${desc}">
+        <i class="${icon} me-2" aria-hidden="true"></i>
+        <span class="node-title">${name}</span>
+        <button type="button" class="favourite-toggle d-none" aria-label="Shto në favourites" title="Shto në favourites">
+            <i class="bi bi-star" aria-hidden="true"></i>
+        </button>
+    </div>
+</script>
+
+@section Scripts {
+    <script>
+        (() => {
+            const rawTargetFormKey = @Html.Raw(Newtonsoft.Json.JsonConvert.SerializeObject(ViewBag.TargetFormKey));
+            const getUrl = '@Url.Action("GetByCurrentUser", "AppFormFavorite", new { area = "AppMng" })';
+            const addUrl = '@Url.Action("Add", "AppFormFavorite", new { area = "AppMng" })';
+            const removeUrl = '@Url.Action("Remove", "AppFormFavorite", new { area = "AppMng" })';
+            const csrfToken = document.querySelector('input[name="__RequestVerificationToken"]')?.value || '';
+
+            window.addEventListener('load', async function () {
+                if (!window.ej || !ej.navigations) {
+                    console.error('EJ2 missing');
+                    return;
+                }
+
+                let source = [];
+                try {
+                    source = JSON.parse(localStorage.getItem('formHierarchy') || '[]');
+                } catch {
+                    source = [];
+                }
+
+                if (!Array.isArray(source) || !source.length)
+                    return;
+
+                const toNumber = value => value == null || value === '' ? null : Number(value);
+                const nodes = source.map(item => {
+                    const id = toNumber(item.FormId ?? item.formId);
+                    let parentId = toNumber(item.FormParentId ?? item.formParentId);
+                    if (parentId === id) parentId = null;
+
+                    const icon = String(item.FormIcon ?? item.formIcon ?? '').trim();
+                    return {
+                        id,
+                        pid: parentId,
+                        name: `${id} - ${item.FormTitle ?? item.formTitle ?? ''}`,
+                        formType: String(item.FormType ?? item.formType ?? ''),
+                        icon: icon || 'bi bi-record2',
+                        url: String(item.FormHref ?? item.formHref ?? ''),
+                        desc: String(item.FormDescription ?? item.formDescription ?? ''),
+                        isFavorite: Boolean(item.IsFavorite ?? item.isFavorite ?? false)
+                    };
+                });
+
+                const parentIds = new Set(nodes.filter(node => node.pid != null).map(node => node.pid));
+                nodes.forEach(node => node.hasChild = parentIds.has(node.id));
+                nodes.sort((a, b) => ((a.pid ?? -1) - (b.pid ?? -1)) || (a.id - b.id));
+
+                const nodeById = new Map(nodes.map(node => [node.id, node]));
+                const root = nodes.find(node => node.pid == null);
+                const rootId = root?.id ?? null;
+                const favoriteIds = new Set();
+                const favouritesHost = document.getElementById('favouritesList');
+                const favouritesSearch = document.getElementById('favouritesSearch');
+                const favouritesFilterButton = document.getElementById('favouritesFilterButton');
+                const favouritesEmpty = document.getElementById('favouritesEmpty');
+                let favouritesFilter = '';
+                let favouritesTypeFilter = 'all';
+
+                const favouritesTextBox = new ej.inputs.TextBox({
+                    placeholder: 'Search favourites...',
+                    showClearButton: true
+                });
+                favouritesTextBox.appendTo(favouritesSearch);
+
+                const favouritesFilterControl = new ej.splitbuttons.DropDownButton({
+                    items: [
+                        { id: 'all', text: 'Te gjitha favourites' },
+                        { id: 'reports', text: 'Reports' },
+                        { id: 'favorites', text: 'Favorites' }
+                    ],
+                    iconCss: 'e-icons e-filter',
+                    cssClass: 'e-flat e-icon-btn',
+                    select: function (args) {
+                        favouritesTypeFilter = args.item.id || 'all';
+                        applyFavouritesFilter();
+                    }
+                });
+                favouritesFilterControl.appendTo(favouritesFilterButton);
+
+                const favouritesListView = new ej.lists.ListView({
+                    dataSource: [],
+                    fields: { id: 'id', text: 'name' },
+                    template: '#favouriteListTemplate'
+                });
+                favouritesListView.appendTo(favouritesHost);
+
+                new ej.popups.Tooltip({
+                    target: '#favouritesList .favourite-open',
+                    position: 'BottomCenter',
+                    beforeRender: function (args) {
+                        const node = nodeById.get(Number(args.target.dataset.id));
+                        this.content = node?.name || '';
+                    }
+                }, '#favouritesList');
+
+                function isFavouriteCandidate(node) {
+                    return Boolean(node && !node.hasChild && node.url.trim().length > 0);
+                }
+
+                function findTopLevelGroup(node) {
+                    let current = node;
+                    while (current && current.pid != null && current.pid !== rootId) {
+                        current = nodeById.get(current.pid);
+                    }
+
+                    return current?.pid === rootId && current.hasChild ? current : null;
+                }
+
+                function getNodePath(node) {
+                    const parts = [];
+                    let current = node;
+                    while (current) {
+                        parts.unshift(current.name);
+                        current = nodeById.get(current.pid);
+                    }
+                    return parts.join(' / ');
+                }
+
+                function normalizeSearchText(value) {
+                    return String(value || '')
+                        .normalize('NFD')
+                        .replace(/[\u0300-\u036f]/g, '')
+                        .toLowerCase();
+                }
+
+                function renderFavourites() {
+                    const favourites = [...favoriteIds]
+                        .map(id => nodeById.get(id))
+                        .filter(isFavouriteCandidate);
+
+                    const visibleFavourites = favourites.filter(node => {
+                        const isMenuType = node.formType.trim().toUpperCase() === 'MENU';
+                        if (favouritesTypeFilter === 'reports' && !isMenuType) return false;
+                        if (favouritesTypeFilter === 'favorites' && isMenuType) return false;
+                        if (!favouritesFilter) return true;
+                        return normalizeSearchText(
+                            `${node.name} ${node.desc} ${getNodePath(node)}`
+                        ).includes(favouritesFilter);
+                    });
+
+                    favouritesListView.dataSource = visibleFavourites.map(node => ({
+                        id: node.id,
+                        name: node.name,
+                        icon: node.icon,
+                        path: getNodePath(node)
+                    }));
+                    favouritesListView.dataBind();
+
+                    favouritesEmpty.classList.toggle('d-none', visibleFavourites.length > 0);
+                    favouritesEmpty.textContent = favourites.length
+                        ? 'Nuk u gjet asnje menu.'
+                        : 'Nuk keni ende menu te preferuara.';
+                    return;
+
+                    if (!favourites.length) {
+                        const empty = document.createElement('div');
+                        empty.className = 'favourites-empty';
+                        empty.textContent = 'Nuk keni ende menu të preferuara.';
+                        favouritesHost.appendChild(empty);
+                        return;
+                    }
+
+                    const legacyVisibleFavourites = favourites.filter(node => {
+                        if (!favouritesFilter) return true;
+                        return normalizeSearchText(
+                            `${node.name} ${node.desc} ${getNodePath(node)}`
+                        ).includes(favouritesFilter);
+                    });
+
+                    if (!legacyVisibleFavourites.length) {
+                        const empty = document.createElement('div');
+                        empty.className = 'favourites-empty';
+                        empty.textContent = 'Nuk u gjet asnje menu.';
+                        favouritesHost.appendChild(empty);
+                        return;
+                    }
+
+                    for (const node of legacyVisibleFavourites) {
+                        const item = document.createElement('div');
+                        item.className = 'favourite-pill';
+                        item.dataset.id = String(node.id);
+
+                        const openButton = document.createElement('button');
+                        openButton.type = 'button';
+                        openButton.className = 'favourite-open';
+                        openButton.dataset.id = String(node.id);
+                        openButton.title = getNodePath(node);
+
+                        const icon = document.createElement('i');
+                        icon.className = `${node.icon} icon`;
+                        icon.setAttribute('aria-hidden', 'true');
+
+                        const title = document.createElement('span');
+                        title.className = 'title';
+                        title.textContent = node.name;
+
+                        const removeButton = document.createElement('button');
+                        removeButton.type = 'button';
+                        removeButton.className = 'favourite-remove';
+                        removeButton.dataset.id = String(node.id);
+                        removeButton.title = 'Hiqe nga favourites';
+                        removeButton.setAttribute('aria-label', `Hiqe ${node.name} nga favourites`);
+                        removeButton.innerHTML = '<i class="bi bi-x-lg" aria-hidden="true"></i>';
+
+                        openButton.append(icon, title);
+                        item.append(openButton, removeButton);
+                        favouritesHost.appendChild(item);
+                    }
+                    return;
+
+                    const groups = new Map();
+                    for (const favourite of favourites) {
+                        const groupNode = findTopLevelGroup(favourite);
+                        const groupKey = groupNode ? String(groupNode.id) : 'other';
+                        if (!groups.has(groupKey)) {
+                            groups.set(groupKey, {
+                                node: groupNode,
+                                title: groupNode?.name || 'Të tjera',
+                                favourites: []
+                            });
+                        }
+                        groups.get(groupKey).favourites.push(favourite);
+                    }
+
+                    const orderedGroups = [...groups.values()].sort((a, b) => {
+                        if (!a.node) return 1;
+                        if (!b.node) return -1;
+                        return a.node.id - b.node.id;
+                    });
+
+                    for (const group of orderedGroups) {
+                        const section = document.createElement('section');
+                        section.className = 'favourite-group';
+
+                        const heading = document.createElement('button');
+                        heading.type = 'button';
+                        heading.className = 'favourite-group-title';
+                        heading.textContent = group.title;
+                        if (group.node) {
+                            heading.dataset.groupId = String(group.node.id);
+                            heading.title = 'Shfaq këtë grup në menu';
+                        }
+                        section.appendChild(heading);
+
+                        for (const node of group.favourites) {
+                            const button = document.createElement('button');
+                            button.type = 'button';
+                            button.className = 'favourite-pill';
+                            button.dataset.id = String(node.id);
+                            button.title = node.desc || node.name;
+
+                            const icon = document.createElement('i');
+                            icon.className = `${node.icon} icon`;
+                            icon.setAttribute('aria-hidden', 'true');
+
+                            const title = document.createElement('span');
+                            title.className = 'title';
+                            title.textContent = node.name;
+
+                            button.append(icon, title);
+                            section.appendChild(button);
+                        }
+
+                        favouritesHost.appendChild(section);
+                    }
+                }
+
+                function refreshStars() {
+                    document.querySelectorAll('#favouritesMenuTree .tv-favourite-node').forEach(element => {
+                        const node = nodeById.get(Number(element.dataset.nodeId));
+                        const button = element.querySelector('.favourite-toggle');
+                        if (!button || !isFavouriteCandidate(node)) return;
+
+                        const selected = favoriteIds.has(node.id);
+                        button.classList.remove('d-none');
+                        button.classList.toggle('is-favourite', selected);
+                        button.title = selected ? 'Hiqe nga favourites' : 'Shto në favourites';
+                        button.setAttribute('aria-label', button.title);
+                        button.setAttribute('aria-pressed', String(selected));
+
+                        const icon = button.querySelector('i');
+                        icon.className = selected ? 'bi bi-star-fill' : 'bi bi-star';
+                    });
+                }
+
+                async function loadFavourites() {
+                    const response = await fetch(getUrl, {
+                        method: 'GET',
+                        headers: { 'Accept': 'application/json' }
+                    });
+                    if (!response.ok) throw new Error('Favourites nuk mund të lexohen.');
+
+                    const ids = await response.json();
+                    favoriteIds.clear();
+                    ids.forEach(id => favoriteIds.add(Number(id)));
+                    renderFavourites();
+                    refreshStars();
+                }
+
+                async function changeFavourite(node, button) {
+                    const removing = favoriteIds.has(node.id);
+                    button.disabled = true;
+
+                    try {
+                        const response = await fetch(removing ? removeUrl : addUrl, {
+                            method: 'POST',
+                            headers: {
+                                'Accept': 'application/json',
+                                'Content-Type': 'application/json',
+                                'RequestVerificationToken': csrfToken
+                            },
+                            body: JSON.stringify({ FormId: node.id })
+                        });
+
+                        if (!response.ok) throw new Error('Ndryshimi nuk mund të ruhet.');
+
+                        if (removing) favoriteIds.delete(node.id);
+                        else favoriteIds.add(node.id);
+
+                        try {
+                            const cachedMenus = JSON.parse(localStorage.getItem('formHierarchy') || '[]');
+                            if (Array.isArray(cachedMenus)) {
+                                const cachedMenu = cachedMenus.find(item =>
+                                    Number(item.FormId ?? item.formId) === Number(node.id));
+                                if (cachedMenu) {
+                                    cachedMenu.IsFavorite = !removing;
+                                    localStorage.setItem('formHierarchy', JSON.stringify(cachedMenus));
+                                }
+                            }
+                        } catch (cacheError) {
+                            console.warn('Menu cache could not be updated.', cacheError);
+                        }
+
+                        if (typeof window.renderSidebarFavoriteMenus === 'function') {
+                            window.renderSidebarFavoriteMenus();
+                        }
+                        renderFavourites();
+                        refreshStars();
+                    } catch (error) {
+                        console.error(error);
+                        window.alert('Favourites nuk mund të përditësohen. Ju lutem provoni përsëri.');
+                    } finally {
+                        button.disabled = false;
+                    }
+                }
+
+                const tree = new ej.navigations.TreeView({
+                    fields: {
+                        dataSource: nodes,
+                        id: 'id',
+                        parentID: 'pid',
+                        text: 'name',
+                        hasChildren: 'hasChild'
+                    },
+                    nodeTemplate: '#favouritesMenuNodeTemplate',
+                    expandOn: 'Click',
+                    expandedNodes: nodes.filter(node => node.pid == null).map(node => String(node.id)),
+                    nodeClicked: function (args) {
+                        if (args.event?.target?.closest('.favourite-toggle')) return;
+
+                        const uid = args.node?.getAttribute('data-uid');
+                        const node = uid ? (tree.getTreeData(uid) || [])[0] : null;
+                        if (!node || node.hasChild || !node.url.trim()) return;
+
+                        const href = new URL(node.url, args.node.baseURI).href;
+                        if (args.event?.ctrlKey || args.event?.metaKey) window.open(href, '_blank');
+                        else window.location.href = href;
+                    },
+                    nodeExpanded: refreshStars,
+                    dataBound: refreshStars
+                }, '#favouritesMenuTree');
+
+                document.getElementById('favouritesMenuTree').addEventListener('click', async event => {
+                    const button = event.target.closest('.favourite-toggle');
+                    if (!button) return;
+
+                    event.preventDefault();
+                    event.stopPropagation();
+                    const wrapper = button.closest('.tv-favourite-node');
+                    const node = nodeById.get(Number(wrapper?.dataset.nodeId));
+                    if (isFavouriteCandidate(node)) await changeFavourite(node, button);
+                });
+
+                function applyFavouritesFilter() {
+                    favouritesFilter = normalizeSearchText(favouritesSearch.value.trim());
+                    renderFavourites();
+                }
+
+                favouritesSearch.addEventListener('keydown', function (event) {
+                    if (event.key === 'Enter') {
+                        event.preventDefault();
+                        applyFavouritesFilter();
+                    }
+                });
+
+                favouritesSearch.addEventListener('input', function () {
+                    if (!this.value) applyFavouritesFilter();
+                });
+
+                favouritesHost.addEventListener('click', async event => {
+                    const removeButton = event.target.closest('.favourite-remove');
+                    if (removeButton) {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        const node = nodeById.get(Number(removeButton.dataset.id));
+                        if (isFavouriteCandidate(node)) await changeFavourite(node, removeButton);
+                        return;
+                    }
+
+                    const button = event.target.closest('.favourite-open');
+                    const node = nodeById.get(Number(button?.dataset.id));
+                    if (!isFavouriteCandidate(node)) return;
+                    window.location.href = new URL(node.url, document.baseURI).href;
+                });
+
+                new ej.popups.Tooltip({
+                    target: '#favouritesMenuTree .e-list-item',
+                    position: 'RightTop',
+                    beforeRender: function (args) {
+                        const wrapper = args.target.querySelector('.tv-favourite-node');
+                        this.content = wrapper?.dataset?.desc || wrapper?.innerText || '';
+                    }
+                }, '#favouritesMenuTree');
+
+                function findListItem(nodeId) {
+                    for (const item of tree.element.querySelectorAll('li.e-list-item')) {
+                        const uid = item.getAttribute('data-uid');
+                        const data = (tree.getTreeData(uid) || [])[0];
+                        if (data && Number(data.id) === Number(nodeId)) return item;
+                    }
+                    return null;
+                }
+
+                function focusNode(target) {
+                    const ancestorIds = [];
+                    let current = target;
+                    while (current?.pid != null) {
+                        ancestorIds.unshift(current.pid);
+                        current = nodeById.get(current.pid);
+                    }
+
+                    for (const ancestorId of ancestorIds) {
+                        const item = findListItem(ancestorId);
+                        if (item) tree.expandAll([item], 1);
+                    }
+
+                    const targetItem = findListItem(target.id);
+                    if (targetItem) {
+                        if (target.hasChild) tree.expandAll([targetItem], 1);
+                        tree.selectedNodes = [String(target.id)];
+                        targetItem.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    }
+                }
+
+                function selectTargetNode() {
+                    if (rawTargetFormKey == null) return;
+                    const key = String(rawTargetFormKey).trim();
+                    if (!key || key.toLowerCase() === 'null' || key.toLowerCase() === 'undefined') return;
+
+                    const numericKey = Number(key);
+                    const target = !Number.isNaN(numericKey)
+                        ? nodes.find(node => node.id === numericKey)
+                        : nodes.find(node => node.name.toLowerCase().includes(key.toLowerCase()));
+                    if (!target) return;
+
+                    focusNode(target);
+                }
+
+                try {
+                    await loadFavourites();
+                } catch (error) {
+                    console.error(error);
+                    favouritesHost.innerHTML = '<div class="favourites-empty">Favourites nuk mund të ngarkohen.</div>';
+                }
+
+                selectTargetNode();
+            });
+        })();
+    </script>
+}

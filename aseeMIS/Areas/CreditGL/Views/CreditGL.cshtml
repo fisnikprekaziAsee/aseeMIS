@@ -1,0 +1,353 @@
+@model aseeMIS.Areas.CreditGL.ViewModels.CreditGLJournalPageViewModel
+@using Syncfusion.EJ2
+
+@{
+    ViewData["Title"] = "Credit GL Journal";
+
+    var ChildGrid = new Syncfusion.EJ2.Grids.Grid()
+    {
+        DataSource = Model.Lines,
+        QueryString = "JournalId",
+        GridLines = Syncfusion.EJ2.Grids.GridLine.Both,
+        AllowPaging = true,
+        AllowSorting = true,
+        AllowResizing = true,
+        AllowTextWrap = true,
+        Columns = new List<Syncfusion.EJ2.Grids.GridColumn>
+        {
+            new()
+            {
+                Field = "JournalLineId",
+                HeaderText = "Line ID",
+                Width = "100",
+                TextAlign = Syncfusion.EJ2.Grids.TextAlign.Right,
+                IsPrimaryKey = true
+            },
+            new()
+            {
+                Field = "JournalId",
+                HeaderText = "Journal ID",
+                Width = "100",
+                TextAlign = Syncfusion.EJ2.Grids.TextAlign.Right
+            },
+            new()
+            {
+                Field = "JournalLineNo",
+                HeaderText = "Line No",
+                Width = "100",
+                TextAlign = Syncfusion.EJ2.Grids.TextAlign.Right
+            },
+            new()
+            {
+                Field = "DrCr",
+                HeaderText = "Dr/Cr",
+                Width = "90",
+                TextAlign = Syncfusion.EJ2.Grids.TextAlign.Center
+            },
+            new()
+            {
+                Field = "CreditGLAccountCode",
+                HeaderText = "GL Account",
+                Width = "130",
+                TextAlign = Syncfusion.EJ2.Grids.TextAlign.Right
+            },
+            new()
+            {
+                Field = "StageCode",
+                HeaderText = "Stage",
+                Width = "100",
+                TextAlign = Syncfusion.EJ2.Grids.TextAlign.Center
+            },
+            new()
+            {
+                Field = "AccountNo",
+                HeaderText = "Account No",
+                Width = "160"
+            },
+            new()
+            {
+                Field = "AccountId",
+                HeaderText = "Account ID",
+                Width = "110",
+                TextAlign = Syncfusion.EJ2.Grids.TextAlign.Right
+            },
+            new()
+            {
+                Field = "Amount",
+                HeaderText = "Amount",
+                Width = "130",
+                Format = "N2",
+                TextAlign = Syncfusion.EJ2.Grids.TextAlign.Right
+            },
+            new()
+            {
+                Field = "AmountComponentCode",
+                HeaderText = "Amount Component",
+                Width = "180"
+            },
+            new()
+            {
+                Field = "Narrative",
+                HeaderText = "Narrative",
+                Width = "300"
+            },
+            new()
+            {
+                HeaderText = "Amort Plan",
+                Width = "120",
+                TextAlign = Syncfusion.EJ2.Grids.TextAlign.Center,
+                Template = "#lineDetailsButtonTemplate"
+            }
+        }
+    };
+}
+
+<div class="container-fluid mt-3">
+
+    <div class="card shadow-sm rounded-3">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">Credit GL Journal</h5>
+        </div>
+
+        <div class="card-body">
+
+            <ejs-grid id="CreditGLJournalHeaderGrid"
+                      dataSource="@Model.Headers"
+                      childGrid="ChildGrid"
+                      width="100%"
+                      height="650"
+                      gridLines="Both"
+                      allowPaging="true"
+                      allowSorting="true"
+                      allowFiltering="true"
+                      allowResizing="true"
+                      allowTextWrap="true"
+                      allowExcelExport="true"
+                      allowPdfExport="true"
+                      enableStickyHeader="true"
+                      enableHover="true"
+                      enableAltRow="true"
+                      toolbar="@(new List<string>() { "Search", "ExcelExport", "PdfExport" })"
+                      toolbarClick="onCreditGLToolbarClick">
+
+                <e-grid-pagesettings pageSize="10" pageSizes="true"></e-grid-pagesettings>
+
+                <e-grid-filtersettings type="Excel"></e-grid-filtersettings>
+
+                <e-grid-sortsettings columns="@(new List<object>
+                                                     {
+                                                         new { field = "CreatedAt", direction = "Descending" }
+                                                     })">
+                </e-grid-sortsettings>
+
+                <e-grid-columns>
+                    <e-grid-column field="JournalId"
+                                   headerText="Journal ID"
+                                   width="110"
+                                   isPrimaryKey="true"
+                                   textAlign="Right">
+                    </e-grid-column>
+
+                    <e-grid-column field="EventTypeCode"
+                                   headerText="Event Type"
+                                   width="150">
+                    </e-grid-column>
+
+                    <e-grid-column field="EventTypeName"
+                                   headerText="Event Type Name"
+                                   width="180">
+                    </e-grid-column>
+
+                    <e-grid-column field="BusinessObjectType"
+                                   headerText="Business Object Type"
+                                   width="190">
+                    </e-grid-column>
+
+                    <e-grid-column field="BusinessObjectId"
+                                   headerText="Business Object ID"
+                                   width="160"
+                                   textAlign="Right">
+                    </e-grid-column>
+
+                    <e-grid-column field="BusinessObjectName"
+                                   headerText="Business Object Name"
+                                   width="220">
+                    </e-grid-column>
+
+                    <e-grid-column field="ProductCode"
+                                   headerText="Product Code"
+                                   width="140">
+                    </e-grid-column>
+
+                    <e-grid-column field="StageFromCode"
+                                   headerText="Stage From"
+                                   width="130"
+                                   textAlign="Center">
+                    </e-grid-column>
+
+                    <e-grid-column field="StageToCode"
+                                   headerText="Stage To"
+                                   width="130"
+                                   textAlign="Center">
+                    </e-grid-column>
+
+                    <e-grid-column field="PostingDate"
+                                   headerText="Posting Date"
+                                   type="date"
+                                   format="yyyy-MM-dd"
+                                   width="140"
+                                   textAlign="Center">
+                    </e-grid-column>
+
+                    <e-grid-column field="ValueDate"
+                                   headerText="Value Date"
+                                   type="date"
+                                   format="yyyy-MM-dd"
+                                   width="140"
+                                   textAlign="Center">
+                    </e-grid-column>
+
+                    <e-grid-column field="CurrencyCode"
+                                   headerText="Currency"
+                                   width="110"
+                                   textAlign="Center">
+                    </e-grid-column>
+
+                    <e-grid-column field="JournalStatus"
+                                   headerText="Status"
+                                   width="140"
+                                   textAlign="Center">
+                    </e-grid-column>
+
+                    <e-grid-column field="SourceRef"
+                                   headerText="Source Ref"
+                                   width="250">
+                    </e-grid-column>
+
+                    <e-grid-column field="CreatedAt"
+                                   headerText="Created At"
+                                   type="datetime"
+                                   format="yyyy-MM-dd HH:mm"
+                                   width="170"
+                                   textAlign="Center">
+                    </e-grid-column>
+                </e-grid-columns>
+            </ejs-grid>
+
+        </div>
+    </div>
+</div>
+
+@* Button template reused by child grid - now opens amort plan *@
+<script id="lineDetailsButtonTemplate" type="text/x-template">
+    <button type="button"
+            class="e-btn e-small e-info"
+            onclick="openAmortPlanFromLine(${JournalId})">
+        Amort Plan
+    </button>
+</script>
+
+<ejs-dialog id="AmortPlanDialog"
+            header="Amortization Plan"
+            visible="false"
+            isModal="true"
+            showCloseIcon="true"
+            width="1300px"
+            target="body">
+    <e-content-template>
+        <div id="amortPlanDialogContent" class="p-3">
+            Loading...
+        </div>
+    </e-content-template>
+</ejs-dialog>
+
+<script>
+    function onCreditGLToolbarClick(args) {
+        const grid = document.getElementById("CreditGLJournalHeaderGrid")?.ej2_instances?.[0];
+        if (!grid) return;
+
+        if (args.item.id === "CreditGLJournalHeaderGrid_excelexport") {
+            grid.excelExport({ hierarchyExportMode: "All" });
+        }
+
+        if (args.item.id === "CreditGLJournalHeaderGrid_pdfexport") {
+            grid.pdfExport({ hierarchyExportMode: "All" });
+        }
+    }
+
+    function getHeaderByJournalId(journalId) {
+        const grid = document.getElementById("CreditGLJournalHeaderGrid")?.ej2_instances?.[0];
+
+        if (!grid) return null;
+
+        const dataSource = grid.dataSource;
+
+        if (!Array.isArray(dataSource)) return null;
+
+        return dataSource.find(x => Number(x.JournalId) === Number(journalId));
+    }
+
+    async function openAmortPlanFromLine(journalId) {
+        const header = getHeaderByJournalId(journalId);
+
+        if (!header) {
+            alert("Parent journal header was not found.");
+            return;
+        }
+
+        const businessObjectId = header.BusinessObjectId;
+
+        if (!businessObjectId) {
+            alert("Business Object ID was not found for this journal.");
+            return;
+        }
+
+        const dialog = document.getElementById("AmortPlanDialog")?.ej2_instances?.[0];
+        const content = document.getElementById("amortPlanDialogContent");
+
+        if (!dialog || !content) {
+            alert("Amort plan popup was not found.");
+            return;
+        }
+
+        content.innerHTML = "Loading...";
+        dialog.show();
+
+        try {
+            const url =
+                '@Url.Action("LoadCreditCaseAmortPlanPreview", "AmortPlan", new { area = "Credit" })'
+                + "?creditCaseId=" + encodeURIComponent(businessObjectId);
+
+            const response = await fetch(url);
+
+            if (!response.ok) {
+                content.innerHTML = "Failed to load amortization plan.";
+                return;
+            }
+
+            const html = await response.text();
+            renderCreditGLModalHtml(content, html);
+        }
+        catch (error) {
+            console.error(error);
+            content.innerHTML = "Unexpected error while loading amortization plan.";
+        }
+    }
+
+    function renderCreditGLModalHtml(content, html) {
+        const nodes = $.parseHTML(html, document, true) || [];
+        $(content).empty();
+        nodes.forEach(node => content.appendChild(node));
+
+        if (window.ds?.entity?.init) {
+            ds.entity.init();
+        }
+
+        if (window.ej?.base) {
+            ej.base.enableRipple(true);
+        }
+    }
+
+
+
+</script>
